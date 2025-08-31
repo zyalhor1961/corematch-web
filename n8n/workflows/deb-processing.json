@@ -1,0 +1,435 @@
+{
+  "name": "DEB Document Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deb/ingest",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "6d5e8b6e-8a4d-4f9d-9b2c-7f8e1a2b3c4d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.signed_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "file",
+              "outputPropertyName": "pdf_data"
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "analyzeDocument",
+        "resource": "documentIntelligence",
+        "endpoint": "={{ $env.AZURE_DOCINTEL_ENDPOINT }}",
+        "key": "={{ $env.AZURE_DOCINTEL_KEY }}",
+        "modelId": "prebuilt-invoice",
+        "documentData": "={{ $node['Download PDF'].json.pdf_data }}"
+      },
+      "id": "b2c3d4e5-f6g7-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "Azure OCR",
+      "type": "n8n-nodes-base.azureDocumentIntelligence",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageType": "multipleMessages",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a document classification expert. Analyze OCR'd pages and classify each as 'invoice', 'delivery_note', or 'other'. Group related pages into document segments. Return ONLY valid JSON."
+            },
+            {
+              "role": "user",
+              "content": "=Classify these document pages:\n\n{{ $json.pages.map(p => `Page ${p.pageNumber}:\n${p.content?.substring(0, 1000)}`).join('\\n\\n') }}\n\nReturn JSON with this structure:\n{\n  \"pages\": [\n    {\n      \"pageNumber\": 1,\n      \"type\": \"invoice\",\n      \"confidence\": 0.95\n    }\n  ],\n  \"segments\": [\n    {\n      \"type\": \"invoice\",\n      \"pages\": [1, 2],\n      \"identifier\": \"INV-001\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "c3d4e5f6-g7h8-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Classify Pages",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "messageType": "multipleMessages",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a document extraction expert. Extract structured data from invoices and map weights from delivery notes. Return ONLY valid JSON."
+            },
+            {
+              "role": "user",
+              "content": "=Extract data from these document segments:\n\nInvoice pages: {{ $json.segments.filter(s => s.type === 'invoice').map(s => s.pages.map(p => $node['Azure OCR'].json.pages.find(pg => pg.pageNumber === p)?.content).join('\\n')).join('\\n\\n---\\n\\n') }}\n\nDelivery note pages: {{ $json.segments.filter(s => s.type === 'delivery_note').map(s => s.pages.map(p => $node['Azure OCR'].json.pages.find(pg => pg.pageNumber === p)?.content).join('\\n')).join('\\n\\n---\\n\\n') }}\n\nReturn JSON with this structure:\n{\n  \"supplier_name\": \"Company Name\",\n  \"supplier_vat\": \"VAT number\",\n  \"supplier_country\": \"FR\",\n  \"invoice_number\": \"INV-001\",\n  \"invoice_date\": \"2024-01-15\",\n  \"currency\": \"EUR\",\n  \"incoterm\": \"DDP\",\n  \"total_ht\": 1000.00,\n  \"shipping_total\": 50.00,\n  \"lines\": [\n    {\n      \"line_no\": 1,\n      \"description\": \"Product description\",\n      \"sku\": \"SKU-001\",\n      \"qty\": 10,\n      \"unit\": \"PCS\",\n      \"unit_price\": 15.50,\n      \"line_amount\": 155.00,\n      \"hs_code\": \"8471609000\",\n      \"country_of_origin\": \"CN\",\n      \"net_mass_kg\": 2.5,\n      \"pages_source\": [1, 2]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "d4e5f6g7-h8i9-0j1k-2l3m-n4o5p6q7r8s9",
+      "name": "Extract Data",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Allocate shipping costs across lines\nconst extractedData = $json;\nconst lines = extractedData.lines || [];\nconst totalShipping = extractedData.shipping_total || 0;\n\nif (lines.length > 0 && totalShipping > 0) {\n  // Calculate total line value for proportional allocation\n  const totalLineValue = lines.reduce((sum, line) => sum + (line.line_amount || 0), 0);\n  \n  if (totalLineValue > 0) {\n    lines.forEach(line => {\n      const proportion = (line.line_amount || 0) / totalLineValue;\n      line.shipping_allocated = Math.round(proportion * totalShipping * 100) / 100;\n      line.customs_value_line = (line.line_amount || 0) + line.shipping_allocated;\n    });\n    \n    // Adjust for rounding errors\n    const allocatedTotal = lines.reduce((sum, line) => sum + (line.shipping_allocated || 0), 0);\n    const difference = totalShipping - allocatedTotal;\n    if (Math.abs(difference) > 0.01 && lines.length > 0) {\n      lines[0].shipping_allocated += difference;\n      lines[0].shipping_allocated = Math.round(lines[0].shipping_allocated * 100) / 100;\n      lines[0].customs_value_line = (lines[0].line_amount || 0) + lines[0].shipping_allocated;\n    }\n  }\n}\n\n// Add metadata\nextractedData.processed_at = new Date().toISOString();\nextractedData.pages_processed = $node['Azure OCR'].json.pages?.length || 0;\n\nreturn [extractedData];"
+      },
+      "id": "e5f6g7h8-i9j0-1k2l-3m4n-o5p6q7r8s9t0",
+      "name": "Allocate Shipping",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "tableId": "documents",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $node['Webhook'].json.document_id }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "parsed"
+            },
+            {
+              "fieldId": "supplier_name",
+              "fieldValue": "={{ $json.supplier_name }}"
+            },
+            {
+              "fieldId": "supplier_vat",
+              "fieldValue": "={{ $json.supplier_vat }}"
+            },
+            {
+              "fieldId": "supplier_country",
+              "fieldValue": "={{ $json.supplier_country }}"
+            },
+            {
+              "fieldId": "invoice_number",
+              "fieldValue": "={{ $json.invoice_number }}"
+            },
+            {
+              "fieldId": "invoice_date",
+              "fieldValue": "={{ $json.invoice_date }}"
+            },
+            {
+              "fieldId": "currency",
+              "fieldValue": "={{ $json.currency }}"
+            },
+            {
+              "fieldId": "incoterm",
+              "fieldValue": "={{ $json.incoterm }}"
+            },
+            {
+              "fieldId": "total_ht",
+              "fieldValue": "={{ $json.total_ht }}"
+            },
+            {
+              "fieldId": "shipping_total",
+              "fieldValue": "={{ $json.shipping_total }}"
+            },
+            {
+              "fieldId": "pages_count",
+              "fieldValue": "={{ $json.pages_processed }}"
+            },
+            {
+              "fieldId": "confidence_avg",
+              "fieldValue": "={{ $node['Classify Pages'].json.pages?.reduce((sum, p) => sum + p.confidence, 0) / $node['Classify Pages'].json.pages?.length }}"
+            }
+          ]
+        },
+        "authentication": "headerAuth",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "apikey",
+          "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+        },
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/documents"
+      },
+      "id": "f6g7h8i9-j0k1-2l3m-4n5o-p6q7r8s9t0u1",
+      "name": "Update Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "document_pages",
+        "dataType": "multipleRows",
+        "rows": "={{ $node['Classify Pages'].json.pages?.map(page => ({\n  document_id: $node['Webhook'].json.document_id,\n  page_no: page.pageNumber,\n  type: page.type,\n  confidence: page.confidence,\n  raw_ocr_data: $node['Azure OCR'].json.pages?.find(p => p.pageNumber === page.pageNumber)\n})) }}",
+        "authentication": "headerAuth",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "apikey",
+          "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+        },
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/document_pages"
+      },
+      "id": "g7h8i9j0-k1l2-3m4n-5o6p-q7r8s9t0u1v2",
+      "name": "Insert Pages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "document_lines",
+        "dataType": "multipleRows",
+        "rows": "={{ $json.lines?.map(line => ({\n  document_id: $node['Webhook'].json.document_id,\n  line_no: line.line_no,\n  description: line.description,\n  sku: line.sku,\n  qty: line.qty,\n  unit: line.unit,\n  unit_price: line.unit_price,\n  line_amount: line.line_amount,\n  hs_code: line.hs_code,\n  country_of_origin: line.country_of_origin,\n  net_mass_kg: line.net_mass_kg,\n  shipping_allocated: line.shipping_allocated,\n  customs_value_line: line.customs_value_line,\n  source_weight: 'ai_estimated',\n  source_hs: line.hs_code ? 'ai_classified' : null,\n  pages_source: line.pages_source\n})) }}",
+        "authentication": "headerAuth",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "apikey",
+          "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+        },
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/document_lines"
+      },
+      "id": "h8i9j0k1-l2m3-4n5o-6p7q-r8s9t0u1v2w3",
+      "name": "Insert Lines",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate CSV export\nconst data = $node['Allocate Shipping'].json;\nconst documentId = $node['Webhook'].json.document_id;\nconst filename = $node['Webhook'].json.filename || 'document';\n\n// CSV headers for DEB export\nconst headers = [\n  'Line No', 'Description', 'SKU', 'Quantity', 'Unit', 'Unit Price',\n  'Line Amount', 'HS Code', 'Country of Origin', 'Net Mass (kg)',\n  'Shipping Allocated', 'Customs Value', 'Source Weight', 'Source HS'\n];\n\n// Generate CSV rows\nconst rows = (data.lines || []).map(line => [\n  line.line_no || '',\n  line.description || '',\n  line.sku || '',\n  line.qty || '',\n  line.unit || '',\n  line.unit_price?.toFixed(4) || '',\n  line.line_amount?.toFixed(2) || '',\n  line.hs_code || '',\n  line.country_of_origin || '',\n  line.net_mass_kg?.toFixed(3) || '',\n  line.shipping_allocated?.toFixed(2) || '',\n  line.customs_value_line?.toFixed(2) || '',\n  line.source_weight || '',\n  line.source_hs || ''\n]);\n\n// Document info header\nconst docInfo = [\n  `# DEB Export - ${filename}`,\n  `# Supplier: ${data.supplier_name || 'Unknown'}`,\n  `# Invoice: ${data.invoice_number || 'Unknown'}`,\n  `# Date: ${data.invoice_date || 'Unknown'}`,\n  `# Total HT: ${data.total_ht?.toFixed(2) || '0.00'} ${data.currency || 'EUR'}`,\n  `# Shipping: ${data.shipping_total?.toFixed(2) || '0.00'} ${data.currency || 'EUR'}`,\n  `# Generated: ${new Date().toISOString()}`,\n  ''\n];\n\n// Combine all parts\nconst csvContent = [\n  ...docInfo,\n  headers.join(';'),\n  ...rows.map(row => \n    row.map(field => \n      typeof field === 'string' && (field.includes(';') || field.includes('\"') || field.includes('\\n'))\n        ? `\"${field.replace(/\"/g, '\"\"')}\"`\n        : field\n    ).join(';')\n  )\n].join('\\n');\n\nconst exportFilename = `${filename.replace(/\\.[^/.]+$/, '')}_DEB_export_${new Date().toISOString().split('T')[0]}.csv`;\n\nreturn [{\n  csv_content: csvContent,\n  export_filename: exportFilename,\n  document_id: documentId,\n  org_id: $node['Webhook'].json.org_id\n}];"
+      },
+      "id": "i9j0k1l2-m3n4-5o6p-7q8r-s9t0u1v2w3x4",
+      "name": "Generate CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "deb-exports",
+        "fileName": "={{ $json.org_id }}/{{ $json.export_filename }}",
+        "fileContent": "={{ $json.csv_content }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "documentId",
+                "value": "={{ $json.document_id }}"
+              },
+              {
+                "name": "exportedAt",
+                "value": "={{ new Date().toISOString() }}"
+              }
+            ]
+          }
+        },
+        "authentication": "headerAuth",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Authorization",
+          "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+        },
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/storage/v1/object/deb-exports/{{ $json.org_id }}/{{ $json.export_filename }}"
+      },
+      "id": "j0k1l2m3-n4o5-6p7q-8r9s-t0u1v2w3x4y5",
+      "name": "Upload CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "documents",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "enriched"
+            },
+            {
+              "fieldId": "export_url",
+              "fieldValue": "={{ $node['Generate CSV'].json.org_id }}/{{ $node['Generate CSV'].json.export_filename }}"
+            }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $node['Webhook'].json.document_id }}"
+            }
+          ]
+        },
+        "authentication": "headerAuth",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "apikey",
+          "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+        },
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/documents"
+      },
+      "id": "k1l2m3n4-o5p6-7q8r-9s0t-u1v2w3x4y5z6",
+      "name": "Final Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Azure OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OCR": {
+      "main": [
+        [
+          {
+            "node": "Classify Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Pages": {
+      "main": [
+        [
+          {
+            "node": "Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Allocate Shipping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allocate Shipping": {
+      "main": [
+        [
+          {
+            "node": "Update Document",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Pages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Lines",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate CSV": {
+      "main": [
+        [
+          {
+            "node": "Upload CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload CSV": {
+      "main": [
+        [
+          {
+            "node": "Final Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "1",
+      "name": "deb-processing"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

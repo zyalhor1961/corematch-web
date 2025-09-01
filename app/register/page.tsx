@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../components/ui/button';
 import { supabase } from '@/lib/supabase/client';
 import { Eye, EyeOff, Check } from 'lucide-react';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -359,5 +359,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Chargement...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

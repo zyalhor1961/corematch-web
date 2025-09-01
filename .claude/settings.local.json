@@ -8,7 +8,12 @@
       "Bash(npm run build:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(rg:*)",
+      "Bash(npm run lint)",
+      "Bash(vercel:*)",
+      "Bash(npm install:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Briefcase, Brain, Zap, Users, ArrowRight, CheckCircle, Play, Shield, BarChart3, FileText, Share2
 } from "lucide-react";
@@ -236,7 +237,7 @@ export default function CoreMatchHomepage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl bg-white border border-slate-200 p-6 md:p-8">
             <div className="md:flex items-center gap-6">
-              <img src="https://i.pravatar.cc/80?img=15" alt="Client" className="h-16 w-16 rounded-full" />
+              <Image src="https://i.pravatar.cc/80?img=15" alt="Client" width={64} height={64} className="h-16 w-16 rounded-full" />
               <div className="mt-4 md:mt-0">
                 <p className="text-lg">
                   “CoreMatch nous fait gagner des heures chaque semaine et améliore la qualité des shortlists.”

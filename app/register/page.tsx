@@ -63,7 +63,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -83,7 +83,7 @@ export default function RegisterPage() {
 
       // Redirect to onboarding
       window.location.href = '/onboarding';
-    } catch (err) {
+    } catch {
       setError('Une erreur inattendue s\'est produite');
     } finally {
       setIsLoading(false);
@@ -103,7 +103,7 @@ export default function RegisterPage() {
       if (error) {
         setError(error.message);
       }
-    } catch (err) {
+    } catch {
       setError('Erreur lors de l\'inscription avec Google');
     } finally {
       setIsLoading(false);
@@ -165,7 +165,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
-                  Nom de l'entreprise
+                  Nom de l&apos;entreprise
                 </label>
                 <input
                   id="companyName"
@@ -304,7 +304,7 @@ export default function RegisterPage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                S'inscrire avec Google
+                S&apos;inscrire avec Google
               </Button>
             </div>
           </form>
@@ -313,7 +313,7 @@ export default function RegisterPage() {
             <p>
               En créant un compte, vous acceptez nos{' '}
               <a href="#" className="text-blue-600 hover:text-blue-500">
-                conditions d'utilisation
+                conditions d&apos;utilisation
               </a>{' '}
               et notre{' '}
               <a href="#" className="text-blue-600 hover:text-blue-500">

@@ -58,7 +58,7 @@ export default function ChatWidget() {
         const data = await res.json();
         if (Array.isArray(data.messages)) {
           setMessages(
-            data.messages.map((m: any) => ({
+            data.messages.map((m: { id: string; type: "user" | "bot"; content: string; timestamp: string }) => ({
               id: m.id,
               type: m.type, // 'user' | 'bot'
               content: m.content,
@@ -223,12 +223,6 @@ export default function ChatWidget() {
     }
   };
 
-  const quickSuggestions = [
-    "Améliore cette offre d’emploi",
-    "Score ce CV de Data Engineer",
-    "Automatise l’extraction d’une facture PDF",
-    "Quels sont vos tarifs ?",
-  ];
 
   return (
     <>

@@ -40,7 +40,7 @@ export default function DEBAssistantProductPage() {
               Du PDF scanné au CSV DEB en automatique
             </h2>
             <p className="text-xl text-gray-300">
-              4 étapes pour simplifier vos déclarations intracommunautaires avec l'IA
+              4 étapes pour simplifier vos déclarations intracommunautaires avec l&apos;IA
             </p>
           </div>
 
@@ -65,7 +65,7 @@ export default function DEBAssistantProductPage() {
                 2. OCR et IA
               </h3>
               <p className="text-gray-300">
-                Azure OCR extrait le texte, l'IA classe et segmente factures et BL
+                Azure OCR extrait le texte, l&apos;IA classe et segmente factures et BL
               </p>
             </div>
 
@@ -196,7 +196,7 @@ export default function DEBAssistantProductPage() {
             <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-lg border border-emerald-500/20 rounded-2xl p-6 shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 group">
               <h3 className="text-xl font-semibold bg-gradient-to-r from-emerald-100 to-green-100 bg-clip-text text-transparent mb-3">Importateurs</h3>
               <p className="text-gray-300 mb-4">
-                Traitement automatique des factures fournisseurs européens pour déclarations DEB d'acquisition.
+                Traitement automatique des factures fournisseurs européens pour déclarations DEB d&apos;acquisition.
               </p>
               <ul className="text-sm text-gray-300 space-y-1">
                 <li>• 50-500 factures/mois</li>
@@ -247,7 +247,7 @@ export default function DEBAssistantProductPage() {
         
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Simplifiez vos DEB dès aujourd'hui
+            Simplifiez vos DEB dès aujourd&apos;hui
           </h2>
           <p className="text-xl text-white/80 mb-8">
             Essai gratuit avec traitement de 50 pages incluses
@@ -255,7 +255,7 @@ export default function DEBAssistantProductPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="/register">
               <Button size="lg" className="bg-white text-emerald-600 hover:bg-gray-50 px-8 shadow-lg hover:shadow-xl transition-all duration-300">
-                Commencer l'essai gratuit
+                Commencer l&apos;essai gratuit
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </a>

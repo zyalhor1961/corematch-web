@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
-import { Button } from '@/app/components/ui/button';
+import type { User } from '@supabase/supabase-js';
+import { MyOrg } from '@/lib/types';
 import { 
   Building2, 
   BarChart3, 
@@ -24,8 +25,8 @@ export default function OrganizationLayout({
 }) {
   const params = useParams();
   const router = useRouter();
-  const [organization, setOrganization] = useState<any>(null);
-  const [user, setUser] = useState<any>(null);
+  const [organization, setOrganization] = useState<MyOrg | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 

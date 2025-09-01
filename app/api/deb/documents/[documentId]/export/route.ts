@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { DocumentLine } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -53,7 +54,7 @@ export async function GET(
         'Source HS',
       ];
 
-      const rows = document.document_lines.map((line: any) => [
+      const rows = document.document_lines.map((line: DocumentLine) => [
         line.line_no?.toString() || '',
         line.description || '',
         line.sku || '',
@@ -99,7 +100,7 @@ export async function GET(
       const exportPath = `deb-exports/${document.org_id}/${exportFilename}`;
 
       // Upload CSV to storage
-      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      const { error: uploadError } = await supabaseAdmin.storage
         .from('deb-exports')
         .upload(exportPath, csvContent, {
           contentType: 'text/csv; charset=utf-8',

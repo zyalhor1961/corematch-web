@@ -96,8 +96,10 @@ export async function POST(req: Request) {
     if (insErr) console.warn("Supabase insert(assistant msg) WARN:", insErr.message);
 
     return NextResponse.json({ reply, conversationId: convId });
-  } catch (e: any) {
-    console.error("[/api/chat] FATAL:", e?.stack || e?.message || e);
-    return jsonError("Server error: " + (e?.message || "unknown"));
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : "unknown";
+    const errorStack = e instanceof Error ? e.stack : undefined;
+    console.error("[/api/chat] FATAL:", errorStack || errorMessage || e);
+    return jsonError("Server error: " + errorMessage);
   }
 }

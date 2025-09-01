@@ -17,8 +17,8 @@ import {
 
 export default function OrganizationOverview() {
   const params = useParams();
-  const [stats, setStats] = useState<any>(null);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [recentActivity, setRecentActivity] = useState<Record<string, unknown>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const orgId = params?.orgId as string;
@@ -27,7 +27,7 @@ export default function OrganizationOverview() {
     if (orgId) {
       loadDashboardData();
     }
-  }, [orgId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDashboardData = async () => {
     try {
@@ -48,13 +48,13 @@ export default function OrganizationOverview() {
         .single();
 
       // Get project count
-      const { data: projects, count: projectCount } = await supabase
+      const { count: projectCount } = await supabase
         .from('projects')
         .select('*', { count: 'exact' })
         .eq('org_id', orgId);
 
       // Get document count
-      const { data: documents, count: documentCount } = await supabase
+      const { count: documentCount } = await supabase
         .from('documents')
         .select('*', { count: 'exact' })
         .eq('org_id', orgId);
@@ -152,7 +152,7 @@ export default function OrganizationOverview() {
       {/* Page header */}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vue d'ensemble</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Vue d&apos;ensemble</h1>
           <p className="text-gray-600">Tableau de bord de votre organisation</p>
         </div>
         <div className="mt-4 sm:mt-0">

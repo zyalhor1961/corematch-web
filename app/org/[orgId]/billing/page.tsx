@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
+import { Organization, UsageCounter } from '@/lib/types';
 import { 
-  CreditCard, 
   Calendar, 
   TrendingUp, 
   AlertTriangle,
@@ -15,9 +15,8 @@ import {
 
 export default function BillingPage() {
   const params = useParams();
-  const [organization, setOrganization] = useState<any>(null);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [usage, setUsage] = useState<any>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [usage, setUsage] = useState<UsageCounter | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   
@@ -27,7 +26,7 @@ export default function BillingPage() {
     if (orgId) {
       loadBillingData();
     }
-  }, [orgId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadBillingData = async () => {
     try {
@@ -39,7 +38,7 @@ export default function BillingPage() {
         .single();
 
       // Get subscription
-      const { data: subData } = await supabase
+      await supabase
         .from('subscriptions')
         .select('*')
         .eq('org_id', orgId)
@@ -57,7 +56,6 @@ export default function BillingPage() {
         .single();
 
       setOrganization(orgData);
-      setSubscription(subData);
       setUsage(usageData);
     } catch (error) {
       console.error('Error loading billing data:', error);
@@ -218,7 +216,7 @@ export default function BillingPage() {
             <p className="text-2xl font-bold text-gray-900">{features.price}</p>
             {organization?.status === 'trial' && organization?.trial_end_date && (
               <p className="text-sm text-orange-600">
-                Essai jusqu'au {new Date(organization.trial_end_date).toLocaleDateString('fr-FR')}
+                Essai jusqu&apos;au {new Date(organization.trial_end_date).toLocaleDateString('fr-FR')}
               </p>
             )}
           </div>

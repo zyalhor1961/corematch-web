@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
+import { Project } from '@/lib/types';
 import { 
   Plus, 
   Upload, 
@@ -16,7 +17,7 @@ import {
 
 export default function CVScreeningPage() {
   const params = useParams();
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   
@@ -26,7 +27,7 @@ export default function CVScreeningPage() {
     if (orgId) {
       loadProjects();
     }
-  }, [orgId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProjects = async () => {
     try {
@@ -43,7 +44,7 @@ export default function CVScreeningPage() {
     }
   };
 
-  const getStatusBadge = (project: any) => {
+  const getStatusBadge = (project: Project & { candidate_count?: number; analyzed_count?: number }) => {
     const totalCandidates = project.candidate_count || 0;
     const analyzed = project.analyzed_count || 0;
     

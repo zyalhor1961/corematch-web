@@ -93,7 +93,7 @@ export interface DocumentPage {
   page_no: number;
   type?: 'invoice' | 'delivery_note' | 'other';
   confidence?: number;
-  raw_ocr_data?: any;
+  raw_ocr_data?: Record<string, unknown>;
   created_at: string;
 }
 
@@ -172,7 +172,7 @@ export interface PlanQuota {
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

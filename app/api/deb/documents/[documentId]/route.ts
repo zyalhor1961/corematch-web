@@ -56,7 +56,7 @@ export async function PATCH(
       'total_ht', 'shipping_total', 'status'
     ];
 
-    const updates: any = {};
+    const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (field in body) {
         updates[field] = body[field];

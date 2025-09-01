@@ -19,7 +19,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -31,7 +31,7 @@ export default function LoginPage() {
 
       // Redirect to dashboard
       window.location.href = '/dashboard';
-    } catch (err) {
+    } catch {
       setError('Une erreur inattendue s\'est produite');
     } finally {
       setIsLoading(false);
@@ -51,7 +51,7 @@ export default function LoginPage() {
       if (error) {
         setError(error.message);
       }
-    } catch (err) {
+    } catch {
       setError('Erreur lors de la connexion avec Google');
     } finally {
       setIsLoading(false);
@@ -205,7 +205,7 @@ export default function LoginPage() {
           <p>
             En vous connectant, vous acceptez nos{' '}
             <a href="#" className="text-blue-600 hover:text-blue-500">
-              conditions d'utilisation
+              conditions d&apos;utilisation
             </a>{' '}
             et notre{' '}
             <a href="#" className="text-blue-600 hover:text-blue-500">

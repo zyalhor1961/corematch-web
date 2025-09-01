@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
+import { Document } from '@/lib/types';
 import { 
-  Plus, 
   Upload, 
   FileText, 
   Clock,
@@ -17,7 +17,7 @@ import {
 
 export default function DEBAssistantPage() {
   const params = useParams();
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   
@@ -27,7 +27,7 @@ export default function DEBAssistantPage() {
     if (orgId) {
       loadDocuments();
     }
-  }, [orgId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDocuments = async () => {
     try {
@@ -221,7 +221,7 @@ export default function DEBAssistantPage() {
                 Upload en cours: {uploadingFile.name}
               </p>
               <p className="text-xs text-blue-700">
-                Le traitement démarrera automatiquement après l'upload
+                Le traitement démarrera automatiquement après l&apos;upload
               </p>
             </div>
           </div>

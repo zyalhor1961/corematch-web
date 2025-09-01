@@ -185,7 +185,7 @@ export default function HomePage() {
                 <BarChart3 className="h-10 w-10 text-purple-600" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                Mise à l'échelle
+                Mise à l&apos;échelle
               </h3>
               <p className="text-gray-600 leading-relaxed">
                 De 50 à 10,000+ documents traités par mois selon vos besoins d&apos;entreprise
@@ -206,7 +206,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="/register" className="inline-flex items-center px-8 py-4 bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-all duration-300 font-medium">
-              Démarrer l'essai gratuit
+              Démarrer l&apos;essai gratuit
             </a>
             <a href="/pricing" className="inline-flex items-center px-8 py-4 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-all duration-300">
               Voir les tarifs

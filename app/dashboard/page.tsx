@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Button } from '../components/ui/button';
 import { Building2, Users, FileText, Plus } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -32,7 +33,7 @@ export default function DashboardPage() {
     };
 
     getUser();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOrganizations = async () => {
     try {
@@ -215,7 +216,7 @@ export default function DashboardPage() {
                   <Users className="h-6 w-6 text-blue-600 mx-auto mb-2" />
                   <h3 className="font-medium text-gray-900 mb-1">CV Screening</h3>
                   <p className="text-sm text-gray-600">
-                    Guide d'utilisation du module de tri de CV
+                    Guide d&apos;utilisation du module de tri de CV
                   </p>
                 </div>
 

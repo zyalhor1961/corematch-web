@@ -221,7 +221,7 @@ export default function PricingPage() {
                 Que se passe-t-il si je dépasse mon quota ?
               </h3>
               <p className="text-gray-600">
-                Vous recevrez une notification avant d'atteindre votre limite. 
+                Vous recevrez une notification avant d&apos;atteindre votre limite. 
                 Vous pouvez soit upgrader votre plan, soit attendre le mois suivant.
               </p>
             </div>

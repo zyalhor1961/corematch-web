@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../components/ui/button';
 import { supabase } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Check, Users, FileText, Mail, Plus } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   
   // Form state
   const [orgName, setOrgName] = useState('');
@@ -209,7 +210,7 @@ export default function OnboardingPage() {
               
               <div>
                 <label htmlFor="orgName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom de l'organisation
+                  Nom de l&apos;organisation
                 </label>
                 <input
                   id="orgName"

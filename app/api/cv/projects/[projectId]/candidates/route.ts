@@ -65,7 +65,7 @@ export async function PATCH(
       );
     }
 
-    let updates: any = {};
+    const updates: Record<string, boolean | string> = {};
 
     if (action === 'shortlist' || shortlisted !== undefined) {
       updates.shortlisted = shortlisted ?? true;

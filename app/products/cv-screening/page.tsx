@@ -40,7 +40,7 @@ export default function CVScreeningProductPage() {
               Comment ça marche ?
             </h2>
             <p className="text-xl text-gray-300">
-              3 étapes pour transformer vos recrutements avec l'IA
+              3 étapes pour transformer vos recrutements avec l&apos;IA
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function CVScreeningProductPage() {
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
                     <h3 className="font-semibold text-cyan-100">Scoring intelligent</h3>
-                    <p className="text-gray-300">Algorithme adaptatif qui s'ajuste selon vos critères de poste</p>
+                    <p className="text-gray-300">Algorithme adaptatif qui s&apos;ajuste selon vos critères de poste</p>
                   </div>
                 </li>
                 <li className="flex items-start">
@@ -112,7 +112,7 @@ export default function CVScreeningProductPage() {
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
                     <h3 className="font-semibold text-cyan-100">Gestion de projets</h3>
-                    <p className="text-gray-300">Organisez vos recrutements par poste et suivez l'avancement</p>
+                    <p className="text-gray-300">Organisez vos recrutements par poste et suivez l&apos;avancement</p>
                   </div>
                 </li>
                 <li className="flex items-start">
@@ -135,7 +135,7 @@ export default function CVScreeningProductPage() {
                         Score: 92/100
                       </span>
                     </div>
-                    <p className="text-xs text-gray-300 mt-1">Développeur Full Stack • 5 ans d'exp.</p>
+                    <p className="text-xs text-gray-300 mt-1">Développeur Full Stack • 5 ans d&apos;exp.</p>
                   </div>
                   <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-blue-500/10">
                     <div className="flex items-center justify-between">
@@ -153,7 +153,7 @@ export default function CVScreeningProductPage() {
                         Score: 76/100
                       </span>
                     </div>
-                    <p className="text-xs text-gray-300 mt-1">Designer UX/UI • 3 ans d'exp.</p>
+                    <p className="text-xs text-gray-300 mt-1">Designer UX/UI • 3 ans d&apos;exp.</p>
                   </div>
                 </div>
               </div>
@@ -180,12 +180,12 @@ export default function CVScreeningProductPage() {
             Prêt à révolutionner vos recrutements ?
           </h2>
           <p className="text-xl text-white/80 mb-8">
-            Commencez votre essai gratuit et analysez jusqu'à 50 CV gratuitement
+            Commencez votre essai gratuit et analysez jusqu&apos;à 50 CV gratuitement
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="/register">
               <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-50 px-8 shadow-lg hover:shadow-xl transition-all duration-300">
-                Commencer l'essai gratuit
+                Commencer l&apos;essai gratuit
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </a>

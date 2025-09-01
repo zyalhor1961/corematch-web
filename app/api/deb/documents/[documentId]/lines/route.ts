@@ -59,7 +59,7 @@ export async function PATCH(
       'customs_value_line'
     ];
 
-    const validUpdates: any = {};
+    const validUpdates: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (field in updates) {
         validUpdates[field] = updates[field];

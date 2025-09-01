@@ -1,7 +1,7 @@
 import { Header } from './components/layout/header';
 import { Footer } from './components/layout/footer';
 import ChatWidget from './components/chatbot/ChatWidget';
-import { Check, Zap, Shield, BarChart3, FileText, Users } from 'lucide-react';
+import { Zap, Shield, BarChart3, FileText, Users } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -24,7 +24,7 @@ export default function HomePage() {
             
             <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
               Optimisez vos processus de recrutement et de gestion documentaire 
-              avec nos outils d'IA. Solutions enterprise pour équipes modernes.
+              avec nos outils d&apos;IA. Solutions enterprise pour équipes modernes.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-20">
@@ -188,7 +188,7 @@ export default function HomePage() {
                 Mise à l'échelle
               </h3>
               <p className="text-gray-600 leading-relaxed">
-                De 50 à 10,000+ documents traités par mois selon vos besoins d'entreprise
+                De 50 à 10,000+ documents traités par mois selon vos besoins d&apos;entreprise
               </p>
             </div>
           </div>

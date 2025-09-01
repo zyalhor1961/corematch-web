@@ -9,8 +9,8 @@ export function Footer() {
           <div className="md:col-span-2">
             <h3 className="text-lg font-bold text-gray-900 mb-4">CoreMatch</h3>
             <p className="text-gray-600 text-sm leading-relaxed max-w-md">
-              Solutions d'automatisation intelligente pour entreprises modernes.
-              Optimisez vos processus RH et documentaires avec l'IA.
+              Solutions d&apos;automatisation intelligente pour entreprises modernes.
+              Optimisez vos processus RH et documentaires avec l&apos;IA.
             </p>
           </div>
 

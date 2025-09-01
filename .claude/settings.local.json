@@ -4,7 +4,9 @@
       "Bash(ls:*)",
       "Bash(npm install)",
       "Bash(npm run dev:*)",
-      "WebFetch(domain:gapsystudio.com)"
+      "WebFetch(domain:gapsystudio.com)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
+import { useOrgQuery } from '@/hooks/useOrganization';
 import { 
   Users, 
   FileText, 
@@ -17,6 +18,7 @@ import {
 
 export default function OrganizationOverview() {
   const params = useParams();
+  const { fetchWithOrgId, countWithOrgId, isReady } = useOrgQuery();
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [recentActivity, setRecentActivity] = useState<Record<string, unknown>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,56 +26,46 @@ export default function OrganizationOverview() {
   const orgId = params?.orgId as string;
 
   useEffect(() => {
-    if (orgId) {
+    // Attendre que le hook useOrganization soit prêt
+    if (isReady && orgId) {
       loadDashboardData();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isReady, orgId]); // Dépendance sur isReady
 
   const loadDashboardData = async () => {
     try {
-      // Get current usage stats
+      // Get current usage stats avec le hook
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const { data: usage } = await supabase
-        .from('usage_counters')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('period_month', currentMonth)
-        .single();
+      const usage = await fetchWithOrgId('usage_counters', {
+        filters: { period_month: currentMonth },
+        limit: 1
+      });
 
-      // Get organization details
+      // Get organization details - utiliser l'orgId du hook directement
       const { data: org } = await supabase
         .from('organizations')
         .select('plan, status')
         .eq('id', orgId)
         .single();
 
-      // Get project count
-      const { count: projectCount } = await supabase
-        .from('projects')
-        .select('*', { count: 'exact' })
-        .eq('org_id', orgId);
+      // Get project count avec le hook
+      const projectCount = await countWithOrgId('projects');
 
-      // Get document count
-      const { count: documentCount } = await supabase
-        .from('documents')
-        .select('*', { count: 'exact' })
-        .eq('org_id', orgId);
+      // Get document count avec le hook  
+      const documentCount = await countWithOrgId('documents');
 
-      // Get recent candidates (last 5)
-      const { data: recentCandidates } = await supabase
-        .from('candidates')
-        .select('*, projects(name)')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(3);
+      // Get recent candidates avec le hook
+      const recentCandidates = await fetchWithOrgId('candidates', {
+        select: '*, projects(name)',
+        orderBy: { column: 'created_at', ascending: false },
+        limit: 3
+      });
 
-      // Get recent documents (last 5)
-      const { data: recentDocuments } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(3);
+      // Get recent documents avec le hook
+      const recentDocuments = await fetchWithOrgId('documents', {
+        orderBy: { column: 'created_at', ascending: false },
+        limit: 3
+      });
 
       // Combine recent activity
       const activity = [
@@ -95,8 +87,8 @@ export default function OrganizationOverview() {
       ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 5);
 
       setStats({
-        cvCount: usage?.cv_count || 0,
-        debPagesCount: usage?.deb_pages_count || 0,
+        cvCount: usage?.[0]?.counter_value || 0,
+        debPagesCount: usage?.[0]?.counter_value || 0, 
         projectCount: projectCount || 0,
         documentCount: documentCount || 0,
         plan: org?.plan || 'starter',

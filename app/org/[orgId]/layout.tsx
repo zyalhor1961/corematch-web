@@ -47,7 +47,7 @@ export default function OrganizationLayout({
         const { data: orgData, error: orgError } = await supabase
           .from('my_orgs')
           .select('*')
-          .eq('org_id', orgId)
+          .eq('id', orgId)
           .single();
 
         if (orgError || !orgData) {

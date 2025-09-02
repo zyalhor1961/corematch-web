@@ -8,9 +8,9 @@ import { Button } from '../components/ui/button';
 import { Building2, Users, FileText, Plus } from 'lucide-react';
 
 interface Organization {
-  org_id: string;
+  id: string;
   org_name: string;
-  role: string;
+  role?: string;
   plan: string;
   status: string;
 }
@@ -51,7 +51,7 @@ export default function DashboardPage() {
       
       // If user has only one org, redirect directly
       if (data?.length === 1) {
-        router.push(`/org/${data[0].org_id}`);
+        router.push(`/org/${data[0].id}`);
         return;
       }
     } catch (error) {
@@ -161,15 +161,15 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {organizations.map((org) => (
                 <div
-                  key={org.org_id}
+                  key={org.id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => router.push(`/org/${org.org_id}`)}
+                  onClick={() => router.push(`/org/${org.id}`)}
                 >
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <Building2 className="h-8 w-8 text-blue-600" />
                       <div className="flex space-x-2">
-                        {getRoleBadge(org.role)}
+                        {org.role && getRoleBadge(org.role)}
                         {getStatusBadge(org.status)}
                       </div>
                     </div>

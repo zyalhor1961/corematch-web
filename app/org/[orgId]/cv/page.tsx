@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { Project } from '@/lib/types';
+import CandidatesListModal from '@/app/components/cv/CandidatesListModal';
 import { 
   Plus, 
   Upload, 
@@ -13,7 +14,9 @@ import {
   Download,
   Play,
   MoreHorizontal,
-  Trash2 
+  Trash2,
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 
 export default function CVScreeningPage() {
@@ -22,6 +25,7 @@ export default function CVScreeningPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
+  const [showCandidatesModal, setShowCandidatesModal] = useState<string | null>(null);
   
   const orgId = params?.orgId as string;
 
@@ -185,9 +189,13 @@ export default function CVScreeningPage() {
                 </div>
 
                 <div className="space-y-3 mb-4">
-                  <div className="flex justify-between text-sm">
+                  <div 
+                    className="flex justify-between text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
+                    onClick={() => setShowCandidatesModal(project.id)}
+                    title="Cliquer pour voir les CV"
+                  >
                     <span className="text-gray-600">CV téléversés:</span>
-                    <span className="font-medium">{project.candidate_count || 0}</span>
+                    <span className="font-medium text-blue-600">{project.candidate_count || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Analysés:</span>
@@ -254,6 +262,14 @@ export default function CVScreeningPage() {
             setShowUploadModal(null);
             loadProjects();
           }}
+        />
+      )}
+
+      {/* Candidates List Modal */}
+      {showCandidatesModal && (
+        <CandidatesListModal 
+          projectId={showCandidatesModal}
+          onClose={() => setShowCandidatesModal(null)}
         />
       )}
     </div>
@@ -414,6 +430,10 @@ function UploadCVModal({ projectId, onClose, onSuccess }: {
       const data = await response.json();
       
       if (data.success) {
+        alert(`✅ ${data.data?.uploaded || 0} CV(s) téléversé(s) avec succès !`);
+        if (data.data?.errors?.length > 0) {
+          console.warn('Erreurs lors de l\'upload:', data.data.errors);
+        }
         onSuccess();
       } else {
         alert('Erreur lors du téléchargement des CV');

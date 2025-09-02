@@ -1,0 +1,190 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/app/components/ui/button';
+import { Users, Eye } from 'lucide-react';
+import PDFViewerModal from './PDFViewerModal';
+
+interface Candidate {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  status: string;
+  score?: number;
+  cv_filename?: string;
+  cv_url?: string;
+  notes?: string;
+  created_at: string;
+}
+
+interface CandidatesListModalProps {
+  projectId: string;
+  onClose: () => void;
+}
+
+export default function CandidatesListModal({ projectId, onClose }: CandidatesListModalProps) {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showPDFViewer, setShowPDFViewer] = useState<{
+    url: string;
+    fileName: string;
+    candidateName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadCandidates = async () => {
+      try {
+        console.log('Loading candidates for project:', projectId);
+        const response = await fetch(`/api/cv/projects/${projectId}/candidates`);
+        const data = await response.json();
+        
+        console.log('Candidates API response:', data);
+        
+        if (data.success) {
+          setCandidates(data.data);
+          console.log('Candidates loaded:', data.data.length, 'items');
+        } else {
+          console.error('API returned error:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading candidates:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCandidates();
+  }, [projectId]);
+
+  const viewCV = async (candidate: Candidate) => {
+    // Extract filename and path from notes
+    const filename = candidate.notes?.match(/CV file: ([^|]+)/)?.[1] || 
+                    candidate.cv_filename || 
+                    `${candidate.first_name || candidate.name || 'candidat'}.pdf`;
+    
+    const filePath = candidate.notes?.match(/Path: ([^|]+)/)?.[1];
+    
+    if (filePath) {
+      // Create download URL for the PDF  
+      const supabaseUrl = 'https://glexllbywdvlxpbanjmn.supabase.co';
+      const downloadUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
+      
+      console.log('Ouverture du PDF dans le viewer:', downloadUrl);
+      
+      // Open PDF in integrated viewer
+      setShowPDFViewer({
+        url: downloadUrl,
+        fileName: filename,
+        candidateName: getDisplayName(candidate)
+      });
+    } else {
+      // Fallback: show file info
+      alert(`CV: ${filename}\nStatus: ${candidate.status}\nTéléversé le: ${new Date(candidate.created_at).toLocaleString('fr-FR')}\n\nLe fichier PDF sera bientôt disponible pour visualisation.`);
+    }
+  };
+
+  const getDisplayName = (candidate: Candidate) => {
+    if (candidate.name) return candidate.name;
+    if (candidate.first_name && candidate.last_name) {
+      return `${candidate.first_name} ${candidate.last_name}`;
+    }
+    if (candidate.first_name) return candidate.first_name;
+    
+    // Extract from filename in notes
+    const filename = candidate.notes?.match(/CV file: ([^|]+)/)?.[1];
+    if (filename) {
+      return filename.replace(/\.[^/.]+$/, ""); // Remove extension
+    }
+    
+    return 'Candidat sans nom';
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">CV téléversés</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <p>Aucun CV téléversé pour ce projet</p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto max-h-[60vh]">
+            <div className="space-y-3">
+              {candidates.map((candidate) => (
+                <div 
+                  key={candidate.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {getDisplayName(candidate)}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {candidate.email && <span>{candidate.email} • </span>}
+                      Téléversé le {new Date(candidate.created_at).toLocaleDateString('fr-FR')}
+                    </div>
+                    {candidate.score && (
+                      <div className="text-sm text-blue-600">
+                        Score: {candidate.score}/100
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      candidate.status === 'analyzed' ? 'bg-green-100 text-green-800' :
+                      candidate.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {candidate.status === 'analyzed' ? 'Analysé' :
+                       candidate.status === 'processing' ? 'En cours' : 'En attente'}
+                    </span>
+                    <button
+                      onClick={() => viewCV(candidate)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                      title="Voir le CV"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-4 border-t">
+          <Button variant="outline" onClick={onClose}>
+            Fermer
+          </Button>
+        </div>
+      </div>
+
+      {/* PDF Viewer Modal */}
+      {showPDFViewer && (
+        <PDFViewerModal
+          pdfUrl={showPDFViewer.url}
+          fileName={showPDFViewer.fileName}
+          candidateName={showPDFViewer.candidateName}
+          onClose={() => setShowPDFViewer(null)}
+        />
+      )}
+    </div>
+  );
+}

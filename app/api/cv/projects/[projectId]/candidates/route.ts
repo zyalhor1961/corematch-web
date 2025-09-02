@@ -3,10 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId;
+    const { projectId } = await params;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const shortlisted = searchParams.get('shortlisted');
@@ -15,15 +15,16 @@ export async function GET(
       .from('candidates')
       .select('*')
       .eq('project_id', projectId)
-      .order('score', { ascending: false, nullsLast: true });
+      .order('created_at', { ascending: false });
 
     if (status) {
       query = query.eq('status', status);
     }
 
-    if (shortlisted === 'true') {
-      query = query.eq('shortlisted', true);
-    }
+    // shortlisted column doesn't exist yet - skip this filter
+    // if (shortlisted === 'true') {
+    //   query = query.eq('shortlisted', true);
+    // }
 
     const { data: candidates, error } = await query;
 
@@ -51,10 +52,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId;
+    const { projectId } = await params;
     const body = await request.json();
     const { candidateIds, action, shortlisted } = body;
 

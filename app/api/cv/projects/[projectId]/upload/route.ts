@@ -96,15 +96,15 @@ export async function POST(
 
         const uploadPath = uploadData.path;
 
-        // Create candidate record
+        // Create candidate record with only available columns
         const { data: candidate, error: candidateError } = await supabaseAdmin
           .from('candidates')
           .insert({
             project_id: projectId,
             org_id: project.org_id,
-            cv_filename: file.name,
-            cv_url: uploadPath,
+            first_name: file.name.replace(/\.[^/.]+$/, ""), // Use filename as name temporarily
             status: 'pending',
+            notes: `CV file: ${file.name} | Path: ${uploadPath}`,
           })
           .select()
           .single();

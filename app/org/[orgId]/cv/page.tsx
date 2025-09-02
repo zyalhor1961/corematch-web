@@ -12,7 +12,8 @@ import {
   TrendingUp, 
   Download,
   Play,
-  MoreHorizontal 
+  MoreHorizontal,
+  Trash2 
 } from 'lucide-react';
 
 export default function CVScreeningPage() {
@@ -20,6 +21,7 @@ export default function CVScreeningPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   
   const orgId = params?.orgId as string;
 
@@ -41,6 +43,25 @@ export default function CVScreeningPage() {
       console.error('Error loading projects:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const deleteProject = async (projectId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) return;
+    
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        loadProjects();
+      } else {
+        alert('Erreur lors de la suppression du projet');
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Erreur lors de la suppression du projet');
     }
   };
 
@@ -153,8 +174,12 @@ export default function CVScreeningPage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     {getStatusBadge(project)}
-                    <button className="p-1 hover:bg-gray-100 rounded">
-                      <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                    <button 
+                      onClick={() => deleteProject(project.id)}
+                      className="p-1 hover:bg-red-100 rounded text-red-500 hover:text-red-700"
+                      title="Supprimer le projet"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -175,9 +200,13 @@ export default function CVScreeningPage() {
                 </div>
 
                 <div className="flex space-x-2">
-                  <Button size="sm" className="flex-1">
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => setShowUploadModal(project.id)}
+                  >
                     <Upload className="w-4 h-4 mr-2" />
-                    Upload CV
+                    Télécharger CV
                   </Button>
                   {(project.candidate_count || 0) > 0 && (
                     <Button variant="outline" size="sm">
@@ -188,6 +217,7 @@ export default function CVScreeningPage() {
                   {(project.shortlisted_count || 0) > 0 && (
                     <Button variant="outline" size="sm">
                       <Download className="w-4 h-4" />
+                      Exporter
                     </Button>
                   )}
                 </div>
@@ -210,6 +240,18 @@ export default function CVScreeningPage() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
+            loadProjects();
+          }}
+        />
+      )}
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <UploadCVModal 
+          projectId={showUploadModal}
+          onClose={() => setShowUploadModal(null)}
+          onSuccess={() => {
+            setShowUploadModal(null);
             loadProjects();
           }}
         />
@@ -332,6 +374,99 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: {
               className="flex-1"
             >
               {isLoading ? 'Création...' : 'Créer'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function UploadCVModal({ projectId, onClose, onSuccess }: {
+  projectId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [files, setFiles] = useState<FileList | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFiles(e.target.files);
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      const response = await fetch(`/api/cv/projects/${projectId}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        onSuccess();
+      } else {
+        alert('Erreur lors du téléchargement des CV');
+      }
+    } catch (error) {
+      console.error('Error uploading CVs:', error);
+      alert('Erreur lors du téléchargement des CV');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <h3 className="text-lg font-semibold mb-4">Télécharger des CV</h3>
+        
+        <form onSubmit={handleUpload} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Fichiers CV (PDF, DOC, DOCX)
+            </label>
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx"
+              onChange={handleFileChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            {files && files.length > 0 && (
+              <p className="text-sm text-gray-600 mt-1">
+                {files.length} fichier(s) sélectionné(s)
+              </p>
+            )}
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1"
+              disabled={isUploading}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="submit"
+              disabled={isUploading || !files || files.length === 0}
+              className="flex-1"
+            >
+              {isUploading ? 'Téléchargement...' : 'Télécharger'}
             </Button>
           </div>
         </form>

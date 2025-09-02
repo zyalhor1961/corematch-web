@@ -186,7 +186,7 @@ export default function CVScreeningPage() {
 
                 <div className="space-y-3 mb-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">CV uploadés:</span>
+                    <span className="text-gray-600">CV téléversés:</span>
                     <span className="font-medium">{project.candidate_count || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">

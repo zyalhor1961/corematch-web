@@ -4,10 +4,10 @@ import { checkQuota } from '@/lib/utils/quotas';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId;
+    const { projectId } = await params;
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
 
@@ -51,14 +51,19 @@ export async function POST(
     for (const file of files) {
       try {
         // Validate file type
-        if (file.type !== 'application/pdf') {
-          errors.push(`${file.name}: Only PDF files are supported`);
+        const allowedTypes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (!allowedTypes.includes(file.type)) {
+          errors.push(`${file.name}: Seuls les fichiers PDF, DOC et DOCX sont supportés`);
           continue;
         }
 
         // Validate file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
-          errors.push(`${file.name}: File size exceeds 10MB limit`);
+          errors.push(`${file.name}: La taille du fichier dépasse la limite de 10MB`);
           continue;
         }
 
@@ -85,9 +90,11 @@ export async function POST(
 
         if (uploadError) {
           console.error('Upload error:', uploadError);
-          errors.push(`${file.name}: Upload failed`);
+          errors.push(`${file.name}: Échec du téléchargement`);
           continue;
         }
+
+        const uploadPath = uploadData.path;
 
         // Create candidate record
         const { data: candidate, error: candidateError } = await supabaseAdmin
@@ -96,7 +103,7 @@ export async function POST(
             project_id: projectId,
             org_id: project.org_id,
             cv_filename: file.name,
-            cv_url: uploadData.path,
+            cv_url: uploadPath,
             status: 'pending',
           })
           .select()
@@ -104,7 +111,7 @@ export async function POST(
 
         if (candidateError) {
           console.error('Candidate creation error:', candidateError);
-          errors.push(`${file.name}: Failed to create candidate record`);
+          errors.push(`${file.name}: Échec de création du candidat`);
           continue;
         }
 
@@ -112,7 +119,7 @@ export async function POST(
 
       } catch (fileError) {
         console.error(`Error processing file ${file.name}:`, fileError);
-        errors.push(`${file.name}: Processing failed`);
+        errors.push(`${file.name}: Échec du traitement`);
       }
     }
 

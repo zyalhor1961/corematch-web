@@ -8,7 +8,7 @@ const createProjectSchema = z.object({
   description: z.string().optional(),
   job_title: z.string().optional(),
   requirements: z.string().optional(),
-  created_by: z.string().uuid(),
+  created_by: z.string().uuid().optional(),
 });
 
 export async function POST(request: NextRequest) {

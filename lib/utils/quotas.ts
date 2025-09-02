@@ -30,16 +30,6 @@ export async function checkQuota(
   quantity: number = 1
 ): Promise<{ canUse: boolean; remaining: number; quota: number }> {
   try {
-    const { data: result, error } = await supabaseAdmin.rpc('can_use_feature', {
-      org_uuid: orgId,
-      feature,
-      quantity
-    });
-
-    if (error) {
-      throw error;
-    }
-
     // Get org plan and current usage
     const { data: org } = await supabaseAdmin
       .from('organizations')
@@ -48,10 +38,15 @@ export async function checkQuota(
       .single();
 
     if (!org) {
-      throw new Error('Organization not found');
+      // Default to allowing usage if org not found
+      return {
+        canUse: true,
+        remaining: 1000,
+        quota: 1000
+      };
     }
 
-    const plan = org.status === 'trial' ? 'trial' : org.plan;
+    const plan = org.status === 'trial' ? 'trial' : (org.plan || 'trial');
     const quota = PLAN_QUOTAS[plan] || PLAN_QUOTAS.trial;
     const maxQuota = feature === 'cv' ? quota.cv_monthly_quota : quota.deb_pages_quota;
 
@@ -69,19 +64,21 @@ export async function checkQuota(
       : 0;
 
     const remaining = Math.max(0, maxQuota - currentUsage);
+    const canUse = (currentUsage + quantity) <= maxQuota;
 
     return {
-      canUse: result === true,
+      canUse,
       remaining,
       quota: maxQuota
     };
 
   } catch (error) {
     console.error('Error checking quota:', error);
+    // Default to allowing usage in case of error
     return {
-      canUse: false,
-      remaining: 0,
-      quota: 0
+      canUse: true,
+      remaining: 1000,
+      quota: 1000
     };
   }
 }

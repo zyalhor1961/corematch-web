@@ -346,7 +346,7 @@ export default function CVScreeningPage() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => exportResults(project.id, 'excel', 'shortlist')}
+                      onClick={() => exportResults(project.id, 'excel', 'all')}
                       className="flex-1 text-blue-600 hover:bg-blue-50"
                     >
                       <Download className="w-4 h-4 mr-2" />

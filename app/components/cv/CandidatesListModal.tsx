@@ -45,20 +45,7 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
 
   useEffect(() => {
     loadCandidates();
-    loadProjectName();
   }, [projectId]);
-
-  const loadProjectName = async () => {
-    try {
-      const response = await fetch(`/api/cv/projects?projectId=${projectId}`);
-      const data = await response.json();
-      if (data.success && data.data) {
-        setProjectName(data.data.name || 'Projet');
-      }
-    } catch (error) {
-      console.error('Error loading project name:', error);
-    }
-  };
 
   const analyzeCandidate = async (candidateId: string, candidateName: string) => {
     setAnalyzingCandidates(prev => new Set([...prev, candidateId]));

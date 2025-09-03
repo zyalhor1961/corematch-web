@@ -7,12 +7,12 @@ import { Button } from '@/app/components/ui/button';
 import { Project } from '@/lib/types';
 import CandidatesListModal from '@/app/components/cv/CandidatesListModal';
 import JobOfferEditor from '@/app/components/cv/JobOfferEditor';
+import CandidatesSheetView from '@/app/components/cv/CandidatesSheetView';
 import { 
   Plus, 
   Upload, 
   Users, 
   TrendingUp, 
-  Download,
   Play,
   MoreHorizontal,
   Trash2,
@@ -20,8 +20,8 @@ import {
   ExternalLink,
   Brain,
   Star,
-  FileSpreadsheet,
-  Edit
+  Edit,
+  Table
 } from 'lucide-react';
 
 export default function CVScreeningPage() {
@@ -32,6 +32,8 @@ export default function CVScreeningPage() {
   const [showEditModal, setShowEditModal] = useState<Project | null>(null);
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   const [showCandidatesModal, setShowCandidatesModal] = useState<string | null>(null);
+  const [showSheetView, setShowSheetView] = useState<{projectId: string, projectName: string} | null>(null);
+  const [candidates, setCandidates] = useState<any[]>([]);
   
   const orgId = params?.orgId as string;
 
@@ -126,29 +128,22 @@ export default function CVScreeningPage() {
     }
   };
 
-  const exportResults = async (projectId: string, format: 'csv' | 'excel', type: 'all' | 'shortlist') => {
+
+  const openSheetView = async (projectId: string, projectName: string) => {
     try {
-      const response = await fetch(`/api/cv/projects/${projectId}/export?format=${format}&type=${type}`);
+      // Load candidates for the sheet view
+      const response = await fetch(`/api/cv/projects/${projectId}/candidates`);
+      const data = await response.json();
       
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `export-${projectId}-${type}.${format === 'excel' ? 'xlsx' : 'csv'}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        // Export réussi - téléchargement automatique, pas de message
+      if (data.success) {
+        setCandidates(data.data || []);
+        setShowSheetView({ projectId, projectName });
       } else {
-        alert('❌ Erreur lors de l\'export');
+        alert('❌ Erreur lors du chargement des candidats');
       }
     } catch (error) {
-      console.error('Error exporting:', error);
-      alert('❌ Erreur lors de l\'export');
+      console.error('Error loading candidates:', error);
+      alert('❌ Erreur lors du chargement des candidats');
     }
   };
 
@@ -333,26 +328,15 @@ export default function CVScreeningPage() {
                 </div>
                 
                 {(project.candidate_count || 0) > 0 && (
-                  <div className="flex space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => exportResults(project.id, 'csv', 'all')}
-                      className="flex-1 text-green-600 hover:bg-green-50"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 mr-2" />
-                      Export CSV
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => exportResults(project.id, 'excel', 'all')}
-                      className="flex-1 text-blue-600 hover:bg-blue-50"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export Excel
-                    </Button>
-                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => openSheetView(project.id, project.name)}
+                    className="w-full text-purple-600 hover:bg-purple-50"
+                  >
+                    <Table className="w-4 h-4 mr-2" />
+                    Vue tableur & Export
+                  </Button>
                 )}
               </div>
 
@@ -408,6 +392,15 @@ export default function CVScreeningPage() {
         <CandidatesListModal 
           projectId={showCandidatesModal}
           onClose={() => setShowCandidatesModal(null)}
+        />
+      )}
+
+      {/* Sheet View Modal */}
+      {showSheetView && (
+        <CandidatesSheetView
+          candidates={candidates}
+          projectName={showSheetView.projectName}
+          onClose={() => setShowSheetView(null)}
         />
       )}
     </div>

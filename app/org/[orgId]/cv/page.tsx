@@ -23,8 +23,7 @@ import {
   Brain,
   Star,
   Edit,
-  Table,
-  Bot
+  Table
 } from 'lucide-react';
 
 export default function CVScreeningPage() {
@@ -115,37 +114,6 @@ export default function CVScreeningPage() {
     }
   };
 
-  const generateRealisticCVs = async (project: Project) => {
-    const jobTitle = project.job_title || 'Développeur';
-    
-    if (!confirm(`Générer 10 CVs réalistes avec OpenAI pour le poste "${jobTitle}" ?\n\nCela prendra quelques minutes et utilisera l'API OpenAI.`)) return;
-
-    try {
-      const response = await fetch(`/api/cv/generate-realistic`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          projectId: project.id,
-          jobTitle: jobTitle,
-          count: 10
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        loadProjects(); // Rafraîchir la liste
-        alert(`✅ ${data.data.length} CVs réalistes générés avec succès!\n\nVous pouvez maintenant les analyser avec l'IA pour tester les capacités de shortlist.`);
-      } else {
-        alert(`❌ Erreur: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error generating realistic CVs:', error);
-      alert('❌ Erreur lors de la génération des CVs');
-    }
-  };
 
   const createShortlist = async (projectId: string) => {
     const maxCandidates = prompt('Combien de candidats maximum pour la shortlist ?', '5');
@@ -406,15 +374,6 @@ export default function CVScreeningPage() {
                     Upload CV
                   </Button>
                   
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => generateRealisticCVs(project)}
-                    className="text-green-600 hover:bg-green-50"
-                  >
-                    <Bot className="w-4 h-4 mr-2" />
-                    CVs IA
-                  </Button>
                   
                   {(project.candidate_count || 0) > (project.analyzed_count || 0) && (
                     <Button 

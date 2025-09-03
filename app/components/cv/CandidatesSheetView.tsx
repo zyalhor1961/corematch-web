@@ -302,7 +302,7 @@ export default function CandidatesSheetView({
 
             {showFilters && (
               <div className="text-xs text-gray-500 italic">
-                💡 Score: >80, <50, 80-90 | Shortlist: oui/non
+                💡 Score: {'>'}80, {'<'}50, 80-90 | Shortlist: oui/non
               </div>
             )}
           </div>

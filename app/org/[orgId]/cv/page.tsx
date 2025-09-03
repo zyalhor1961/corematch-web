@@ -45,6 +45,7 @@ export default function CVScreeningPage() {
     candidateName: string;
     analysis: any;
   } | null>(null);
+  const [showShortlistModal, setShowShortlistModal] = useState<string | null>(null);
   
   const orgId = params?.orgId as string;
 
@@ -115,21 +116,18 @@ export default function CVScreeningPage() {
   };
 
 
-  const createShortlist = async (projectId: string) => {
-    const maxCandidates = prompt('Combien de candidats maximum pour la shortlist ?', '5');
-    if (!maxCandidates) return;
-
+  const createShortlist = async (projectId: string, maxCandidates: number) => {
     try {
       const response = await fetch(`/api/cv/projects/${projectId}/shortlist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxCandidates: parseInt(maxCandidates) })
+        body: JSON.stringify({ maxCandidates: maxCandidates })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Rafraîchir silencieusement
+        alert(`✅ Shortlist créée: ${data.data.shortlisted} candidats sélectionnés sur ${data.data.shortlisted + data.data.rejected} analysés`);
         loadProjects();
       } else {
         alert('❌ Erreur lors de la création de la shortlist');
@@ -391,7 +389,7 @@ export default function CVScreeningPage() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => createShortlist(project.id)}
+                      onClick={() => setShowShortlistModal(project.id)}
                       className="text-yellow-600 hover:bg-yellow-50"
                     >
                       <Star className="w-4 h-4 mr-2" />
@@ -495,6 +493,61 @@ export default function CVScreeningPage() {
           analysis={showAnalysis.analysis}
           onClose={() => setShowAnalysis(null)}
         />
+      )}
+
+      {/* Shortlist Modal */}
+      {showShortlistModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Créer une shortlist</h3>
+              <button
+                onClick={() => setShowShortlistModal(null)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Combien de candidats maximum voulez-vous dans la shortlist ?
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                defaultValue="5"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                id="shortlistCount"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                L'IA sélectionnera automatiquement les meilleurs candidats analysés
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowShortlistModal(null)}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={() => {
+                  const input = document.getElementById('shortlistCount') as HTMLInputElement;
+                  const maxCandidates = parseInt(input.value) || 5;
+                  createShortlist(showShortlistModal, maxCandidates);
+                  setShowShortlistModal(null);
+                }}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white"
+              >
+                <Star className="w-4 h-4 mr-2" />
+                Créer la shortlist
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -8,6 +8,8 @@ import { Project } from '@/lib/types';
 import CandidatesListModal from '@/app/components/cv/CandidatesListModal';
 import JobOfferEditor from '@/app/components/cv/JobOfferEditor';
 import CandidatesSheetView from '@/app/components/cv/CandidatesSheetView';
+import PDFViewerModal from '@/app/components/cv/PDFViewerModal';
+import AnalysisModal from '@/app/components/cv/AnalysisModal';
 import { 
   Plus, 
   Upload, 
@@ -34,6 +36,15 @@ export default function CVScreeningPage() {
   const [showCandidatesModal, setShowCandidatesModal] = useState<string | null>(null);
   const [showSheetView, setShowSheetView] = useState<{projectId: string, projectName: string} | null>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [showPDFViewer, setShowPDFViewer] = useState<{
+    url: string;
+    fileName: string;
+    candidateName: string;
+  } | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState<{
+    candidateName: string;
+    analysis: any;
+  } | null>(null);
   
   const orgId = params?.orgId as string;
 
@@ -144,6 +155,66 @@ export default function CVScreeningPage() {
     } catch (error) {
       console.error('Error loading candidates:', error);
       alert('❌ Erreur lors du chargement des candidats');
+    }
+  };
+
+  const extractAnalysisFromNotes = (notes: string) => {
+    const scoreMatch = notes.match(/Score: (\d+)\/100/);
+    const recommendationMatch = notes.match(/Recommandation: ([^\n]+)/);
+    const summaryMatch = notes.match(/Résumé: ([^\n]+)/);
+    
+    return {
+      score: scoreMatch ? parseInt(scoreMatch[1]) : undefined,
+      recommendation: recommendationMatch?.[1] || '',
+      summary: summaryMatch?.[1] || '',
+      strengths: ["Analyse détaillée disponible"],
+      weaknesses: ["Voir les notes complètes pour plus de détails"]
+    };
+  };
+
+  const getDisplayName = (candidate: any) => {
+    if (candidate.name) return candidate.name;
+    if (candidate.first_name && candidate.last_name) {
+      return `${candidate.first_name} ${candidate.last_name}`;
+    }
+    if (candidate.first_name) return candidate.first_name;
+    
+    // Extract from filename in notes
+    const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1];
+    if (filename) {
+      return filename.replace(/\.[^/.]+$/, ""); // Remove extension
+    }
+    
+    return 'Candidat sans nom';
+  };
+
+  const viewCandidateFromSheet = (candidate: any) => {
+    // Check if we should show analysis or PDF
+    const analysis = extractAnalysisFromNotes(candidate.notes || '');
+    
+    if (analysis.score !== undefined) {
+      // Show analysis modal
+      setShowAnalysis({
+        candidateName: getDisplayName(candidate),
+        analysis: analysis
+      });
+    } else {
+      // Show PDF if available
+      const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1] || 
+                     `${candidate.first_name || 'candidat'}.pdf`;
+      const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
+      const filePath = pathMatch?.[1]?.trim();
+      
+      if (filePath) {
+        const supabaseUrl = 'https://glexllbywdvlxpbanjmn.supabase.co';
+        const downloadUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
+        
+        setShowPDFViewer({
+          url: downloadUrl,
+          fileName: filename,
+          candidateName: getDisplayName(candidate)
+        });
+      }
     }
   };
 
@@ -400,7 +471,27 @@ export default function CVScreeningPage() {
         <CandidatesSheetView
           candidates={candidates}
           projectName={showSheetView.projectName}
+          onViewCandidate={viewCandidateFromSheet}
           onClose={() => setShowSheetView(null)}
+        />
+      )}
+
+      {/* PDF Viewer Modal */}
+      {showPDFViewer && (
+        <PDFViewerModal
+          pdfUrl={showPDFViewer.url}
+          fileName={showPDFViewer.fileName}
+          candidateName={showPDFViewer.candidateName}
+          onClose={() => setShowPDFViewer(null)}
+        />
+      )}
+
+      {/* Analysis Modal */}
+      {showAnalysis && (
+        <AnalysisModal
+          candidateName={showAnalysis.candidateName}
+          analysis={showAnalysis.analysis}
+          onClose={() => setShowAnalysis(null)}
         />
       )}
     </div>

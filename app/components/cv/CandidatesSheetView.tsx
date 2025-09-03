@@ -84,12 +84,43 @@ export default function CandidatesSheetView({
       );
     }
 
-    // Apply column filters
+    // Apply column filters with smart filtering
     Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
+      if (value.trim()) {
         filtered = filtered.filter(candidate => {
           const candidateValue = (candidate as any)[key];
-          return candidateValue?.toString().toLowerCase().includes(value.toLowerCase());
+          
+          // Special handling for different data types
+          if (key === 'score') {
+            // Allow filtering by score range (e.g., ">80", "<50", "80-90")
+            const scoreNum = typeof candidateValue === 'number' ? candidateValue : 0;
+            if (value.startsWith('>')) {
+              const threshold = parseInt(value.slice(1));
+              return scoreNum > threshold;
+            } else if (value.startsWith('<')) {
+              const threshold = parseInt(value.slice(1));
+              return scoreNum < threshold;
+            } else if (value.includes('-')) {
+              const [min, max] = value.split('-').map(v => parseInt(v.trim()));
+              return scoreNum >= min && scoreNum <= max;
+            } else {
+              const exactScore = parseInt(value);
+              return scoreNum === exactScore || scoreNum.toString().includes(value);
+            }
+          } else if (key === 'shortlisted') {
+            // Boolean filtering for shortlist
+            const lowerValue = value.toLowerCase();
+            const isShortlisted = candidateValue === true;
+            if (lowerValue === 'oui' || lowerValue === 'yes' || lowerValue === 'true') {
+              return isShortlisted;
+            } else if (lowerValue === 'non' || lowerValue === 'no' || lowerValue === 'false') {
+              return !isShortlisted;
+            }
+            return true;
+          } else {
+            // Standard text filtering
+            return candidateValue?.toString().toLowerCase().includes(value.toLowerCase());
+          }
         });
       }
     });
@@ -102,6 +133,13 @@ export default function CandidatesSheetView({
         
         if (aVal === null || aVal === undefined) return 1;
         if (bVal === null || bVal === undefined) return -1;
+        
+        // Special sorting for boolean values
+        if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+          return sortDirection === 'asc' ? 
+            (aVal === bVal ? 0 : aVal ? 1 : -1) : 
+            (aVal === bVal ? 0 : aVal ? -1 : 1);
+        }
         
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
@@ -201,14 +239,14 @@ export default function CandidatesSheetView({
   };
 
   const columns = [
-    { key: 'displayName', label: 'Nom', width: 'w-40' },
-    { key: 'email', label: 'Email', width: 'w-48' },
-    { key: 'phone', label: 'Tél', width: 'w-32' },
-    { key: 'uploadDate', label: 'Date', width: 'w-28' },
-    { key: 'analysisStatus', label: 'Statut', width: 'w-28' },
-    { key: 'score', label: 'Score', width: 'w-20' },
-    { key: 'recommendation', label: 'Recommandation', width: 'w-32' },
-    { key: 'shortlisted', label: 'Shortlist', width: 'w-24' },
+    { key: 'displayName', label: 'Nom', width: 'w-40', placeholder: 'ex: Sophie' },
+    { key: 'email', label: 'Email', width: 'w-48', placeholder: 'ex: @gmail.com' },
+    { key: 'phone', label: 'Tél', width: 'w-32', placeholder: 'ex: +33 6' },
+    { key: 'uploadDate', label: 'Date', width: 'w-28', placeholder: 'ex: 03/09' },
+    { key: 'analysisStatus', label: 'Statut', width: 'w-28', placeholder: 'ex: Analysé' },
+    { key: 'score', label: 'Score', width: 'w-20', placeholder: 'ex: >80' },
+    { key: 'recommendation', label: 'Recommandation', width: 'w-32', placeholder: 'ex: recommandé' },
+    { key: 'shortlisted', label: 'Shortlist', width: 'w-24', placeholder: 'oui/non' },
   ];
 
   return (
@@ -251,10 +289,22 @@ export default function CandidatesSheetView({
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
               className={showFilters ? 'bg-blue-50' : ''}
+              title="Afficher/masquer les filtres par colonne"
             >
               <Filter className="w-4 h-4 mr-2" />
               Filtres
+              {Object.values(filters).some(f => f.trim()) && (
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                  {Object.values(filters).filter(f => f.trim()).length}
+                </span>
+              )}
             </Button>
+
+            {showFilters && (
+              <div className="text-xs text-gray-500 italic">
+                💡 Score: >80, <50, 80-90 | Shortlist: oui/non
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -327,11 +377,12 @@ export default function CandidatesSheetView({
                     {showFilters && (
                       <input
                         type="text"
-                        placeholder="Filtrer..."
+                        placeholder={column.placeholder}
                         value={filters[column.key] || ''}
                         onChange={(e) => handleFilterChange(column.key, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                         className="mt-1 w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title={`Filtrer par ${column.label}${column.key === 'score' ? ' (>80, <50, 80-90)' : column.key === 'shortlisted' ? ' (oui/non)' : ''}`}
                       />
                     )}
                   </th>

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { Project } from '@/lib/types';
 import CandidatesListModal from '@/app/components/cv/CandidatesListModal';
+import JobOfferEditor from '@/app/components/cv/JobOfferEditor';
 import { 
   Plus, 
   Upload, 
@@ -16,7 +17,11 @@ import {
   MoreHorizontal,
   Trash2,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Brain,
+  Star,
+  FileSpreadsheet,
+  Edit
 } from 'lucide-react';
 
 export default function CVScreeningPage() {
@@ -24,6 +29,7 @@ export default function CVScreeningPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState<Project | null>(null);
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   const [showCandidatesModal, setShowCandidatesModal] = useState<string | null>(null);
   
@@ -66,6 +72,83 @@ export default function CVScreeningPage() {
     } catch (error) {
       console.error('Error deleting project:', error);
       alert('Erreur lors de la suppression du projet');
+    }
+  };
+
+  const analyzeAllCandidates = async (projectId: string) => {
+    if (!confirm('Lancer l\'analyse IA pour tous les CV de ce projet ?')) return;
+
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/analyze-all`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Rafraîchir silencieusement après analyse
+        loadProjects();
+        // Message seulement si échecs
+        if (data.data.failed > 0) {
+          alert(`Analyse terminée: ${data.data.analyzed} réussis, ${data.data.failed} échoués`);
+        }
+      } else {
+        alert('❌ Erreur lors de l\'analyse en lot');
+      }
+    } catch (error) {
+      console.error('Error analyzing all candidates:', error);
+      alert('❌ Erreur lors de l\'analyse en lot');
+    }
+  };
+
+  const createShortlist = async (projectId: string) => {
+    const maxCandidates = prompt('Combien de candidats maximum pour la shortlist ?', '5');
+    if (!maxCandidates) return;
+
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/shortlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxCandidates: parseInt(maxCandidates) })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Rafraîchir silencieusement
+        loadProjects();
+      } else {
+        alert('❌ Erreur lors de la création de la shortlist');
+      }
+    } catch (error) {
+      console.error('Error creating shortlist:', error);
+      alert('❌ Erreur lors de la création de la shortlist');
+    }
+  };
+
+  const exportResults = async (projectId: string, format: 'csv' | 'excel', type: 'all' | 'shortlist') => {
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/export?format=${format}&type=${type}`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `export-${projectId}-${type}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Export réussi - téléchargement automatique, pas de message
+      } else {
+        alert('❌ Erreur lors de l\'export');
+      }
+    } catch (error) {
+      console.error('Error exporting:', error);
+      alert('❌ Erreur lors de l\'export');
     }
   };
 
@@ -179,6 +262,13 @@ export default function CVScreeningPage() {
                   <div className="flex items-center space-x-2">
                     {getStatusBadge(project)}
                     <button 
+                      onClick={() => setShowEditModal(project)}
+                      className="p-1 hover:bg-blue-100 rounded text-blue-500 hover:text-blue-700"
+                      title="Modifier l'offre d'emploi"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
                       onClick={() => deleteProject(project.id)}
                       className="p-1 hover:bg-red-100 rounded text-red-500 hover:text-red-700"
                       title="Supprimer le projet"
@@ -207,28 +297,63 @@ export default function CVScreeningPage() {
                   </div>
                 </div>
 
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 mb-3">
                   <Button 
                     size="sm" 
                     className="flex-1"
                     onClick={() => setShowUploadModal(project.id)}
                   >
                     <Upload className="w-4 h-4 mr-2" />
-                    Télécharger CV
+                    Upload CV
                   </Button>
-                  {(project.candidate_count || 0) > 0 && (
-                    <Button variant="outline" size="sm">
-                      <Play className="w-4 h-4 mr-2" />
-                      Analyser
+                  
+                  {(project.candidate_count || 0) > (project.analyzed_count || 0) && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => analyzeAllCandidates(project.id)}
+                      className="text-purple-600 hover:bg-purple-50"
+                    >
+                      <Brain className="w-4 h-4 mr-2" />
+                      Analyser tout
                     </Button>
                   )}
-                  {(project.shortlisted_count || 0) > 0 && (
-                    <Button variant="outline" size="sm">
-                      <Download className="w-4 h-4" />
-                      Exporter
+                  
+                  {(project.analyzed_count || 0) > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => createShortlist(project.id)}
+                      className="text-yellow-600 hover:bg-yellow-50"
+                    >
+                      <Star className="w-4 h-4 mr-2" />
+                      Shortlist
                     </Button>
                   )}
                 </div>
+                
+                {(project.candidate_count || 0) > 0 && (
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => exportResults(project.id, 'csv', 'all')}
+                      className="flex-1 text-green-600 hover:bg-green-50"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      Export CSV
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => exportResults(project.id, 'excel', 'shortlist')}
+                      className="flex-1 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Excel
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-3 bg-gray-50 border-t">
@@ -241,13 +366,26 @@ export default function CVScreeningPage() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal - Using new JobOfferEditor */}
       {showCreateModal && (
-        <CreateProjectModal 
+        <JobOfferEditor 
           orgId={orgId}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
+            loadProjects();
+          }}
+        />
+      )}
+
+      {/* Edit Modal - Using new JobOfferEditor */}
+      {showEditModal && (
+        <JobOfferEditor 
+          orgId={orgId}
+          project={showEditModal}
+          onClose={() => setShowEditModal(null)}
+          onSuccess={() => {
+            setShowEditModal(null);
             loadProjects();
           }}
         />
@@ -332,7 +470,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: {
             <input
               type="text"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-blue-500 focus:border-blue-500"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -344,7 +482,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: {
             </label>
             <input
               type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-blue-500 focus:border-blue-500"
               value={formData.job_title}
               onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
             />
@@ -356,7 +494,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: {
             </label>
             <textarea
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-blue-500 focus:border-blue-500"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
@@ -368,7 +506,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: {
             </label>
             <textarea
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Ex: 5 ans d'expérience en React, maîtrise TypeScript..."
               value={formData.requirements}
               onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
@@ -430,9 +568,10 @@ function UploadCVModal({ projectId, onClose, onSuccess }: {
       const data = await response.json();
       
       if (data.success) {
-        alert(`✅ ${data.data?.uploaded || 0} CV(s) téléversé(s) avec succès !`);
+        // Succès silencieux - juste fermer le modal et rafraîchir
         if (data.data?.errors?.length > 0) {
           console.warn('Erreurs lors de l\'upload:', data.data.errors);
+          alert(`Attention: ${data.data.errors.join(', ')}`);
         }
         onSuccess();
       } else {
@@ -461,7 +600,7 @@ function UploadCVModal({ projectId, onClose, onSuccess }: {
               multiple
               accept=".pdf,.doc,.docx"
               onChange={handleFileChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-blue-500 focus:border-blue-500"
               required
             />
             {files && files.length > 0 && (

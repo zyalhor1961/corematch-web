@@ -1,5 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const updateProjectSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  job_title: z.string().optional(),
+  requirements: z.string().optional(),
+});
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const { projectId } = await params;
+    const body = await request.json();
+    const updateData = updateProjectSchema.parse(body);
+
+    // Update project
+    const { data: project, error } = await supabaseAdmin
+      .from('projects')
+      .update(updateData)
+      .eq('id', projectId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating project:', error);
+      return NextResponse.json(
+        { error: 'Failed to update project' },
+        { status: 500 }
+      );
+    }
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: project,
+    });
+
+  } catch (error) {
+    console.error('Project update error:', error);
+    return NextResponse.json(
+      { error: 'Invalid request data' },
+      { status: 400 }
+    );
+  }
+}
 
 export async function DELETE(
   request: NextRequest,

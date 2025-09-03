@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { Users, Eye } from 'lucide-react';
+import { Users, Eye, X, Brain, Loader } from 'lucide-react';
 import PDFViewerModal from './PDFViewerModal';
+import AnalysisModal from './AnalysisModal';
 
 interface Candidate {
   id: string;
@@ -28,44 +29,127 @@ interface CandidatesListModalProps {
 export default function CandidatesListModal({ projectId, onClose }: CandidatesListModalProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [analyzingCandidates, setAnalyzingCandidates] = useState<Set<string>>(new Set());
   const [showPDFViewer, setShowPDFViewer] = useState<{
     url: string;
     fileName: string;
     candidateName: string;
   } | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState<{
+    candidateName: string;
+    analysis: any;
+  } | null>(null);
 
   useEffect(() => {
-    const loadCandidates = async () => {
-      try {
-        console.log('Loading candidates for project:', projectId);
-        const response = await fetch(`/api/cv/projects/${projectId}/candidates`);
-        const data = await response.json();
-        
-        console.log('Candidates API response:', data);
-        
-        if (data.success) {
-          setCandidates(data.data);
-          console.log('Candidates loaded:', data.data.length, 'items');
-        } else {
-          console.error('API returned error:', data.error);
-        }
-      } catch (error) {
-        console.error('Error loading candidates:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadCandidates();
   }, [projectId]);
 
+  const analyzeCandidate = async (candidateId: string, candidateName: string) => {
+    setAnalyzingCandidates(prev => new Set([...prev, candidateId]));
+
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/candidates/${candidateId}/analyze`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show detailed analysis in modal
+        setShowAnalysis({
+          candidateName,
+          analysis: data.data.analysis
+        });
+        // Refresh the candidates list
+        loadCandidates();
+      } else {
+        console.error('Analysis error:', data.error);
+      }
+    } catch (error) {
+      console.error('Error analyzing candidate:', error);
+    } finally {
+      setAnalyzingCandidates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(candidateId);
+        return newSet;
+      });
+    }
+  };
+
+  const deleteCandidate = async (candidateId: string, candidateName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le CV de ${candidateName} ?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/candidates/${candidateId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Suppression réussie - rafraîchir silencieusement
+        loadCandidates();
+      } else {
+        console.error('Delete error:', data.error);
+      }
+    } catch (error) {
+      console.error('Error deleting candidate:', error);
+    }
+  };
+
+  const loadCandidates = async () => {
+    try {
+      console.log('Loading candidates for project:', projectId);
+      const response = await fetch(`/api/cv/projects/${projectId}/candidates`);
+      const data = await response.json();
+      
+      console.log('Candidates API response:', data);
+      
+      if (data.success) {
+        setCandidates(data.data);
+        console.log('Candidates loaded:', data.data.length, 'items');
+      } else {
+        console.error('API returned error:', data.error);
+      }
+    } catch (error) {
+      console.error('Error loading candidates:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const viewAnalysis = (candidate: Candidate) => {
+    // Extract analysis from notes
+    const notes = candidate.notes || '';
+    const scoreMatch = notes.match(/Score: (\d+)\/100/);
+    const recommendationMatch = notes.match(/Recommandation: ([^\\n]+)/);
+    const summaryMatch = notes.match(/Résumé: ([^\\n]+)/);
+    
+    if (scoreMatch) {
+      setShowAnalysis({
+        candidateName: getDisplayName(candidate),
+        analysis: {
+          score: parseInt(scoreMatch[1]),
+          recommendation: recommendationMatch?.[1] || "À considérer",
+          summary: summaryMatch?.[1] || "Analyse disponible dans les détails du candidat",
+          strengths: ["Analyse détaillée disponible"],
+          weaknesses: ["Voir les notes complètes pour plus de détails"]
+        }
+      });
+    }
+  };
+
   const viewCV = async (candidate: Candidate) => {
-    // Extract filename and path from notes
-    const filename = candidate.notes?.match(/CV file: ([^|]+)/)?.[1] || 
+    // Extract filename and path from notes - IMPORTANT: Stop at first newline to avoid analysis text
+    const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1] || 
                     candidate.cv_filename || 
                     `${candidate.first_name || candidate.name || 'candidat'}.pdf`;
     
-    const filePath = candidate.notes?.match(/Path: ([^|]+)/)?.[1];
+    // Extract path - make sure to stop at newline or pipe to avoid getting analysis text
+    const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
+    const filePath = pathMatch?.[1]?.trim();
     
     if (filePath) {
       // Create download URL for the PDF  
@@ -73,6 +157,7 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
       const downloadUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
       
       console.log('Ouverture du PDF dans le viewer:', downloadUrl);
+      console.log('Path extrait:', filePath);
       
       // Open PDF in integrated viewer
       setShowPDFViewer({
@@ -93,8 +178,8 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
     }
     if (candidate.first_name) return candidate.first_name;
     
-    // Extract from filename in notes
-    const filename = candidate.notes?.match(/CV file: ([^|]+)/)?.[1];
+    // Extract from filename in notes - stop at newline to avoid analysis text
+    const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1];
     if (filename) {
       return filename.replace(/\.[^/.]+$/, ""); // Remove extension
     }
@@ -140,9 +225,13 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
                       {candidate.email && <span>{candidate.email} • </span>}
                       Téléversé le {new Date(candidate.created_at).toLocaleDateString('fr-FR')}
                     </div>
-                    {candidate.score && (
-                      <div className="text-sm text-blue-600">
-                        Score: {candidate.score}/100
+                    {candidate.status === 'analyzed' && candidate.notes?.includes('Score:') && (
+                      <div 
+                        className="text-sm text-blue-600 cursor-pointer hover:underline"
+                        onClick={() => viewAnalysis(candidate)}
+                        title="Cliquer pour voir l'analyse détaillée"
+                      >
+                        {candidate.notes.match(/Score: (\d+)\/100/)?.[0] || 'Score analysé'} - Voir détails
                       </div>
                     )}
                   </div>
@@ -161,6 +250,27 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
                       title="Voir le CV"
                     >
                       <Eye className="w-4 h-4" />
+                    </button>
+                    {candidate.status === 'pending' && (
+                      <button
+                        onClick={() => analyzeCandidate(candidate.id, getDisplayName(candidate))}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                        title="Analyser avec IA"
+                        disabled={analyzingCandidates.has(candidate.id)}
+                      >
+                        {analyzingCandidates.has(candidate.id) ? (
+                          <Loader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Brain className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteCandidate(candidate.id, getDisplayName(candidate))}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Supprimer le CV"
+                    >
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -183,6 +293,15 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
           fileName={showPDFViewer.fileName}
           candidateName={showPDFViewer.candidateName}
           onClose={() => setShowPDFViewer(null)}
+        />
+      )}
+
+      {/* Analysis Modal */}
+      {showAnalysis && (
+        <AnalysisModal
+          candidateName={showAnalysis.candidateName}
+          analysis={showAnalysis.analysis}
+          onClose={() => setShowAnalysis(null)}
         />
       )}
     </div>

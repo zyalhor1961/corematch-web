@@ -29,7 +29,11 @@
       "WebFetch(domain:corematch-lke6d7d58-corematchs-projects.vercel.app)",
       "Bash(npx supabase db reset:*)",
       "Bash(node:*)",
-      "Bash(del NUL)"
+      "Bash(del NUL)",
+      "Bash(npm uninstall:*)",
+      "Bash(dir:*)",
+      "WebFetch(domain:corematch-bpzgukugo-corematchs-projects.vercel.app)",
+      "Bash(git clean:*)"
     ],
     "deny": [],
     "ask": []

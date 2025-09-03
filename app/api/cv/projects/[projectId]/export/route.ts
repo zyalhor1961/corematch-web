@@ -1,124 +1,110 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import * as XLSX from 'xlsx';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId;
+    const { projectId } = await params;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';
-    const shortlistedOnly = searchParams.get('shortlisted') === 'true';
+    const type = searchParams.get('type') || 'all';
 
-    // Get project details
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
-      .select('name, job_title')
+      .select('*')
       .eq('id', projectId)
       .single();
 
     if (projectError || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Projet non trouvé' }, { status: 404 });
     }
 
-    // Get candidates
     let query = supabaseAdmin
       .from('candidates')
-      .select('name, email, phone, score, explanation, cv_filename, shortlisted, status, created_at')
-      .eq('project_id', projectId)
-      .order('score', { ascending: false, nullsLast: true });
+      .select('*')
+      .eq('project_id', projectId);
 
-    if (shortlistedOnly) {
-      query = query.eq('shortlisted', true);
+    if (type === 'shortlist') {
+      query = query.ilike('notes', '%SÉLECTIONNÉ%');
+    }
+
+    const { data: candidates } = await query;
+
+    const exportData = (candidates || []).map(candidate => {
+      const notes = candidate.notes || '';
+      
+      // Extract analysis data from notes
+      const scoreMatch = notes.match(/Score: (\d+)\/100/);
+      const recommendationMatch = notes.match(/Recommandation: ([^\n]+)/);
+      const summaryMatch = notes.match(/Résumé: ([^\n]+)/);
+      const shortlistMatch = notes.match(/Statut: (SÉLECTIONNÉ|NON RETENU)/);
+      const rankMatch = notes.match(/Rang: (\d+)/);
+      const justificationMatch = notes.match(/Justification: ([^\n]+)/);
+      const fileMatch = notes.match(/CV file: ([^|\n]+)/);
+      
+      return {
+        'Nom': candidate.first_name || 'Candidat',
+        'Email': candidate.email || '',
+        'Téléphone': candidate.phone || '',
+        'Fichier CV': fileMatch?.[1]?.trim() || '',
+        'Date Upload': new Date(candidate.created_at).toLocaleDateString('fr-FR'),
+        'Statut Analyse': candidate.status === 'analyzed' ? 'Analysé' : 
+                         candidate.status === 'processing' ? 'En cours' : 'En attente',
+        'Score IA': scoreMatch ? scoreMatch[1] : '',
+        'Recommandation': recommendationMatch?.[1] || '',
+        'Résumé': summaryMatch?.[1] || '',
+        'Shortlist': shortlistMatch?.[1] || '',
+        'Rang': rankMatch?.[1] || '',
+        'Justification': justificationMatch?.[1] || ''
+      };
+    });
+
+    const filename = `${project.name}-export-${Date.now()}`;
+
+    if (format === 'excel') {
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Candidats');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}.xlsx"`,
+        },
+      });
     } else {
-      // Only include analyzed candidates for export
-      query = query.eq('status', 'analyzed');
-    }
-
-    const { data: candidates, error: candidatesError } = await query;
-
-    if (candidatesError) {
-      console.error('Error fetching candidates:', candidatesError);
-      return NextResponse.json(
-        { error: 'Failed to fetch candidates' },
-        { status: 500 }
-      );
-    }
-
-    if (!candidates?.length) {
-      return NextResponse.json(
-        { error: 'No candidates to export' },
-        { status: 404 }
-      );
-    }
-
-    if (format === 'csv') {
-      // Generate CSV
-      const headers = [
-        'Name',
-        'Email',
-        'Phone',
-        'Score',
-        'Shortlisted',
-        'CV Filename',
-        'Explanation',
-        'Date Added'
-      ];
-
-      const rows = candidates.map(candidate => [
-        candidate.name || '',
-        candidate.email || '',
-        candidate.phone || '',
-        candidate.score?.toString() || '',
-        candidate.shortlisted ? 'Yes' : 'No',
-        candidate.cv_filename || '',
-        (candidate.explanation || '').replace(/"/g, '""'), // Escape quotes
-        new Date(candidate.created_at).toLocaleDateString()
-      ]);
-
+      // Generate CSV with proper escaping
+      const headers = Object.keys(exportData[0] || {});
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => 
-          row.map(field => 
-            typeof field === 'string' && (field.includes(',') || field.includes('"') || field.includes('\n'))
-              ? `"${field}"`
-              : field
-          ).join(',')
+        ...exportData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row];
+            // Escape values containing commas, quotes, or newlines
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',')
         )
       ].join('\n');
 
-      const filename = `${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_candidates_${new Date().toISOString().split('T')[0]}.csv`;
+      // Add BOM for Excel UTF-8 recognition
+      const BOM = '\uFEFF';
+      const csvWithBOM = BOM + csvContent;
 
-      return new NextResponse(csvContent, {
+      return new NextResponse(csvWithBOM, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Disposition': `attachment; filename="${filename}.csv"`,
         },
       });
     }
-
-    // JSON format
-    return NextResponse.json({
-      success: true,
-      data: {
-        project: {
-          name: project.name,
-          job_title: project.job_title,
-        },
-        candidates,
-        exported_at: new Date().toISOString(),
-      },
-    });
-
   } catch (error) {
-    console.error('Export error:', error);
-    return NextResponse.json(
-      { error: 'Export failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erreur export' }, { status: 500 });
   }
 }

@@ -33,7 +33,8 @@
       "Bash(npm uninstall:*)",
       "Bash(dir:*)",
       "WebFetch(domain:corematch-bpzgukugo-corematchs-projects.vercel.app)",
-      "Bash(git clean:*)"
+      "Bash(git clean:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []

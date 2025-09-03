@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { Users, Eye, X, Brain, Loader } from 'lucide-react';
+import { Users, Eye, X, Brain, Loader, Table } from 'lucide-react';
 import PDFViewerModal from './PDFViewerModal';
 import AnalysisModal from './AnalysisModal';
+import CandidatesSheetView from './CandidatesSheetView';
 
 interface Candidate {
   id: string;
@@ -30,6 +31,8 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [analyzingCandidates, setAnalyzingCandidates] = useState<Set<string>>(new Set());
+  const [showSheetView, setShowSheetView] = useState(false);
+  const [projectName, setProjectName] = useState<string>('');
   const [showPDFViewer, setShowPDFViewer] = useState<{
     url: string;
     fileName: string;
@@ -42,7 +45,20 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
 
   useEffect(() => {
     loadCandidates();
+    loadProjectName();
   }, [projectId]);
+
+  const loadProjectName = async () => {
+    try {
+      const response = await fetch(`/api/cv/projects?projectId=${projectId}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        setProjectName(data.data.name || 'Projet');
+      }
+    } catch (error) {
+      console.error('Error loading project name:', error);
+    }
+  };
 
   const analyzeCandidate = async (candidateId: string, candidateName: string) => {
     setAnalyzingCandidates(prev => new Set([...prev, candidateId]));
@@ -191,7 +207,18 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">CV téléversés</h3>
+          <div className="flex items-center space-x-4">
+            <h3 className="text-lg font-semibold">CV téléversés</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSheetView(true)}
+              className="flex items-center space-x-2"
+            >
+              <Table className="w-4 h-4" />
+              <span>Vue tableur</span>
+            </Button>
+          </div>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -302,6 +329,24 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
           candidateName={showAnalysis.candidateName}
           analysis={showAnalysis.analysis}
           onClose={() => setShowAnalysis(null)}
+        />
+      )}
+
+      {/* Sheet View Modal */}
+      {showSheetView && (
+        <CandidatesSheetView
+          candidates={candidates}
+          projectName={projectName}
+          onViewCandidate={(candidate) => {
+            const analysis = extractAnalysisFromNotes(candidate.notes || '');
+            if (analysis.score !== undefined) {
+              setShowAnalysis({
+                candidateName: getDisplayName(candidate),
+                analysis: analysis
+              });
+            }
+          }}
+          onClose={() => setShowSheetView(false)}
         />
       )}
     </div>

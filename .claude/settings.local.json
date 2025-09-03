@@ -35,7 +35,8 @@
       "WebFetch(domain:corematch-bpzgukugo-corematchs-projects.vercel.app)",
       "Bash(git clean:*)",
       "Bash(git fetch:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "WebFetch(domain:localhost)"
     ],
     "deny": [],
     "ask": []

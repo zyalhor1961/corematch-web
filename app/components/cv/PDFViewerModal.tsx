@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { X, ExternalLink, Download } from 'lucide-react';
+import { X, ExternalLink, Download, FileText, AlertCircle } from 'lucide-react';
 
 interface PDFViewerModalProps {
   pdfUrl: string;
@@ -13,6 +13,25 @@ interface PDFViewerModalProps {
 
 export default function PDFViewerModal({ pdfUrl, fileName, candidateName, onClose }: PDFViewerModalProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [pdfExists, setPdfExists] = useState(true);
+  const [showDemoCV, setShowDemoCV] = useState(false);
+
+  useEffect(() => {
+    // Check if PDF exists
+    fetch(pdfUrl, { method: 'HEAD' })
+      .then(response => {
+        if (!response.ok) {
+          setPdfExists(false);
+          setShowDemoCV(true);
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setPdfExists(false);
+        setShowDemoCV(true);
+        setIsLoading(false);
+      });
+  }, [pdfUrl]);
 
   const handleOpenInNewTab = () => {
     window.open(pdfUrl, '_blank');
@@ -71,20 +90,69 @@ export default function PDFViewerModal({ pdfUrl, fileName, candidateName, onClos
             <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Chargement du PDF...</p>
+                <p className="text-gray-600">Vérification du CV...</p>
               </div>
             </div>
           )}
-          <iframe
-            src={pdfUrl}
-            className="w-full h-full border-0"
-            title={`CV ${candidateName}`}
-            onLoad={() => setIsLoading(false)}
-            onError={() => {
-              setIsLoading(false);
-              console.error('Erreur de chargement du PDF');
-            }}
-          />
+          
+          {!isLoading && !pdfExists && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+              <div className="text-center p-8 max-w-md">
+                <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">CV de démonstration</h3>
+                <p className="text-gray-600 mb-6">
+                  Ce candidat fait partie des données de test. Le CV réel n'est pas disponible.
+                </p>
+                <div className="bg-white rounded-lg border p-6 text-left shadow-sm">
+                  <div className="border-b pb-4 mb-4">
+                    <h4 className="text-xl font-bold text-gray-900">{candidateName}</h4>
+                    <p className="text-gray-600">Candidat de démonstration</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <h5 className="font-semibold text-gray-900 mb-1">📧 Contact</h5>
+                      <p className="text-sm text-gray-600">Email: demo@example.com</p>
+                      <p className="text-sm text-gray-600">Téléphone: +33 6 00 00 00 00</p>
+                    </div>
+                    
+                    <div>
+                      <h5 className="font-semibold text-gray-900 mb-1">🎯 Profil</h5>
+                      <p className="text-sm text-gray-600">
+                        Candidat de test généré automatiquement pour la démonstration des fonctionnalités 
+                        de la plateforme CoreMatch.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h5 className="font-semibold text-gray-900 mb-1">💼 Expérience</h5>
+                      <p className="text-sm text-gray-600">
+                        Les données d'analyse IA sont disponibles dans les détails du candidat.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-500 mt-4">
+                  💡 Uploadez de vrais CV pour voir l'aperçu PDF complet
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {!isLoading && pdfExists && (
+            <iframe
+              src={pdfUrl}
+              className="w-full h-full border-0"
+              title={`CV ${candidateName}`}
+              onLoad={() => setIsLoading(false)}
+              onError={() => {
+                setPdfExists(false);
+                setShowDemoCV(true);
+                console.error('Erreur de chargement du PDF');
+              }}
+            />
+          )}
         </div>
 
         {/* Footer */}

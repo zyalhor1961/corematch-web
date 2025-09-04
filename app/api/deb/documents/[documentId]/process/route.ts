@@ -7,12 +7,12 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const documentId = params.documentId;
+    const { documentId } = await params;
 
     // Get document details
     const { data: document, error: docError } = await supabaseAdmin
       .from('documents')
-      .select('org_id, file_path, status, filename')
+      .select('org_id, file_url, status, name')
       .eq('id', documentId)
       .single();
 
@@ -64,7 +64,7 @@ export async function POST(
     // Get signed URL for the document
     const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage
       .from('deb-docs')
-      .createSignedUrl(document.file_path, 3600);
+      .createSignedUrl(document.file_url, 3600);
 
     if (urlError || !signedUrlData?.signedUrl) {
       return NextResponse.json(
@@ -86,7 +86,7 @@ export async function POST(
             document_id: documentId,
             signed_url: signedUrlData.signedUrl,
             org_id: document.org_id,
-            filename: document.filename,
+            filename: document.name,
           }),
         });
 
@@ -110,17 +110,38 @@ export async function POST(
         );
       }
     } else {
-      // If no n8n webhook configured, return a placeholder response
-      console.warn('N8N_WEBHOOK_DEB_INGEST_URL not configured, processing will be manual');
+      // If no n8n webhook configured, use our AI analysis
+      console.log('N8N_WEBHOOK_DEB_INGEST_URL not configured, using AI analysis');
       
-      // For demo purposes, we can simulate some processing here
+      // Start AI analysis
       setTimeout(async () => {
         try {
-          await simulateProcessing(documentId);
+          console.log('Starting AI analysis for document:', documentId);
+          
+          const analysisResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/deb/documents/${documentId}/analyze`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!analysisResponse.ok) {
+            throw new Error(`AI analysis failed: ${analysisResponse.status}`);
+          }
+
+          const analysisData = await analysisResponse.json();
+          console.log('AI analysis completed:', analysisData);
+
         } catch (error) {
-          console.error('Simulation error:', error);
+          console.error('AI Analysis error:', error);
+          
+          // Update document status to error
+          await supabaseAdmin
+            .from('documents')
+            .update({ status: 'error' })
+            .eq('id', documentId);
         }
-      }, 2000);
+      }, 3000);
     }
 
     return NextResponse.json({

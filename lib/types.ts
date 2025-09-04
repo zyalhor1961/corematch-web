@@ -73,15 +73,21 @@ export interface Document {
   supplier_name?: string;
   supplier_vat?: string;
   supplier_country?: string;
+  supplier_address?: string;
   invoice_number?: string;
   invoice_date?: string;
+  delivery_note_number?: string;
   currency: string;
   incoterm?: string;
+  transport_mode?: string;
+  transport_document?: string;
   total_ht?: number;
+  total_ttc?: number;
   shipping_total?: number;
   status: 'uploaded' | 'processing' | 'parsed' | 'enriched' | 'needs_review' | 'approved' | 'exported' | 'error';
   export_url?: string;
   pages_count: number;
+  line_count?: number;
   confidence_avg?: number;
   created_by?: string;
   created_at: string;
@@ -117,6 +123,57 @@ export interface DocumentLine {
   bl_links?: string[];
   pages_source?: number[];
   created_at: string;
+}
+
+export interface DocumentLink {
+  id: string;
+  document_id: string;
+  linked_document_id: string;
+  link_type: 'bl_invoice_match' | 'manual' | 'auto_detected';
+  confidence: number;
+  notes?: string;
+  created_at: string;
+  created_by?: string;
+}
+
+export interface ExtractedDocumentData {
+  document_type: 'invoice' | 'delivery_note' | 'mixed';
+  confidence: number;
+  pages_count: number;
+  supplier_name: string;
+  supplier_vat?: string;
+  supplier_country?: string;
+  supplier_address?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  delivery_note_number?: string;
+  total_ht?: number;
+  total_ttc?: number;
+  shipping_total?: number;
+  currency: string;
+  incoterm?: string;
+  transport_mode?: string;
+  lines?: ExtractedLineData[];
+  additional_info?: {
+    delivery_address?: string;
+    purchase_order?: string;
+    container_number?: string;
+    transport_document?: string;
+  };
+}
+
+export interface ExtractedLineData {
+  line_no: number;
+  description: string;
+  sku?: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  line_amount: number;
+  hs_code?: string;
+  country_of_origin?: string;
+  net_mass_kg?: number;
+  customs_value?: number;
 }
 
 export interface Product {

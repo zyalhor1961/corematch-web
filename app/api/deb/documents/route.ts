@@ -18,15 +18,18 @@ export async function POST(request: NextRequest) {
     const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `deb-docs/${orgId}/${uniqueFilename}`;
 
-    // Create document record
+    // Create document record (adapting to existing documents table structure)
     const { data: document, error } = await supabaseAdmin
       .from('documents')
       .insert({
         org_id: orgId,
-        filename,
-        file_path: filePath,
-        status: 'uploaded',
-        created_by,
+        name: filename,
+        description: `Document DEB uploadé: ${filename}`,
+        file_url: filePath,
+        file_type: 'application/pdf',
+        uploaded_by: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -86,16 +89,10 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('documents')
-      .select(`
-        *,
-        document_lines:document_lines(count)
-      `)
+      .select('id, org_id, name, description, file_url, file_type, file_size, created_at, updated_at')
       .eq('org_id', orgId)
+      .eq('file_type', 'application/pdf') // Only get PDF documents for DEB
       .order('created_at', { ascending: false });
-
-    if (status) {
-      query = query.eq('status', status);
-    }
 
     const { data: documents, error } = await query;
 
@@ -107,10 +104,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform to include line count
+    // Transform to match expected DEB format
     const documentsWithCounts = documents?.map(doc => ({
-      ...doc,
-      line_count: doc.document_lines?.[0]?.count || 0,
+      id: doc.id,
+      org_id: doc.org_id,
+      filename: doc.name,
+      supplier_name: null,
+      supplier_vat: null,
+      invoice_number: null,
+      status: 'uploaded',
+      pages_count: 0,
+      line_count: 0,
+      created_at: doc.created_at,
+      export_url: null
     })) || [];
 
     return NextResponse.json({

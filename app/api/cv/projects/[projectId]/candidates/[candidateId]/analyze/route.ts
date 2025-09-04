@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
+import { extractTextFromPDF, cleanPDFText, parseCV } from '@/lib/utils/pdf-extractor';
+import { handleApiError, AppError, ErrorCode } from '@/lib/utils/error-handler';
 import OpenAI from 'openai';
 
 // Initialize OpenAI
@@ -7,40 +10,20 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Extract text from PDF using OCR/AI fallback
-async function extractTextFromPDF(pdfUrl: string, fileName: string): Promise<string> {
-  try {
-    console.log('Processing PDF:', fileName);
-    
-    // For now, we'll use OpenAI to analyze the PDF content directly
-    // This is a workaround since pdf-parse has issues
-    
-    // Fallback: Use the filename and basic info
-    // In production, you'd want to use a proper PDF service or Azure Document Intelligence
-    
-    const basicInfo = `
-    Document: ${fileName}
-    Type: CV/Resume
-    
-    [Note: Pour une analyse complète, utilisez Azure Document Intelligence ou un service OCR professionnel]
-    
-    IMPORTANT: Ce CV doit être analysé strictement par rapport au poste demandé.
-    Si le nom du fichier ou le contexte suggère un métier différent du poste recherché,
-    le score doit être très bas.
-    `;
-    
-    return basicInfo;
-  } catch (error) {
-    console.error('PDF processing error:', error);
-    return `Erreur traitement PDF: ${fileName}. Analyse basée sur les informations disponibles.`;
-  }
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string; candidateId: string }> }
 ) {
   try {
+    // Verify authentication
+    const user = await verifyAuth(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
     const { projectId, candidateId } = await params;
 
     if (!candidateId || !projectId) {
@@ -50,7 +33,7 @@ export async function POST(
       );
     }
 
-    // Get candidate and project info
+    // Get candidate and project info first to get org_id
     const { data: candidate, error: candidateError } = await supabaseAdmin
       .from('candidates')
       .select(`
@@ -60,7 +43,8 @@ export async function POST(
           name,
           job_title,
           requirements,
-          description
+          description,
+          org_id
         )
       `)
       .eq('id', candidateId)
@@ -73,6 +57,23 @@ export async function POST(
         { status: 404 }
       );
     }
+    
+    // Verify user has access to the organization
+    const orgId = (candidate.project as any)?.org_id;
+    if (!orgId) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 }
+      );
+    }
+    
+    const hasAccess = await verifyOrgAccess(user.id, orgId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this organization' },
+        { status: 403 }
+      );
+    }
 
     // Update status to processing
     await supabaseAdmin
@@ -80,19 +81,47 @@ export async function POST(
       .update({ status: 'processing' })
       .eq('id', candidateId);
 
-    // Extract PDF text - using filename analysis for now
+    // Extract PDF text
     let cvText = '';
+    let cvStructure: any = null;
     const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
     const filePath = pathMatch?.[1]?.trim();
     const fileNameMatch = candidate.notes?.match(/CV file: ([^|\n]+)/);
     const fileName = fileNameMatch?.[1]?.trim() || 'CV.pdf';
     
     if (filePath) {
-      const pdfUrl = `https://glexllbywdvlxpbanjmn.supabase.co/storage/v1/object/public/cv/${filePath}`;
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new AppError(
+          ErrorCode.INTERNAL_ERROR,
+          'Missing NEXT_PUBLIC_SUPABASE_URL environment variable',
+          500
+        );
+      }
+      const pdfUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
       console.log('Processing PDF:', fileName);
       
-      // Extract text from PDF (using fallback method for now)
-      cvText = await extractTextFromPDF(pdfUrl, fileName);
+      try {
+        // Extract text from PDF using proper extraction
+        const rawText = await extractTextFromPDF(pdfUrl);
+        cvText = cleanPDFText(rawText);
+        
+        // Parse CV structure
+        cvStructure = parseCV(cvText);
+        
+        console.log(`Extracted ${cvText.length} characters from PDF`);
+      } catch (pdfError) {
+        console.error('PDF extraction failed, using fallback:', pdfError);
+        // Fallback to basic info
+        cvText = `
+        Document: ${fileName}
+        Type: CV/Resume
+        
+        [Erreur extraction PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}]
+        
+        IMPORTANT: Ce CV doit être analysé strictement par rapport au poste demandé.
+        `;
+      }
       
       // Add filename analysis hints
       const fileNameLower = fileName.toLowerCase();
@@ -226,17 +255,18 @@ Réponds en JSON:
     
     // Reset status to pending on error
     try {
-      await supabaseAdmin
-        .from('candidates')
-        .update({ status: 'pending' })
-        .eq('id', (await params).candidateId);
+      const { candidateId } = await params;
+      if (candidateId) {
+        await supabaseAdmin
+          .from('candidates')
+          .update({ status: 'pending' })
+          .eq('id', candidateId);
+      }
     } catch (resetError) {
       console.error('Error resetting status:', resetError);
     }
 
-    return NextResponse.json(
-      { error: 'Erreur lors de l\'analyse IA' },
-      { status: 500 }
-    );
+    // Use centralized error handler
+    return handleApiError(error);
   }
 }

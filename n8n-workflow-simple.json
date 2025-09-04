@@ -1,0 +1,232 @@
+{
+  "name": "DEB Document Processing",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "path": "deb-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all()[0].json;\nconsole.log('Document reçu:', data);\n\nreturn [{\n  json: {\n    document_id: data.id || data.document_id,\n    file_url: data.file_url,\n    org_id: data.org_id,\n    document_name: data.name,\n    status: 'processing_started',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://corematch-deb-resource.cognitiveservices.azure.com/formrecognizer/v2.1/prebuilt/invoice/analyze",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Ocp-Apim-Subscription-Key",
+          "value": "AZURE_API_KEY_PLACEHOLDER"
+        },
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={\n  \"source\": \"{{ $json.file_url }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c3d4e5f6-g7h8-9012-cdef-345678901234",
+      "name": "Azure Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "d4e5f6g7-h8i9-0123-defg-456789012345",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Azure Analysis').first().json.headers['Operation-Location'] || $('Azure Analysis').first().json.headers['operation-location'] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Ocp-Apim-Subscription-Key",
+          "value": "AZURE_API_KEY_PLACEHOLDER"
+        }
+      },
+      "id": "e5f6g7h8-i9j0-1234-efgh-567890123456",
+      "name": "Get Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all()[0].json;\nconst originalData = $('Prepare Data').first().json;\n\nconsole.log('Azure status:', results.status);\n\nif (results.status !== 'succeeded') {\n  console.log('Processing not complete, status:', results.status);\n  return [{\n    json: {\n      ...originalData,\n      error: 'Azure processing not completed: ' + results.status,\n      azure_status: results.status,\n      processing_complete: false\n    }\n  }];\n}\n\n// Traiter les résultats\nconst analyzeResult = results.analyzeResult;\nif (!analyzeResult || !analyzeResult.documentResults) {\n  return [{\n    json: {\n      ...originalData,\n      error: 'No document results found',\n      processing_complete: false\n    }\n  }];\n}\n\nconst document = analyzeResult.documentResults[0];\nconst fields = document.fields || {};\n\nfunction getFieldValue(field) {\n  if (!field) return null;\n  return field.text || field.value || null;\n}\n\nconst processedData = {\n  document_id: originalData.document_id,\n  org_id: originalData.org_id,\n  \n  // Données extraites\n  vendor_name: getFieldValue(fields.VendorName),\n  vendor_address: getFieldValue(fields.VendorAddress),\n  vendor_tax_id: getFieldValue(fields.VendorTaxId),\n  invoice_id: getFieldValue(fields.InvoiceId),\n  invoice_date: getFieldValue(fields.InvoiceDate),\n  subtotal: getFieldValue(fields.SubTotal),\n  total_tax: getFieldValue(fields.TotalTax),\n  invoice_total: getFieldValue(fields.InvoiceTotal),\n  \n  // Métadonnées\n  confidence: document.confidence || 0,\n  pages_count: analyzeResult.pageResults?.length || 1,\n  processing_complete: true,\n  processed_at: new Date().toISOString(),\n  \n  // Items (si présents)\n  items: []\n};\n\n// Extraire les items si présents\nif (fields.Items && fields.Items.value) {\n  processedData.items = fields.Items.value.map((item, index) => ({\n    line_number: index + 1,\n    description: getFieldValue(item.value?.Description),\n    quantity: getFieldValue(item.value?.Quantity) || 1,\n    unit_price: getFieldValue(item.value?.UnitPrice) || 0,\n    amount: getFieldValue(item.value?.Amount) || 0\n  }));\n}\n\nconsole.log('Processed data:', JSON.stringify(processedData, null, 2));\n\nreturn [{ json: processedData }];"
+      },
+      "id": "f6g7h8i9-j0k1-2345-fghi-678901234567",
+      "name": "Process Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://corematch-i7y9qb07o-corematchs-projects.vercel.app/api/deb/documents/{{ $('Prepare Data').first().json.document_id }}/finalize",
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "g7h8i9j0-k1l2-3456-ghij-789012345678",
+      "name": "Save to CoreMatch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Document processed successfully\",\n  \"document_id\": \"{{ $('Prepare Data').first().json.document_id }}\",\n  \"vendor_name\": \"{{ $json.vendor_name || 'N/A' }}\",\n  \"invoice_total\": {{ $json.invoice_total || 0 }},\n  \"items_count\": {{ ($json.items && $json.items.length) || 0 }},\n  \"confidence\": {{ $json.confidence || 0 }},\n  \"processing_complete\": {{ $json.processing_complete || false }},\n  \"processed_at\": \"{{ $json.processed_at }}\"\n}"
+      },
+      "id": "h8i9j0k1-l2m3-4567-hijk-890123456789",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Azure Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure Analysis": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Results": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Save to CoreMatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to CoreMatch": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2025-01-09T00:00:00.000Z",
+  "updatedAt": "2025-01-09T00:00:00.000Z",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "meta": null,
+  "pinData": null,
+  "versionId": "1"
+}

@@ -1,0 +1,377 @@
+{
+  "name": "DEB Document Processing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "deb-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Document Upload Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Vérifier le type de document et préparer les données\nconst documentData = items[0].json;\n\n// Log pour debug\nconsole.log('Document reçu:', documentData);\n\n// Validation des données requises\nif (!documentData.file_url || !documentData.org_id) {\n  throw new Error('Données manquantes: file_url ou org_id');\n}\n\n// Préparer les métadonnées\nreturn [{\n  json: {\n    document_id: documentData.id,\n    file_url: documentData.file_url,\n    org_id: documentData.org_id,\n    document_name: documentData.name || 'document.pdf',\n    processing_status: 'started',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Document Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://francecentral.api.cognitive.microsoft.com/formrecognizer/v2.1/prebuilt/invoice/analyze",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Ocp-Apim-Subscription-Key",
+          "value": "={{ $credentials.azureFormRecognizer.subscriptionKey }}"
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json.file_url }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "azure-ocr",
+      "name": "Azure Form Recognizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-processing",
+      "name": "Wait for OCR Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Azure Form Recognizer').first().json.headers['operation-location'] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Ocp-Apim-Subscription-Key",
+          "value": "={{ $credentials.azureFormRecognizer.subscriptionKey }}"
+        }
+      },
+      "id": "get-ocr-results",
+      "name": "Get OCR Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Traitement des résultats Azure Form Recognizer\nconst ocrResults = items[0].json;\nconst originalData = $('Prepare Document Data').first().json;\n\n// Vérifier si le traitement est terminé\nif (ocrResults.status !== 'succeeded') {\n  throw new Error('OCR processing not completed: ' + ocrResults.status);\n}\n\n// Extraire les informations de la facture\nconst analyzeResult = ocrResults.analyzeResult;\nconst documents = analyzeResult.documentResults || [];\n\nif (documents.length === 0) {\n  throw new Error('Aucun document trouvé dans les résultats OCR');\n}\n\nconst document = documents[0];\nconst fields = document.fields || {};\n\n// Fonction pour extraire la valeur d'un champ\nfunction extractFieldValue(field) {\n  if (!field) return null;\n  if (field.type === 'string' || field.type === 'phoneNumber') return field.text;\n  if (field.type === 'number') return field.value;\n  if (field.type === 'date') return field.value;\n  if (field.type === 'currency') return field.value?.amount;\n  return field.text || field.value || null;\n}\n\n// Extraction des données principales\nconst invoiceData = {\n  document_id: originalData.document_id,\n  org_id: originalData.org_id,\n  \n  // Informations fournisseur\n  vendor_name: extractFieldValue(fields.VendorName),\n  vendor_address: extractFieldValue(fields.VendorAddress),\n  vendor_vat: extractFieldValue(fields.VendorTaxId),\n  \n  // Informations facture\n  invoice_id: extractFieldValue(fields.InvoiceId),\n  invoice_date: extractFieldValue(fields.InvoiceDate),\n  due_date: extractFieldValue(fields.DueDate),\n  \n  // Montants\n  subtotal: extractFieldValue(fields.SubTotal),\n  total_tax: extractFieldValue(fields.TotalTax),\n  invoice_total: extractFieldValue(fields.InvoiceTotal),\n  \n  // Adresse de livraison\n  shipping_address: extractFieldValue(fields.ShippingAddress),\n  billing_address: extractFieldValue(fields.BillingAddress),\n  \n  // Articles/Lignes\n  items: []\n};\n\n// Extraire les lignes d'articles\nif (fields.Items && fields.Items.type === 'array') {\n  fields.Items.value.forEach((item, index) => {\n    const itemFields = item.value || {};\n    invoiceData.items.push({\n      line_number: index + 1,\n      description: extractFieldValue(itemFields.Description),\n      quantity: extractFieldValue(itemFields.Quantity),\n      unit_price: extractFieldValue(itemFields.UnitPrice),\n      amount: extractFieldValue(itemFields.Amount),\n      product_code: extractFieldValue(itemFields.ProductCode),\n      unit: extractFieldValue(itemFields.Unit)\n    });\n  });\n}\n\nconsole.log('Données extraites:', JSON.stringify(invoiceData, null, 2));\n\nreturn [{ json: invoiceData }];"
+      },
+      "id": "process-ocr-results",
+      "name": "Process OCR Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Demander département et ville si pas présents\nconst invoiceData = items[0].json;\n\n// Vérifier si on a l'adresse de livraison\nconst shippingAddress = invoiceData.shipping_address;\n\nif (!shippingAddress || !shippingAddress.includes(',')) {\n  // Pas d'adresse claire, on doit demander\n  return [{\n    json: {\n      ...invoiceData,\n      needs_location_input: true,\n      message: 'Département et ville de livraison requis pour ce document',\n      status: 'awaiting_location'\n    }\n  }];\n}\n\n// Essayer d'extraire département et ville\nconst addressParts = shippingAddress.split(',').map(p => p.trim());\nlet department = null;\nlet city = null;\n\n// Recherche de code postal français (5 chiffres)\nconst postalCodeRegex = /\\b\\d{5}\\b/;\nconst postalMatch = shippingAddress.match(postalCodeRegex);\n\nif (postalMatch) {\n  const postalCode = postalMatch[0];\n  // Les deux premiers chiffres = département\n  department = postalCode.substring(0, 2);\n  \n  // Chercher la ville près du code postal\n  const cityMatch = shippingAddress.match(new RegExp(postalCode + '\\\\s+([A-Za-zÀ-ÿ\\\\s-]+)', 'i'));\n  if (cityMatch) {\n    city = cityMatch[1].trim();\n  }\n}\n\nreturn [{\n  json: {\n    ...invoiceData,\n    department: department,\n    delivery_city: city,\n    needs_location_input: !department || !city,\n    status: department && city ? 'location_extracted' : 'awaiting_location'\n  }\n}];"
+      },
+      "id": "extract-location",
+      "name": "Extract Department & City",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_location_input }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-needs-input",
+      "name": "Needs Location Input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.COREMATCH_URL }}/api/deb/request-location",
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "request-location",
+      "name": "Request Location from User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Rechercher codes HS pour chaque article\nconst invoiceData = items[0].json;\nconst hsDatabase = [\n  { keywords: ['électronique', 'circuit', 'composant', 'semiconductor'], hs_code: '85414000', description: 'Circuits intégrés électroniques' },\n  { keywords: ['textile', 'tissu', 'coton', 'polyester'], hs_code: '52081200', description: 'Tissus de coton' },\n  { keywords: ['machine', 'outil', 'équipement'], hs_code: '84821000', description: 'Machines et outils' },\n  { keywords: ['chimique', 'produit chimique', 'reagent'], hs_code: '38220090', description: 'Produits chimiques' },\n  { keywords: ['plastique', 'polymer', 'résine'], hs_code: '39269099', description: 'Ouvrages en plastique' },\n  { keywords: ['métal', 'acier', 'aluminium', 'fer'], hs_code: '72142000', description: 'Barres en fer ou acier' },\n  { keywords: ['verre', 'cristal'], hs_code: '70199000', description: 'Ouvrages en verre' },\n  { keywords: ['papier', 'carton'], hs_code: '48239085', description: 'Papiers et cartons' }\n];\n\n// Fonction pour rechercher code HS\nfunction findHSCode(description) {\n  if (!description) return { hs_code: '99999999', confidence: 0 };\n  \n  const desc = description.toLowerCase();\n  \n  for (const item of hsDatabase) {\n    for (const keyword of item.keywords) {\n      if (desc.includes(keyword.toLowerCase())) {\n        return {\n          hs_code: item.hs_code,\n          description: item.description,\n          confidence: 0.8,\n          matched_keyword: keyword\n        };\n      }\n    }\n  }\n  \n  // Aucune correspondance trouvée\n  return {\n    hs_code: '99999999',\n    description: 'Code HS non déterminé',\n    confidence: 0,\n    needs_manual_review: true\n  };\n}\n\n// Enrichir chaque article avec code HS\nif (invoiceData.items) {\n  invoiceData.items = invoiceData.items.map(item => ({\n    ...item,\n    hs_lookup: findHSCode(item.description)\n  }));\n}\n\nreturn [{ json: invoiceData }];"
+      },
+      "id": "lookup-hs-codes",
+      "name": "Lookup HS Codes",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1800, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Rechercher poids dans la description des articles\nconst invoiceData = items[0].json;\n\n// Expressions régulières pour détecter les poids\nconst weightPatterns = [\n  /([0-9,\\.]+)\\s*(?:kg|kilogramme?s?)/gi,\n  /([0-9,\\.]+)\\s*(?:g|gramme?s?)\\b/gi,\n  /([0-9,\\.]+)\\s*(?:t|tonne?s?)/gi,\n  /([0-9,\\.]+)\\s*(?:lb|livre?s?|pound?s?)/gi,\n  /poids?\\s*:?\\s*([0-9,\\.]+)\\s*(?:kg|g|t)?/gi,\n  /weight?\\s*:?\\s*([0-9,\\.]+)\\s*(?:kg|g|t)?/gi\n];\n\n// Fonction pour extraire le poids d'un texte\nfunction extractWeight(text) {\n  if (!text) return null;\n  \n  const results = [];\n  \n  for (const pattern of weightPatterns) {\n    let match;\n    while ((match = pattern.exec(text)) !== null) {\n      const value = parseFloat(match[1].replace(',', '.'));\n      const unit = match[0].toLowerCase();\n      \n      // Conversion en kg\n      let weightKg = value;\n      if (unit.includes('g') && !unit.includes('kg')) {\n        weightKg = value / 1000;\n      } else if (unit.includes('t')) {\n        weightKg = value * 1000;\n      } else if (unit.includes('lb') || unit.includes('pound')) {\n        weightKg = value * 0.453592;\n      }\n      \n      results.push({\n        original_value: value,\n        original_unit: unit.match(/(?:kg|g|t|lb|livre|pound)/gi)?.[0] || 'kg',\n        weight_kg: Math.round(weightKg * 1000) / 1000,\n        confidence: 0.8,\n        source_text: match[0]\n      });\n    }\n  }\n  \n  return results.length > 0 ? results[0] : null;\n}\n\n// Enrichir chaque article avec recherche de poids\nif (invoiceData.items) {\n  invoiceData.items = invoiceData.items.map(item => ({\n    ...item,\n    weight_info: extractWeight(item.description)\n  }));\n}\n\n// Calculer poids total si possible\nconst totalWeight = invoiceData.items\n  .filter(item => item.weight_info)\n  .reduce((sum, item) => {\n    const itemWeight = item.weight_info.weight_kg * (item.quantity || 1);\n    return sum + itemWeight;\n  }, 0);\n\ninvoiceData.estimated_total_weight_kg = Math.round(totalWeight * 1000) / 1000;\n\nreturn [{ json: invoiceData }];"
+      },
+      "id": "search-weights",
+      "name": "Search Weights in Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Vérifications TVA et conformité\nconst invoiceData = items[0].json;\nconst validations = [];\n\n// 1. Validation TVA française\nfunction validateFrenchVAT(vatNumber) {\n  if (!vatNumber) return { valid: false, reason: 'Numéro TVA manquant' };\n  \n  // Format TVA française: FR + 2 chiffres + 9 chiffres\n  const frenchVATRegex = /^FR[0-9A-Z]{2}[0-9]{9}$/;\n  \n  if (!frenchVATRegex.test(vatNumber.replace(/\\s/g, ''))) {\n    return { valid: false, reason: 'Format TVA français invalide' };\n  }\n  \n  return { valid: true, reason: 'Format TVA valide' };\n}\n\n// 2. Validation montants\nfunction validateAmounts(invoice) {\n  const errors = [];\n  \n  if (!invoice.invoice_total || invoice.invoice_total <= 0) {\n    errors.push('Montant total manquant ou invalide');\n  }\n  \n  if (invoice.subtotal && invoice.total_tax && invoice.invoice_total) {\n    const calculatedTotal = invoice.subtotal + invoice.total_tax;\n    const difference = Math.abs(calculatedTotal - invoice.invoice_total);\n    \n    if (difference > 0.01) {\n      errors.push(`Incohérence calcul: ${calculatedTotal} ≠ ${invoice.invoice_total}`);\n    }\n  }\n  \n  return errors;\n}\n\n// 3. Validation seuils DEB\nfunction checkDEBThresholds(invoice) {\n  const thresholds = {\n    introduction_goods: 460000, // Seuil biens introduction\n    expedition_goods: 460000,   // Seuil biens expédition\n    services: 460000           // Seuil services\n  };\n  \n  const warnings = [];\n  \n  if (invoice.invoice_total > 8000) {\n    warnings.push('Montant > 8000€: vérifier obligations DEB détaillées');\n  }\n  \n  if (invoice.invoice_total > 1000) {\n    warnings.push('Montant > 1000€: déclaration DEB obligatoire');\n  }\n  \n  return warnings;\n}\n\n// Exécuter les validations\nvalidations.push({\n  type: 'vat_validation',\n  result: validateFrenchVAT(invoiceData.vendor_vat)\n});\n\nvalidations.push({\n  type: 'amounts_validation',\n  errors: validateAmounts(invoiceData)\n});\n\nvalidations.push({\n  type: 'deb_thresholds',\n  warnings: checkDEBThresholds(invoiceData)\n});\n\n// Articles sans code HS déterminé\nconst itemsNeedingReview = invoiceData.items?.filter(item => \n  item.hs_lookup?.needs_manual_review\n) || [];\n\nif (itemsNeedingReview.length > 0) {\n  validations.push({\n    type: 'hs_codes_review',\n    message: `${itemsNeedingReview.length} articles nécessitent une révision manuelle des codes HS`,\n    items: itemsNeedingReview.map(item => ({\n      description: item.description,\n      line_number: item.line_number\n    }))\n  });\n}\n\n// Marquer le document comme nécessitant une révision si erreurs\nconst hasErrors = validations.some(v => \n  (v.errors && v.errors.length > 0) || \n  !v.result?.valid ||\n  v.type === 'hs_codes_review'\n);\n\nreturn [{\n  json: {\n    ...invoiceData,\n    validations: validations,\n    needs_manual_review: hasErrors,\n    processing_status: hasErrors ? 'needs_review' : 'validated'\n  }\n}];"
+      },
+      "id": "validate-compliance",
+      "name": "Validate VAT & Compliance",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2200, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Rechercher et lier avec des BL (bons de livraison)\nconst invoiceData = items[0].json;\n\n// Simuler une recherche de BL dans la base\n// En réalité, ceci ferait un appel à votre API\nconst potentialBLs = [\n  {\n    id: 'bl-001',\n    bl_number: 'BL-2024-001',\n    supplier_name: invoiceData.vendor_name,\n    delivery_date: '2024-01-15',\n    transport_mode: 'Road',\n    transport_document: 'CMR-123456',\n    total_weight_kg: 150.5,\n    shipping_cost: 85.00\n  },\n  {\n    id: 'bl-002', \n    bl_number: 'BL-2024-002',\n    supplier_name: invoiceData.vendor_name,\n    delivery_date: '2024-01-16',\n    transport_mode: 'Sea',\n    transport_document: 'AWB-789012',\n    total_weight_kg: 1250.0,\n    shipping_cost: 450.00\n  }\n];\n\n// Critères de matching\nfunction matchBLWithInvoice(invoice, bls) {\n  const matches = [];\n  \n  for (const bl of bls) {\n    let score = 0;\n    const criteria = [];\n    \n    // 1. Nom fournisseur (poids: 40%)\n    if (bl.supplier_name === invoice.vendor_name) {\n      score += 40;\n      criteria.push('supplier_name_exact');\n    } else if (bl.supplier_name?.toLowerCase().includes(invoice.vendor_name?.toLowerCase() || '')) {\n      score += 20;\n      criteria.push('supplier_name_partial');\n    }\n    \n    // 2. Proximité des dates (poids: 30%)\n    if (invoice.invoice_date && bl.delivery_date) {\n      const invoiceDate = new Date(invoice.invoice_date);\n      const deliveryDate = new Date(bl.delivery_date);\n      const daysDiff = Math.abs((invoiceDate - deliveryDate) / (1000 * 60 * 60 * 24));\n      \n      if (daysDiff <= 3) {\n        score += 30;\n        criteria.push('date_very_close');\n      } else if (daysDiff <= 7) {\n        score += 20;\n        criteria.push('date_close');\n      } else if (daysDiff <= 30) {\n        score += 10;\n        criteria.push('date_reasonable');\n      }\n    }\n    \n    // 3. Cohérence des montants/poids (poids: 20%)\n    if (invoice.estimated_total_weight_kg && bl.total_weight_kg) {\n      const weightRatio = Math.min(invoice.estimated_total_weight_kg, bl.total_weight_kg) / \n                         Math.max(invoice.estimated_total_weight_kg, bl.total_weight_kg);\n      if (weightRatio > 0.8) {\n        score += 20;\n        criteria.push('weight_match');\n      } else if (weightRatio > 0.5) {\n        score += 10;\n        criteria.push('weight_partial');\n      }\n    }\n    \n    // 4. Coûts de transport cohérents (poids: 10%)\n    if (invoice.shipping_total && bl.shipping_cost) {\n      const costRatio = Math.min(invoice.shipping_total, bl.shipping_cost) / \n                       Math.max(invoice.shipping_total, bl.shipping_cost);\n      if (costRatio > 0.9) {\n        score += 10;\n        criteria.push('shipping_cost_match');\n      }\n    }\n    \n    if (score >= 50) { // Seuil de confiance 50%\n      matches.push({\n        bl: bl,\n        confidence_score: score,\n        matching_criteria: criteria,\n        recommendation: score >= 80 ? 'auto_link' : 'manual_review'\n      });\n    }\n  }\n  \n  return matches.sort((a, b) => b.confidence_score - a.confidence_score);\n}\n\nconst blMatches = matchBLWithInvoice(invoiceData, potentialBLs);\n\n// Répartir les frais de transport si BL trouvé\nlet transportCostDistribution = null;\nif (blMatches.length > 0 && blMatches[0].confidence_score >= 80) {\n  const bestMatch = blMatches[0];\n  const totalInvoiceAmount = invoiceData.invoice_total || 0;\n  const transportCost = bestMatch.bl.shipping_cost || 0;\n  \n  transportCostDistribution = {\n    total_transport_cost: transportCost,\n    items_distribution: invoiceData.items?.map(item => ({\n      line_number: item.line_number,\n      item_amount: item.amount || 0,\n      transport_allocation: totalInvoiceAmount > 0 ? \n        Math.round((item.amount / totalInvoiceAmount) * transportCost * 100) / 100 : 0\n    })) || []\n  };\n}\n\nreturn [{\n  json: {\n    ...invoiceData,\n    bl_matching: {\n      potential_matches: blMatches,\n      best_match: blMatches[0] || null,\n      auto_linked: blMatches[0]?.confidence_score >= 80\n    },\n    transport_cost_distribution: transportCostDistribution,\n    processing_status: 'bl_matching_completed'\n  }\n}];"
+      },
+      "id": "link-bl-documents",
+      "name": "Link BL Documents",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2400, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.COREMATCH_URL }}/api/deb/documents/{{ $('Prepare Document Data').first().json.document_id }}/finalize",
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "save-results",
+      "name": "Save Processing Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [2600, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  message: 'Document traité avec succès',\n  document_id: $('Prepare Document Data').first().json.document_id,\n  processing_summary: {\n    ocr_completed: true,\n    hs_codes_found: $json.items?.filter(i => !i.hs_lookup?.needs_manual_review).length || 0,\n    hs_codes_need_review: $json.items?.filter(i => i.hs_lookup?.needs_manual_review).length || 0,\n    bl_matches_found: $json.bl_matching?.potential_matches?.length || 0,\n    auto_linked_bl: $json.bl_matching?.auto_linked || false,\n    needs_manual_review: $json.needs_manual_review || false,\n    estimated_weight_kg: $json.estimated_total_weight_kg,\n    transport_cost_allocated: !!$json.transport_cost_distribution\n  }\n}) }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2800, 400]
+    }
+  ],
+  "connections": {
+    "Document Upload Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Document Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Document Data": {
+      "main": [
+        [
+          {
+            "node": "Azure Form Recognizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure Form Recognizer": {
+      "main": [
+        [
+          {
+            "node": "Wait for OCR Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for OCR Processing": {
+      "main": [
+        [
+          {
+            "node": "Get OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OCR Results": {
+      "main": [
+        [
+          {
+            "node": "Process OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process OCR Results": {
+      "main": [
+        [
+          {
+            "node": "Extract Department & City",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Department & City": {
+      "main": [
+        [
+          {
+            "node": "Needs Location Input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Location Input?": {
+      "main": [
+        [
+          {
+            "node": "Request Location from User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup HS Codes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Location from User": {
+      "main": [
+        [
+          {
+            "node": "Lookup HS Codes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup HS Codes": {
+      "main": [
+        [
+          {
+            "node": "Search Weights in Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Weights in Text": {
+      "main": [
+        [
+          {
+            "node": "Validate VAT & Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate VAT & Compliance": {
+      "main": [
+        [
+          {
+            "node": "Link BL Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link BL Documents": {
+      "main": [
+        [
+          {
+            "node": "Save Processing Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Processing Results": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "name": "DEB Document Processing",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "path": "deb-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Document Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [280, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Préparer les données du document\nconst data = items[0].json;\nconsole.log('Document reçu:', data);\n\nreturn [{\n  json: {\n    document_id: data.id || data.document_id,\n    file_url: data.file_url,\n    org_id: data.org_id,\n    document_name: data.name,\n    status: 'processing_started'\n  }\n}];"
+      },
+      "id": "prepare-node",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://corematch-deb-resource.cognitiveservices.azure.com/formrecognizer/v2.1/prebuilt/invoice/analyze",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": "azure_credentials",
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={{ JSON.stringify({source: $json.file_url}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "azure-analyze",
+      "name": "Azure Form Recognizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "wait-node",
+      "name": "Wait for Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Azure Form Recognizer').first().json.headers['Operation-Location'] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": "azure_credentials"
+      },
+      "id": "get-results",
+      "name": "Get Analysis Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Traiter les résultats Azure\nconst results = items[0].json;\nconst originalData = $('Prepare Data').first().json;\n\nif (results.status !== 'succeeded') {\n  return [{\n    json: {\n      ...originalData,\n      error: 'Azure processing not completed',\n      status: results.status\n    }\n  }];\n}\n\n// Extraire les données\nconst document = results.analyzeResult.documentResults[0];\nconst fields = document.fields || {};\n\nfunction getFieldValue(field) {\n  if (!field) return null;\n  return field.text || field.value || null;\n}\n\nconst extractedData = {\n  document_id: originalData.document_id,\n  org_id: originalData.org_id,\n  \n  // Informations extraites\n  vendor_name: getFieldValue(fields.VendorName),\n  vendor_address: getFieldValue(fields.VendorAddress),\n  vendor_tax_id: getFieldValue(fields.VendorTaxId),\n  invoice_id: getFieldValue(fields.InvoiceId),\n  invoice_date: getFieldValue(fields.InvoiceDate),\n  subtotal: getFieldValue(fields.SubTotal),\n  invoice_total: getFieldValue(fields.InvoiceTotal),\n  \n  // Articles\n  items: [],\n  \n  status: 'processed',\n  confidence: document.confidence || 0.8\n};\n\n// Extraire les lignes si présentes\nif (fields.Items && fields.Items.value) {\n  extractedData.items = fields.Items.value.map((item, index) => ({\n    line_number: index + 1,\n    description: getFieldValue(item.value.Description),\n    quantity: getFieldValue(item.value.Quantity) || 1,\n    unit_price: getFieldValue(item.value.UnitPrice) || 0,\n    amount: getFieldValue(item.value.Amount) || 0\n  }));\n}\n\nconsole.log('Données extraites:', extractedData);\nreturn [{ json: extractedData }];"
+      },
+      "id": "process-results",
+      "name": "Process Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1380, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.COREMATCH_URL }}/api/deb/documents/{{ $('Prepare Data').first().json.document_id }}/finalize",
+        "sendBody": true,
+        "specifyBodyType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "save-results",
+      "name": "Save to CoreMatch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  document_id: $('Prepare Data').first().json.document_id,\n  vendor_name: $json.vendor_name,\n  invoice_total: $json.invoice_total,\n  items_count: $json.items.length,\n  status: 'completed'\n}) }}"
+      },
+      "id": "webhook-response",
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1820, 300]
+    }
+  ],
+  "connections": {
+    "Document Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Azure Form Recognizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure Form Recognizer": {
+      "main": [
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Processing": {
+      "main": [
+        [
+          {
+            "node": "Get Analysis Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Analysis Results": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Save to CoreMatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to CoreMatch": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

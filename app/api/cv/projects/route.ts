@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
@@ -13,10 +14,28 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const user = await verifyAuth(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
     const body = await request.json();
-    const { orgId, name, description, job_title, requirements, created_by } = createProjectSchema.parse(body);
+    const { orgId, name, description, job_title, requirements } = createProjectSchema.parse(body);
+    
+    // Verify user has access to this organization
+    const hasAccess = await verifyOrgAccess(user.id, orgId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this organization' },
+        { status: 403 }
+      );
+    }
 
-    // Create project
+    // Create project with authenticated user as creator
     const { data: project, error } = await supabaseAdmin
       .from('projects')
       .insert({
@@ -25,7 +44,7 @@ export async function POST(request: NextRequest) {
         description,
         job_title,
         requirements,
-        created_by,
+        created_by: user.id,  // Use authenticated user's ID
       })
       .select()
       .single();
@@ -54,6 +73,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Verify authentication
+    const user = await verifyAuth(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
     const { searchParams } = new URL(request.url);
     const orgId = searchParams.get('orgId');
 
@@ -61,6 +89,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing orgId parameter' },
         { status: 400 }
+      );
+    }
+    
+    // Verify user has access to this organization
+    const hasAccess = await verifyOrgAccess(user.id, orgId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this organization' },
+        { status: 403 }
       );
     }
 

@@ -80,8 +80,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
-     * - login, register, and root pages
+     * - login, register, auth callback, and root pages
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|login|register|pricing|products|$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|login|register|auth|pricing|products|$).*)',
   ],
 };

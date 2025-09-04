@@ -7,6 +7,12 @@ import { Button } from '../components/ui/button';
 import { supabase } from '@/lib/supabase/client';
 import { Eye, EyeOff } from 'lucide-react';
 
+const errorMessages: { [key: string]: string } = {
+  "Invalid login credentials": "L'adresse e-mail ou le mot de passe est incorrect. Veuillez réessayer.",
+  "Email not confirmed": "Veuillez confirmer votre adresse e-mail avant de vous connecter.",
+  "Authentication failed": "Échec de l'authentification. Veuillez réessayer."
+};
+
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -19,8 +25,8 @@ export default function LoginForm() {
   useEffect(() => {
     // Check for error message from URL params
     const message = searchParams.get('message');
-    if (message === 'Authentication failed') {
-      setError('Échec de l\'authentification. Veuillez réessayer.');
+    if (message && errorMessages[message]) {
+      setError(errorMessages[message]);
     }
   }, [searchParams]);
 
@@ -36,18 +42,19 @@ export default function LoginForm() {
       });
 
       if (error) {
-        setError(error.message);
+        setError(errorMessages[error.message] || error.message);
         return;
       }
 
       // Redirect to dashboard using Next.js router
       router.push('/dashboard');
-    } catch {
-      setError('Une erreur inattendue s\'est produite');
+    } catch (err: any) {
+      setError(err.message || 'Une erreur inattendue s\'est produite');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -62,8 +69,8 @@ export default function LoginForm() {
       if (error) {
         setError(error.message);
       }
-    } catch {
-      setError('Erreur lors de la connexion avec Google');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la connexion avec Google');
     } finally {
       setIsLoading(false);
     }
@@ -106,9 +113,17 @@ export default function LoginForm() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Mot de passe
-              </label>
+              <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Mot de passe
+                  </label>
+                  <div className="text-sm">
+                    {/* TODO: Create /forgot-password page and implement reset logic */}
+                    <Link href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                      Mot de passe oublié ?
+                    </Link>
+                  </div>
+              </div>
               <div className="relative mt-1">
                 <input
                   id="password"

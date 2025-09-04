@@ -12,6 +12,7 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState('');
   
   // Form state
   const [orgName, setOrgName] = useState('');
@@ -96,22 +97,68 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleModuleToggle = (moduleId: string) => {
+    setSelectedModules(prev => 
+      prev.includes(moduleId) 
+        ? prev.filter(id => id !== moduleId)
+        : [...prev, moduleId]
+    );
+  };
+
+  const addEmailField = () => {
+    setInviteEmails([...inviteEmails, '']);
+  };
+
+  const updateEmail = (index: number, value: string) => {
+    const newEmails = [...inviteEmails];
+    newEmails[index] = value;
+    setInviteEmails(newEmails);
+  };
+
+  const removeEmail = (index: number) => {
+    setInviteEmails(inviteEmails.filter((_, i) => i !== index));
+  };
+
+  const validateEmail = (email: string) => {
+    const re = /^(([^<>()[\]\.,;:\s@"]+(\.[^<>()[\]\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+  };
+
+  const handleNext = async () => {
+    setError('');
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      await handleComplete();
+    }
+  };
+
   const handleComplete = async () => {
     setIsLoading(true);
+    setError('');
+
+    if (!user) {
+      setError("Utilisateur non authentifié. Veuillez vous reconnecter.");
+      setIsLoading(false);
+      return;
+    }
     
     try {
-      // Create organization
+      // Step 1: Create organization via RPC
       const { data: orgData, error: orgError } = await supabase
         .rpc('create_organization_with_admin', {
           org_name: orgName,
-          admin_user_id: user?.id
+          admin_user_id: user.id
         });
 
-      if (orgError) {
-        throw orgError;
+      if (orgError) throw orgError;
+
+      const orgId = orgData;
+      if (!orgId) {
+        throw new Error("La création de l'organisation a échoué: ID manquant.");
       }
 
-      // Store selected modules in user metadata or organization settings
+      // Step 2: Update user metadata
       const { error: updateError } = await supabase.auth.updateUser({
         data: {
           selected_modules: selectedModules,
@@ -119,29 +166,28 @@ export default function OnboardingPage() {
         }
       });
 
-      if (updateError) {
-        console.error('Error updating user metadata:', updateError);
-      }
+      if (updateError) throw updateError;
 
-      // Send invites (simplified - in production you'd send actual emails)
-      const validEmails = inviteEmails.filter(email => email.trim() && email.includes('@'));
+      // Step 3: Send invites
+      const validEmails = inviteEmails.filter(email => email.trim() && validateEmail(email));
       if (validEmails.length > 0) {
-        for (const email of validEmails) {
-          await supabase
-            .from('organization_members')
-            .insert({
-              org_id: orgData,
-              invited_email: email,
-              role: 'org_viewer'
-            });
-        }
+        const invites = validEmails.map(email => ({
+          org_id: orgId,
+          invited_email: email,
+          role: 'org_viewer'
+        }));
+        
+        const { error: inviteError } = await supabase
+          .from('organization_members')
+          .insert(invites);
+
+        if (inviteError) throw inviteError;
       }
 
-      // Redirect to dashboard
       router.push('/dashboard');
-    } catch (error) {
-      console.error('Onboarding error:', error);
-      alert('Erreur lors de la configuration. Veuillez réessayer.');
+    } catch (err: any) {
+      console.error('Onboarding error:', err);
+      setError(err.message || 'Erreur lors de la configuration. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
@@ -336,6 +382,13 @@ export default function OnboardingPage() {
                   créer leur compte et rejoindre votre organisation.
                 </p>
               </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <p className="font-bold">Erreur</p>
+              <p className="text-sm">{error}</p>
             </div>
           )}
 

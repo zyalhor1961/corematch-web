@@ -28,50 +28,51 @@ export default function OrganizationLayout({
 }) {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { isDarkMode, toggleDarkMode } = useTheme();
+  
   const [organization, setOrganization] = useState<MyOrg | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const orgId = params?.orgId as string;
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push('/login');
-          return;
-        }
-        setUser(user);
-
-        // Get organization details
-        const { data: orgData, error: orgError } = await supabase
-          .from('my_orgs')
-          .select('*')
-          .eq('id', orgId)
-          .single();
-
-        if (orgError || !orgData) {
-          router.push('/dashboard');
-          return;
-        }
-
-        setOrganization(orgData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        router.push('/dashboard');
-      } finally {
-        setIsLoading(false);
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
       }
-    };
+      setUser(user);
 
+      const { data: orgData, error: orgError } = await supabase
+        .from('my_orgs')
+        .select('*')
+        .eq('id', orgId)
+        .single();
+
+      if (orgError) throw orgError;
+      if (!orgData) throw new Error("Organisation non trouvée ou accès non autorisé.");
+
+      setOrganization(orgData);
+    } catch (err: any) {
+      console.error('Error loading organization data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [orgId, router]);
+
+  useEffect(() => {
     if (orgId) {
       loadData();
     }
-  }, [orgId, router]);
+  }, [orgId, loadData]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -79,50 +80,47 @@ export default function OrganizationLayout({
   };
 
   const navigation = [
-    {
-      name: 'Vue d\'ensemble',
-      href: `/org/${orgId}`,
-      icon: BarChart3,
-      current: true
-    },
-    {
-      name: 'CV Screening',
-      href: `/org/${orgId}/cv`,
-      icon: Users,
-      current: false
-    },
-    {
-      name: 'DEB Assistant',
-      href: `/org/${orgId}/deb`,
-      icon: FileText,
-      current: false
-    },
-    {
-      name: 'Membres',
-      href: `/org/${orgId}/members`,
-      icon: Users,
-      current: false
-    },
-    {
-      name: 'Facturation',
-      href: `/org/${orgId}/billing`,
-      icon: CreditCard,
-      current: false
-    },
-    {
-      name: 'Paramètres',
-      href: `/org/${orgId}/settings`,
-      icon: Settings,
-      current: false
-    }
+    { name: 'Vue d\'ensemble', href: `/org/${orgId}`, icon: BarChart3 },
+    { name: 'CV Screening', href: `/org/${orgId}/cv`, icon: Users },
+    { name: 'DEB Assistant', href: `/org/${orgId}/deb`, icon: FileText },
+    // { name: 'Membres', href: `/org/${orgId}/members`, icon: Users }, // TODO: Create members page
+    { name: 'Facturation', href: `/org/${orgId}/billing`, icon: CreditCard },
+    { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },
   ];
 
-  if (isLoading) {
+  const NavLink = ({ item }: { item: { name: string; href: string; icon: React.ElementType } }) => {
+    const isActive = pathname === item.href;
+    const Icon = item.icon;
+    return (
+      <Link
+        href={item.href}
+        className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
+            ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-blue-50 text-blue-600')
+            : (isDarkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100')}`}
+      >
+        <Icon className={`w-5 h-5 mr-3 ${isActive ? (isDarkMode ? 'text-white' : 'text-blue-600') : (isDarkMode ? 'text-gray-500' : 'text-gray-400')}`} />
+        {item.name}
+      </Link>
+    );
+  };
+
+  if (isLoading || error) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Chargement...</p>
+        <div className="text-center p-8">
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Chargement de votre espace de travail...</p>
+            </>
+          ) : (
+            <div className="bg-white p-8 rounded-lg shadow-md">
+              <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Erreur</h2>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button onClick={() => router.push('/dashboard')}>Retour au tableau de bord</Button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -145,20 +143,7 @@ export default function OrganizationLayout({
             </div>
             {/* Mobile navigation */}
             <nav className="p-4 space-y-2">
-              {navigation.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center px-3 py-2 rounded-md ${isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.name}
-                  </Link>
-                );
-              })}
+              {navigation.map((item) => <NavLink key={item.name} item={item} />)}
             </nav>
           </div>
         </div>
@@ -200,20 +185,9 @@ export default function OrganizationLayout({
           </div>
 
           {/* Navigation */}
+          {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${isDarkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
-                >
-                  <Icon className={`w-5 h-5 mr-3 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                  {item.name}
-                </Link>
-              );
-            })}
+            {navigation.map((item) => <NavLink key={item.name} item={item} />)}
           </nav>
 
           {/* User menu */}

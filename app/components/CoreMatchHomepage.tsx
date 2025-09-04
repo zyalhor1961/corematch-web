@@ -10,10 +10,6 @@ import ChatWidget from "./chatbot/ChatWidget";
 export default function CoreMatchHomepage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const handleStartFree = () => {
-    // TODO: brancher Stripe Checkout
-    window.location.href = "#pricing";
-  };
   const handleDemo = () => {
     // TODO: brancher Calendly / page demo
     window.location.href = "#modules";
@@ -32,17 +28,14 @@ export default function CoreMatchHomepage() {
               <span className="ml-3 text-xl font-bold tracking-tight">CoreMatch</span>
             </Link>
 
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-slate-600 hover:text-slate-900">Fonctionnalités</a>
               <a href="#modules" className="text-slate-600 hover:text-slate-900">Modules</a>
               <a href="#pricing" className="text-slate-600 hover:text-slate-900">Tarifs</a>
-              <Link href="/login" className="text-slate-600 hover:text-slate-900">Se connecter</Link>
-              <button
-                onClick={handleStartFree}
-                className="inline-flex items-center rounded-lg bg-slate-900 text-white px-4 py-2.5 font-medium hover:bg-slate-800"
-              >
-                Essai gratuit <ArrowRight className="ml-2 h-4 w-4" />
-              </button>
+              <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900">Se connecter</Link>
+              <Link href="/register" className="inline-flex items-center rounded-lg bg-slate-900 text-white px-4 py-2 font-medium hover:bg-slate-800">
+                Démarrer l'essai
+              </Link>
             </div>
 
             <button
@@ -60,18 +53,15 @@ export default function CoreMatchHomepage() {
                 ["#features","Fonctionnalités"],
                 ["#modules","Modules"],
                 ["#pricing","Tarifs"],
-                ["/login","Se connecter"],
               ].map(([href,label]) => (
                 <Link key={label} href={href} className="block rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50">
                   {label}
                 </Link>
               ))}
-              <button
-                onClick={handleStartFree}
-                className="w-full rounded-lg bg-slate-900 text-white px-3 py-2 font-medium"
-              >
-                Essai gratuit
-              </button>
+              <Link href="/login" className="block rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50">Se connecter</Link>
+              <Link href="/register" className="w-full block text-center rounded-lg bg-slate-900 text-white px-3 py-2 font-medium">
+                Démarrer l'essai
+              </Link>
             </div>
           )}
         </div>
@@ -97,12 +87,9 @@ export default function CoreMatchHomepage() {
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={handleStartFree}
-              className="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-6 py-3 font-semibold hover:bg-slate-800"
-            >
+            <Link href="/register" className="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-6 py-3 font-semibold hover:bg-slate-800">
               Démarrer gratuitement <ArrowRight className="ml-2 h-4 w-4" />
-            </button>
+            </Link>
             <button
               onClick={handleDemo}
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-50"
@@ -190,36 +177,36 @@ export default function CoreMatchHomepage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 flex flex-col">
               <h3 className="text-xl font-semibold">Pack PME</h3>
               <p className="mt-1 text-slate-600">Screening / docs ponctuels</p>
               <div className="mt-4 text-4xl font-extrabold">199€</div>
-              <ul className="mt-4 space-y-2 text-slate-600">
+              <ul className="mt-4 space-y-2 text-slate-600 grow">
                 <li>• 30 runs (CV ou documents)</li>
                 <li>• Résumés IA + export</li>
                 <li>• Support standard</li>
               </ul>
-              <button onClick={handleStartFree} className="mt-6 w-full rounded-lg bg-slate-900 text-white py-2.5 font-semibold">Acheter</button>
+              <a href="#" className="mt-6 w-full inline-flex justify-center rounded-lg bg-slate-900 text-white py-2.5 font-semibold">Acheter</a>
             </div>
 
-            <div className="rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
-              <div className="inline-flex text-xs rounded-full bg-indigo-50 text-indigo-700 px-2 py-0.5">Recommandé</div>
+            <div className="rounded-2xl border-2 border-indigo-600 bg-white p-6 shadow-lg flex flex-col">
+              <div className="inline-flex text-xs rounded-full bg-indigo-50 text-indigo-700 px-2 py-0.5 self-start">Recommandé</div>
               <h3 className="mt-2 text-xl font-semibold">Agences</h3>
               <p className="mt-1 text-slate-600">Usage régulier</p>
               <div className="mt-4 text-4xl font-extrabold">490€ <span className="text-base font-medium text-slate-500">/mois</span></div>
-              <ul className="mt-4 space-y-2 text-slate-600">
+              <ul className="mt-4 space-y-2 text-slate-600 grow">
                 <li>• 200 runs / mois</li>
                 <li>• API & intégrations</li>
                 <li>• Support prioritaire</li>
               </ul>
-              <button onClick={handleStartFree} className="mt-6 w-full rounded-lg bg-indigo-600 text-white py-2.5 font-semibold hover:bg-indigo-700">Essai 14 jours</button>
+              <Link href="/register" className="mt-6 w-full inline-flex justify-center rounded-lg bg-indigo-600 text-white py-2.5 font-semibold hover:bg-indigo-700">Essai 14 jours</Link>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 flex flex-col">
               <h3 className="text-xl font-semibold">Entreprise</h3>
               <p className="mt-1 text-slate-600">Besoins avancés</p>
               <div className="mt-4 text-4xl font-extrabold">Sur devis</div>
-              <ul className="mt-4 space-y-2 text-slate-600">
+              <ul className="mt-4 space-y-2 text-slate-600 grow">
                 <li>• Hébergement dédié UE</li>
                 <li>• SSO / RBAC avancé</li>
                 <li>• SLA & accompagnement</li>
@@ -259,9 +246,8 @@ export default function CoreMatchHomepage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold">Prêt à démarrer ?</h2>
           <p className="mt-3 text-slate-600">Créez votre compte en 2 minutes. Annulable à tout moment.</p>
-          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={handleStartFree} className="rounded-xl bg-slate-900 text-white px-6 py-3 font-semibold hover:bg-slate-800">Créer mon compte</button>
-            <Link href="/login" className="rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold hover:bg-slate-50">Se connecter</Link>
+          <div className="mt-6 flex justify-center">
+            <Link href="/register" className="rounded-xl bg-slate-900 text-white px-6 py-3 font-semibold hover:bg-slate-800">Créer mon compte</Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">TVA non applicable — art. 293 B du CGI</p>
         </div>

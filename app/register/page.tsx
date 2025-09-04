@@ -103,8 +103,8 @@ function RegisterForm() {
       if (error) {
         setError(error.message);
       }
-    } catch {
-      setError('Erreur lors de l\'inscription avec Google');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'inscription avec Google');
     } finally {
       setIsLoading(false);
     }

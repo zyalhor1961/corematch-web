@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { MyOrg } from '@/lib/types';
 import { useTheme } from '@/app/components/ThemeProvider';
+import { AlertTriangle } from 'lucide-react';
 import { 
   Building2, 
   BarChart3, 
@@ -118,7 +119,12 @@ export default function OrganizationLayout({
               <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-gray-800 mb-2">Erreur</h2>
               <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={() => router.push('/dashboard')}>Retour au tableau de bord</Button>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Retour au tableau de bord
+              </button>
             </div>
           )}
         </div>

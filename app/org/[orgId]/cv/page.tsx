@@ -181,7 +181,7 @@ export default function CVScreeningPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Recherche instantanée */}
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
                 <input
                   type="text"
                   placeholder="Recherche instantanée..."
@@ -195,7 +195,7 @@ export default function CVScreeningPage() {
 
               {/* Filtres rapides - cachés sur très petit écran */}
               <div className="flex items-center space-x-2 sm:min-w-0">
-                <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
+                <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400 hidden sm:block" />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
@@ -216,7 +216,7 @@ export default function CVScreeningPage() {
               <div className="flex items-center justify-center sm:justify-start border rounded-lg overflow-hidden border-gray-300 dark:border-gray-600">
                 <button 
                   onClick={() => setViewMode('table')} 
-                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
+                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
                   title="Mode Tableur RH"
                 >
                   <Table className="w-4 h-4 mx-auto sm:mx-0" />
@@ -224,7 +224,7 @@ export default function CVScreeningPage() {
                 </button>
                 <button 
                   onClick={() => setViewMode('gallery')} 
-                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'gallery' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
+                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'gallery' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
                   title="Vue galerie"
                 >
                   <Grid3x3 className="w-4 h-4 mx-auto sm:mx-0" />
@@ -232,7 +232,7 @@ export default function CVScreeningPage() {
                 </button>
                 <button 
                   onClick={() => setViewMode('list')} 
-                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
+                  className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
                   title="Vue liste"
                 >
                   <List className="w-4 h-4 mx-auto sm:mx-0" />
@@ -327,7 +327,7 @@ export default function CVScreeningPage() {
                       <Table className="w-5 h-5 mr-2" />
                       <div>
                         <div className="font-semibold text-sm">Mode Tableur 📊</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">Faites défiler horizontalement →</div>
+                        <div className="text-xs text-gray-700 dark:text-gray-400">Faites défiler horizontalement →</div>
                       </div>
                     </div>
                     <button
@@ -438,7 +438,7 @@ export default function CVScreeningPage() {
                                   {project.job_title}
                                 </span>
                               ) : (
-                                <span className="text-gray-400 text-xs sm:text-base">-</span>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs sm:text-base">-</span>
                               )}
                             </td>
 
@@ -491,7 +491,7 @@ export default function CVScreeningPage() {
 
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center space-x-1 sm:space-x-2">
-                                <Star className={`w-3 h-3 sm:w-4 sm:h-4 ${shortlistedCount > 0 ? 'text-yellow-500' : 'text-gray-300'}`} />
+                                <Star className={`w-3 h-3 sm:w-4 sm:h-4 ${shortlistedCount > 0 ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-300'}`} />
                                 <span className="text-base sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">
                                   {shortlistedCount}
                                 </span>
@@ -505,7 +505,7 @@ export default function CVScreeningPage() {
 
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center space-x-1">
-                                <Calendar className="w-3 h-3 text-gray-400 hidden sm:inline" />
+                                <Calendar className="w-3 h-3 text-gray-500 dark:text-gray-400 hidden sm:inline" />
                                 <span className="text-xs sm:text-base text-gray-500 dark:text-gray-400">
                                   {new Date(project.created_at).toLocaleDateString('fr-FR', {
                                     day: 'numeric',
@@ -578,24 +578,24 @@ export default function CVScreeningPage() {
                       <div className="flex items-center space-x-2">
                         <Users className="w-4 h-4 text-blue-500" />
                         <span className="font-semibold">{project.candidate_count || 0}</span>
-                        <span className="text-sm text-gray-500">candidats</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-500">candidats</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Brain className="w-4 h-4 text-green-500" />
                         <span className="font-semibold">{project.analyzed_count || 0}</span>
-                        <span className="text-sm text-gray-500">analysés</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-500">analysés</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <Star className="w-4 h-4 text-yellow-500" />
                       <span className="font-semibold text-yellow-600">{project.shortlisted_count || 0}</span>
-                      <span className="text-sm text-gray-500">shortlistés</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-500">shortlistés</span>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-                    <div className="flex items-center justify-center text-xs text-gray-500">
+                    <div className="flex items-center justify-center text-xs text-gray-600 dark:text-gray-500">
                       <Calendar className="w-3 h-3 mr-1" />
                       <span>{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
                     </div>
@@ -943,7 +943,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
               <div className="flex justify-start">
                 <button 
                   onClick={() => setCreationMode('choose')}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors"
+                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors"
                 >
                   ← Retour au choix
                 </button>
@@ -994,12 +994,12 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
                     <button 
                       type="button"
                       onClick={() => {setCreationMode('manual'); setStep(2);}}
-                      className="w-full py-2 sm:py-3 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm sm:text-base"
+                      className="w-full py-2 sm:py-3 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm sm:text-base"
                     >
                       Ou saisir manuellement →
                     </button>
                     
-                    <p className="text-center text-xs text-gray-500 mt-2">
+                    <p className="text-center text-xs text-gray-600 dark:text-gray-500 mt-2">
                       Description + Exigences générées automatiquement en 30 secondes
                     </p>
                   </div>
@@ -1100,7 +1100,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
                   <button 
                     type="button"
                     onClick={() => {setStep(1); setCreationMode('choose');}}
-                    className="px-4 sm:px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium text-sm sm:text-base"
+                    className="px-4 sm:px-6 py-2 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium text-sm sm:text-base"
                   >
                     ← Retour
                   </button>

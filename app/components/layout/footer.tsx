@@ -2,13 +2,13 @@ import Link from 'next/link';
 
 export function Footer() {
   return (
-    <footer className="bg-white border-t border-gray-100">
+    <footer className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Company */}
           <div className="md:col-span-2">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">CoreMatch</h3>
-            <p className="text-gray-600 text-sm leading-relaxed max-w-md">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">CoreMatch</h3>
+            <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed max-w-md">
               Solutions d&apos;automatisation intelligente pour entreprises modernes.
               Optimisez vos processus RH et documentaires avec l&apos;IA.
             </p>
@@ -16,20 +16,20 @@ export function Footer() {
 
           {/* Solutions */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Solutions</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Solutions</h3>
             <ul className="space-y-3 text-sm">
               <li>
-                <Link href="/products/cv-screening" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <Link href="/products/cv-screening" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   CV Screening
                 </Link>
               </li>
               <li>
-                <Link href="/products/deb-assistant" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <Link href="/products/deb-assistant" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   DEB Assistant
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <Link href="/pricing" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Tarifs
                 </Link>
               </li>
@@ -38,20 +38,20 @@ export function Footer() {
 
           {/* Support */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Support</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Support</h3>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Documentation
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Aide
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Contact
                 </a>
               </li>
@@ -59,20 +59,20 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-gray-100 mt-12 pt-8">
+        <div className="border-t border-gray-100 dark:border-gray-800 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
-              <p className="text-gray-500 text-sm">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
                 © 2024 CoreMatch. Tous droits réservés.
               </p>
               <div className="flex space-x-6 text-sm">
-                <a href="#" className="text-gray-500 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Mentions légales
                 </a>
-                <a href="#" className="text-gray-500 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   Confidentialité
                 </a>
-                <a href="#" className="text-gray-500 hover:text-gray-900 transition-colors">
+                <a href="#" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   RGPD
                 </a>
               </div>
@@ -80,7 +80,7 @@ export function Footer() {
             <div className="flex space-x-4 mt-4 md:mt-0">
               <a 
                 href="#" 
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 aria-label="LinkedIn"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -89,7 +89,7 @@ export function Footer() {
               </a>
               <a 
                 href="#" 
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 aria-label="Twitter"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">

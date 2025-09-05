@@ -5,33 +5,33 @@ import { Zap, Shield, BarChart3, FileText, Users } from 'lucide-react';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-900">
       <Header />
       
-      {/* Hero Section - Gapsy Style */}
-      <section className="relative overflow-hidden bg-white">
+      {/* Hero Section - Dark Mode */}
+      <section className="relative overflow-hidden bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
           <div className="text-center">
-            <div className="inline-block px-4 py-2 bg-gray-100 rounded-full text-sm font-medium text-gray-600 mb-8">
+            <div className="inline-block px-4 py-2 bg-gray-800 rounded-full text-sm font-medium text-gray-300 mb-8">
               ✨ Powered by Advanced AI
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-8 leading-tight">
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 leading-tight">
               Automatisation
               <br />
-              <span className="text-blue-600">Intelligente</span>
+              <span className="text-blue-400">Intelligente</span>
             </h1>
             
-            <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
               Optimisez vos processus de recrutement et de gestion documentaire 
               avec nos outils d&apos;IA. Solutions enterprise pour équipes modernes.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-20">
-              <a href="/register" className="inline-flex items-center px-8 py-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all duration-300 transform hover:scale-105">
+              <a href="/register" className="inline-flex items-center px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105">
                 Commencer maintenant
               </a>
-              <a href="#products" className="inline-flex items-center px-8 py-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-300">
+              <a href="#products" className="inline-flex items-center px-8 py-4 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-all duration-300">
                 Découvrir nos solutions
               </a>
             </div>
@@ -39,18 +39,18 @@ export default function HomePage() {
         </div>
         
         {/* Geometric background */}
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-blue-50 rounded-full opacity-20"></div>
-        <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-80 h-80 bg-gray-100 rounded-full opacity-30"></div>
+        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-blue-900 rounded-full opacity-10"></div>
+        <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-80 h-80 bg-gray-800 rounded-full opacity-20"></div>
       </section>
 
-      {/* Products Section - Portfolio Style */}
-      <section id="products" className="py-24 bg-gray-50">
+      {/* Products Section - Dark Mode */}
+      <section id="products" className="py-24 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
               Nos Solutions
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
               Deux modules puissants pour automatiser vos processus métier
             </p>
           </div>

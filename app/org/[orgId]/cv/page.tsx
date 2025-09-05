@@ -143,7 +143,7 @@ export default function CVScreeningPage() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-200 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className="min-h-screen transition-colors duration-200 bg-gray-50 dark:bg-gray-900">
       <div className="space-y-6 p-4 md:p-6">
         {/* Header moderne avec métriques rapides */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 md:p-6 text-white">
@@ -175,7 +175,7 @@ export default function CVScreeningPage() {
         </div>
 
         {/* Barre d'outils ultra-moderne pour RH pressés */}
-        <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} p-4`}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="space-y-4">
             {/* Ligne 1: Recherche */}
             <div className="flex flex-col sm:flex-row gap-3">
@@ -188,7 +188,7 @@ export default function CVScreeningPage() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                    'bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
                   }`}
                 />
               </div>
@@ -200,7 +200,7 @@ export default function CVScreeningPage() {
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
                   className={`px-3 sm:px-4 py-3 text-sm sm:text-base border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                    'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
                   }`}
                 >
                   <option value="all">Tous</option>
@@ -213,7 +213,7 @@ export default function CVScreeningPage() {
             {/* Ligne 2: Vues et Actions */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               {/* Sélecteur de vue */}
-              <div className={`flex items-center justify-center sm:justify-start border rounded-lg overflow-hidden ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`}>
+              <div className="flex items-center justify-center sm:justify-start border rounded-lg overflow-hidden border-gray-300 dark:border-gray-600">
                 <button 
                   onClick={() => setViewMode('table')} 
                   className={`flex-1 sm:flex-none px-3 sm:px-2 py-2 ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`} 
@@ -262,9 +262,9 @@ export default function CVScreeningPage() {
         </div>
 
         {error && (
-          <div className={`border rounded-md p-4 flex items-center justify-between ${isDarkMode ? 'bg-red-900/20 border-red-500/30 text-red-300' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          <div className="border rounded-md p-4 flex items-center justify-between bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-300">
             <div className="flex items-center"><AlertTriangle className="w-5 h-5 mr-3" /><span>{error}</span></div>
-            <button onClick={() => setError(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-red-900/50' : 'hover:bg-red-100'}`}><X className="w-4 h-4" /></button>
+            <button onClick={() => setError(null)} className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50"><X className="w-4 h-4" /></button>
           </div>
         )}
 
@@ -319,7 +319,7 @@ export default function CVScreeningPage() {
           // Mode Tableur RH Ultra-Moderne
           if (viewMode === 'table') {
             return (
-              <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} overflow-hidden`}>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                 {/* Message mobile amélioré pour le mode tableur */}
                 <div className="lg:hidden bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-blue-200 dark:border-blue-500/30 p-4">
                   <div className="flex items-center justify-between">
@@ -341,7 +341,7 @@ export default function CVScreeningPage() {
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[800px]">
-                    <thead className={`${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
                           <button 
@@ -554,19 +554,19 @@ export default function CVScreeningPage() {
           return (
             <div className={`grid gap-4 md:gap-6 ${viewMode === 'gallery' ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
               {filteredProjects.map((project) => (
-                <div key={project.id} className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border p-4 md:p-6 hover:shadow-xl transition-all duration-200 hover:scale-105`}>
+                <div key={project.id} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-xl border p-4 md:p-6 hover:shadow-xl transition-all duration-200 hover:scale-105">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
                         {project.name}
                       </h3>
                       {project.job_title && (
-                        <p className={`text-sm mb-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                        <p className="text-sm mb-2 text-blue-600 dark:text-blue-400">
                           🎯 {project.job_title}
                         </p>
                       )}
                       {project.description && (
-                        <p className={`text-sm line-clamp-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <p className="text-sm line-clamp-2 text-gray-600 dark:text-gray-300">
                           {project.description}
                         </p>
                       )}

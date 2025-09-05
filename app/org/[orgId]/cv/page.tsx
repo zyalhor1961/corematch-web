@@ -406,7 +406,7 @@ export default function CVScreeningPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredProjects.map((project) => {
                         const candidateCount = project.candidate_count || 0;
                         const analyzedCount = project.analyzed_count || 0;
@@ -415,7 +415,7 @@ export default function CVScreeningPage() {
                         const shortlistRate = analyzedCount > 0 ? (shortlistedCount / analyzedCount) * 100 : 0;
                         
                         return (
-                          <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                          <tr key={project.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-200 dark:border-gray-700">
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center space-x-2 sm:space-x-3">
                                 <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${candidateCount > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>

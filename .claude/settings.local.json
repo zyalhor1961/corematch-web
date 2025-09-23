@@ -68,7 +68,8 @@
       "WebFetch(domain:corematch-lyxlh2jiw-corematchs-projects.vercel.app)",
       "WebFetch(domain:corematch-de86kqjfb-corematchs-projects.vercel.app)",
       "WebFetch(domain:corematch-5fnqajuhr-corematchs-projects.vercel.app)",
-      "WebFetch(domain:corematch-hfsd6fv2p-corematchs-projects.vercel.app)"
+      "WebFetch(domain:corematch-hfsd6fv2p-corematchs-projects.vercel.app)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

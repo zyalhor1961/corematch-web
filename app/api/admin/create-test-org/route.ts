@@ -5,17 +5,43 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Creating test organization...');
 
-    // Create a test organization first
-    const { data: org, error: orgError } = await supabaseAdmin
-      .from('organizations')
-      .insert({
-        id: '00000000-0000-0000-0000-000000000001',
-        name: 'Test Organization',
-        plan: 'starter',
-        status: 'active'
-      })
-      .select()
-      .single();
+    // Try to create organization - ignore RLS errors for admin operations
+    let org = null;
+    let orgError = null;
+
+    try {
+      const result = await supabaseAdmin
+        .from('organizations')
+        .insert({
+          id: '00000000-0000-0000-0000-000000000001',
+          name: 'Test Organization',
+          plan: 'starter',
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      org = result.data;
+      orgError = result.error;
+    } catch (error) {
+      // If this fails due to RLS, try to get existing org
+      if (error instanceof Error && error.message.includes('row-level security')) {
+        const { data: existingOrg } = await supabaseAdmin
+          .from('organizations')
+          .select('*')
+          .eq('id', '00000000-0000-0000-0000-000000000001')
+          .single();
+
+        if (existingOrg) {
+          org = existingOrg;
+          orgError = null;
+        } else {
+          orgError = error;
+        }
+      } else {
+        orgError = error;
+      }
+    }
 
     if (orgError && !orgError.message.includes('duplicate key')) {
       console.error('Error creating organization:', orgError);

@@ -39,7 +39,7 @@ export async function verifyAuth(request: NextRequest): Promise<AuthResult> {
 
     // Fallback: Try to get user from cookies (for SSR)
     if (!user) {
-      const cookieStore = cookies();
+      const cookieStore = await cookies();
       const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

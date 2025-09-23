@@ -101,10 +101,21 @@ function RegisterForm() {
       });
 
       if (error) {
-        setError(error.message);
+        // Handle specific Google OAuth errors
+        if (error.message.includes('provider is not enabled')) {
+          setError('🔧 Google OAuth n\'est pas configuré. Contactez l\'administrateur pour activer l\'authentification Google.');
+        } else if (error.message.includes('redirect_uri_mismatch')) {
+          setError('🔗 Erreur de configuration OAuth. Veuillez réessayer ou contactez le support.');
+        } else {
+          setError(`Erreur Google OAuth: ${error.message}`);
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de l\'inscription avec Google');
+      if (err.message?.includes('provider is not enabled')) {
+        setError('🔧 Google OAuth n\'est pas configuré. Contactez l\'administrateur pour activer l\'authentification Google.');
+      } else {
+        setError(err.message || 'Erreur lors de l\'inscription avec Google');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { createClient } from '@supabase/supabase-js';
+import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
@@ -9,38 +9,13 @@ const createProjectSchema = z.object({
   description: z.string().optional(),
   job_title: z.string().optional(),
   requirements: z.string().optional(),
+  created_by: z.string().uuid().optional(),
 });
-
-async function verifyAuthFromRequest(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return null;
-    }
-    
-    const token = authHeader.substring(7);
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return null;
-    }
-    
-    return user;
-  } catch (error) {
-    console.error('Auth verification error:', error);
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const user = await verifyAuthFromRequest(request);
+    const user = await verifyAuth(request);
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -52,14 +27,8 @@ export async function POST(request: NextRequest) {
     const { orgId, name, description, job_title, requirements } = createProjectSchema.parse(body);
     
     // Verify user has access to this organization
-    const { data: memberData } = await supabaseAdmin
-      .from('organization_members')
-      .select('id, role')
-      .eq('user_id', user.id)
-      .eq('organization_id', orgId)
-      .single();
-    
-    if (!memberData) {
+    const hasAccess = await verifyOrgAccess(user.id, orgId);
+    if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access denied to this organization' },
         { status: 403 }
@@ -75,7 +44,7 @@ export async function POST(request: NextRequest) {
         description,
         job_title,
         requirements,
-        created_by: user.id,
+        created_by: user.id,  // Use authenticated user's ID
       })
       .select()
       .single();
@@ -105,7 +74,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
-    const user = await verifyAuthFromRequest(request);
+    const user = await verifyAuth(request);
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -124,16 +93,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Verify user has access to this organization
-    const { data: memberData, error: memberError } = await supabaseAdmin
-      .from('organization_members')
-      .select('id, role')
-      .eq('user_id', user.id)
-      .eq('organization_id', orgId)
-      .single();
-    
-    console.log('Membership check for user:', user.id, 'org:', orgId, 'result:', memberData, 'error:', memberError);
-    
-    if (!memberData) {
+    const hasAccess = await verifyOrgAccess(user.id, orgId);
+    if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access denied to this organization' },
         { status: 403 }
@@ -174,7 +135,7 @@ export async function GET(request: NextRequest) {
           ...project,
           candidate_count: candidateCount || 0,
           analyzed_count: analyzedCount || 0,
-          shortlisted_count: 0,
+          shortlisted_count: 0, // TODO: implement when shortlisting is ready
         };
       })
     );

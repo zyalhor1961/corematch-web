@@ -169,8 +169,12 @@ export default function JobOfferEditor({ orgId, project, onClose, onSuccess }: J
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      
+
       if (data.success) {
         setFormData({ ...formData, requirements: data.requirements });
       } else {
@@ -209,8 +213,12 @@ export default function JobOfferEditor({ orgId, project, onClose, onSuccess }: J
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      
+
       if (data.success) {
         onSuccess();
       } else {

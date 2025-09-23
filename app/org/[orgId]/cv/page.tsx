@@ -143,7 +143,7 @@ export default function CVScreeningPage() {
   }
 
   return (
-    <div className="min-h-screen transition-colors duration-200 bg-gray-50 dark:bg-gray-900">
+    <div className="transition-colors duration-200">
       <div className="space-y-6 p-4 md:p-6">
         {/* Header moderne avec métriques rapides */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 md:p-6 text-white">
@@ -188,7 +188,7 @@ export default function CVScreeningPage() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    'bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
+                    'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
                   }`}
                 />
               </div>
@@ -299,7 +299,7 @@ export default function CVScreeningPage() {
                 <h3 className="text-xl font-medium mb-2 text-gray-900 dark:text-white">
                   {searchTerm || filterStatus !== 'all' ? 'Aucun résultat' : 'Prêt à impressionner ?'}
                 </h3>
-                <p className="mb-6 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                <p className="mb-6 text-gray-700 dark:text-gray-400 max-w-md mx-auto">
                   {searchTerm || filterStatus !== 'all' 
                     ? 'Essayez de modifier vos critères de recherche ou filtres.'
                     : 'Créez votre premier projet et montrez à vos collègues la puissance de l\'IA pour le recrutement.'}
@@ -340,10 +340,10 @@ export default function CVScreeningPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[800px]">
-                    <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                  <table className="w-full min-w-[1000px] table-fixed">
+                    <thead className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
+                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/4">
                           <button 
                             onClick={() => setSortBy('name')} 
                             className="flex items-center space-x-2 hover:text-blue-600"
@@ -354,7 +354,7 @@ export default function CVScreeningPage() {
                             {sortBy === 'name' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
                           </button>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
+                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/6">
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Target className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">POSTE</span>
@@ -415,7 +415,7 @@ export default function CVScreeningPage() {
                         const shortlistRate = analyzedCount > 0 ? (shortlistedCount / analyzedCount) * 100 : 0;
                         
                         return (
-                          <tr key={project.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-200 dark:border-gray-700">
+                          <tr key={project.id} className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-200 dark:border-gray-700">
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center space-x-2 sm:space-x-3">
                                 <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${candidateCount > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
@@ -424,8 +424,10 @@ export default function CVScreeningPage() {
                                     {project.name}
                                   </div>
                                   {project.description && (
-                                    <div className="text-xs sm:text-base text-gray-500 dark:text-gray-400 truncate max-w-[8rem] sm:max-w-xs">
-                                      {project.description}
+                                    <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 max-w-[10rem] sm:max-w-sm overflow-hidden break-words">
+                                      {project.description && project.description.length > 100 
+                                        ? `${project.description.substring(0, 100)}...` 
+                                        : project.description}
                                     </div>
                                   )}
                                 </div>
@@ -434,11 +436,11 @@ export default function CVScreeningPage() {
                             
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               {project.job_title ? (
-                                <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 truncate max-w-[6rem] sm:max-w-none">
+                                <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 truncate max-w-[6rem] sm:max-w-none">
                                   {project.job_title}
                                 </span>
                               ) : (
-                                <span className="text-gray-500 dark:text-gray-400 text-xs sm:text-base">-</span>
+                                <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-base">-</span>
                               )}
                             </td>
 
@@ -566,7 +568,7 @@ export default function CVScreeningPage() {
                         </p>
                       )}
                       {project.description && (
-                        <p className="text-sm line-clamp-2 text-gray-600 dark:text-gray-300">
+                        <p className="text-sm line-clamp-2 text-gray-700 dark:text-gray-300">
                           {project.description}
                         </p>
                       )}
@@ -578,24 +580,24 @@ export default function CVScreeningPage() {
                       <div className="flex items-center space-x-2">
                         <Users className="w-4 h-4 text-blue-500" />
                         <span className="font-semibold">{project.candidate_count || 0}</span>
-                        <span className="text-sm text-gray-600 dark:text-gray-500">candidats</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-500">candidats</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Brain className="w-4 h-4 text-green-500" />
                         <span className="font-semibold">{project.analyzed_count || 0}</span>
-                        <span className="text-sm text-gray-600 dark:text-gray-500">analysés</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-500">analysés</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <Star className="w-4 h-4 text-yellow-500" />
                       <span className="font-semibold text-yellow-600">{project.shortlisted_count || 0}</span>
-                      <span className="text-sm text-gray-600 dark:text-gray-500">shortlistés</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-500">shortlistés</span>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-                    <div className="flex items-center justify-center text-xs text-gray-600 dark:text-gray-500">
+                    <div className="flex items-center justify-center text-xs text-gray-700 dark:text-gray-500">
                       <Calendar className="w-3 h-3 mr-1" />
                       <span>{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
                     </div>
@@ -783,6 +785,10 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
           type: field
         })
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
       setFormData({ ...formData, [field]: data.content || data.generated_content || data.text });
@@ -994,7 +1000,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
                     <button 
                       type="button"
                       onClick={() => {setCreationMode('manual'); setStep(2);}}
-                      className="w-full py-2 sm:py-3 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm sm:text-base"
+                      className="w-full py-2 sm:py-3 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm sm:text-base"
                     >
                       Ou saisir manuellement →
                     </button>

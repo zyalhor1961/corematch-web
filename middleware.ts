@@ -1,75 +1,100 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Protected routes that require authentication
-const protectedRoutes = [
-  '/dashboard',
-  '/org',
-  '/onboarding',
-];
-
-// API routes that require authentication
-const protectedApiRoutes = [
-  '/api/cv',
-  '/api/deb',
-  '/api/billing',
-  '/api/history',
-];
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Check if the route needs protection
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-  const isProtectedApiRoute = protectedApiRoutes.some(route => pathname.startsWith(route));
-  
-  if (isProtectedRoute || isProtectedApiRoute) {
-    // Get the session token from cookies
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-    
-    // Check for auth cookies
-    const cookieName = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-    const token = request.cookies.get(cookieName);
-    
-    if (!token) {
-      // No auth token found
-      if (isProtectedApiRoute) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      } else {
-        // Redirect to login for web routes
-        const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('redirectTo', pathname);
-        return NextResponse.redirect(loginUrl);
-      }
-    }
-    
-    // For API routes, add user context to headers
-    if (isProtectedApiRoute) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-auth-token', token.value);
-      
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
+  // Allow access to auth callback route immediately
+  if (request.nextUrl.pathname === '/auth/callback') {
+    return NextResponse.next()
   }
-  
-  return NextResponse.next();
+
+  // Allow access to login page immediately
+  if (request.nextUrl.pathname === '/login') {
+    return NextResponse.next()
+  }
+
+  // Skip auth check for static assets and API routes
+  if (request.nextUrl.pathname.startsWith('/_next') || 
+      request.nextUrl.pathname.startsWith('/api/') ||
+      request.nextUrl.pathname === '/favicon.ico') {
+    return NextResponse.next()
+  }
+
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            request.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+          },
+          remove(name: string, options: CookieOptions) {
+            request.cookies.set({
+              name,
+              value: '',
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value: '',
+              ...options,
+            })
+          },
+        },
+      }
+    )
+
+    // Add timeout to auth check
+    const authPromise = supabase.auth.getUser()
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Auth timeout')), 3000)
+    )
+
+    const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any
+
+    // if user is not signed in, redirect to /login
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    return response
+  } catch (error) {
+    // On auth error or timeout, redirect to login
+    console.error('Middleware auth error:', error)
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
 }
 
 export const config = {
@@ -79,9 +104,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
-     * - login, register, auth callback, and root pages
+     * - login (login page)
+     * - auth/callback (auth callback route)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|login|register|auth|pricing|products|$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|auth/callback).*)',
   ],
-};
+}

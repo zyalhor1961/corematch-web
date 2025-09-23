@@ -252,7 +252,46 @@ async function generateCVWithOpenAI(jobTitle: string, variation: number): Promis
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectId, jobTitle, count = 10 } = await request.json();
+    const body = await request.json();
+    const { projectId, jobTitle, count = 10, prompt, type } = body;
+
+    // Si c'est une demande de génération de texte simple (pour l'assistance IA)
+    if (prompt && type) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4",
+          messages: [
+            {
+              role: "system",
+              content: "Tu es un assistant RH expert qui aide à créer des offres d'emploi professionnelles. Réponds directement avec le texte demandé, sans markdown ni formatage supplémentaire."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('Pas de contenu généré par l\'IA');
+        }
+
+        return NextResponse.json({
+          success: true,
+          content: content.trim(),
+          type: type
+        });
+      } catch (error) {
+        console.error('AI text generation error:', error);
+        return NextResponse.json(
+          { success: false, error: 'Erreur lors de la génération IA' },
+          { status: 500 }
+        );
+      }
+    }
 
     if (!projectId) {
       return NextResponse.json(

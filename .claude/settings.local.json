@@ -58,7 +58,10 @@
       "Read(/F:\\corematch/**)",
       "Read(/F:\\corematch/**)",
       "Read(/F:\\corematch/**)",
-      "Read(/F:\\corematch/**)"
+      "Read(/F:\\corematch/**)",
+      "Bash(npx tsx:*)",
+      "WebFetch(domain:corematche.fr)",
+      "WebFetch(domain:corematch-d1ejfqjco-corematchs-projects.vercel.app)"
     ],
     "deny": [],
     "ask": []

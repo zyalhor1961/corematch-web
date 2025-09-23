@@ -98,7 +98,7 @@ export default function DEBAssistantPage() {
   // ... (rest of the helper functions like getStatusIcon, etc.)
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="space-y-6 p-4 md:p-6">
         <div className="sm:flex sm:items-center sm:justify-between">
             <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>DEB Assistant</h1>

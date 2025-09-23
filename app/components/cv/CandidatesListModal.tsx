@@ -55,6 +55,10 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
         method: 'POST',
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -89,6 +93,10 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
         method: 'DELETE',
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -106,6 +114,11 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
     try {
       console.log('Loading candidates for project:', projectId);
       const response = await fetch(`/api/cv/projects/${projectId}/candidates`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       
       console.log('Candidates API response:', data);

@@ -107,7 +107,7 @@ export default function OrganizationLayout({
 
   if (isLoading || error) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
         <div className="text-center p-8">
           {isLoading ? (
             <>
@@ -133,7 +133,7 @@ export default function OrganizationLayout({
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       {/* Mobile sidebar */}
       <div className={`lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
         <div className="fixed inset-0 z-50 bg-gray-900 bg-opacity-75" onClick={() => setSidebarOpen(false)}>
@@ -256,7 +256,7 @@ export default function OrganizationLayout({
         </div>
 
         {/* Page content */}
-        <main className="p-6">
+        <main className={`p-6 min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
           {children}
         </main>
       </div>

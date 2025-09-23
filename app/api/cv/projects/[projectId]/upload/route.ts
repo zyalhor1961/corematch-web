@@ -1,21 +1,120 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { checkQuota } from '@/lib/utils/quotas';
+import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
+import { ApiErrorHandler, ValidationHelper } from '@/lib/errors/api-error-handler';
+import { AppError, ErrorType } from '@/lib/errors/error-types';
+
+/**
+ * Verify user has access to project through organization membership
+ */
+async function verifyProjectAccess(userId: string, projectId: string, isMasterAdmin: boolean = false): Promise<{ hasAccess: boolean; orgId?: string }> {
+  try {
+    // Master admin has access to all projects
+    if (isMasterAdmin) {
+      const { data: project } = await supabaseAdmin
+        .from('projects')
+        .select('org_id')
+        .eq('id', projectId)
+        .single();
+
+      return {
+        hasAccess: true,
+        orgId: project?.org_id
+      };
+    }
+
+    // Get project's organization
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from('projects')
+      .select('org_id')
+      .eq('id', projectId)
+      .single();
+
+    if (projectError || !project) {
+      console.error('Project not found:', projectError);
+      return { hasAccess: false };
+    }
+
+    // Check if user is member of the project's organization
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('org_id', project.org_id)
+      .single();
+
+    if (membershipError || !membership) {
+      console.error('User not member of organization:', membershipError);
+      return { hasAccess: false };
+    }
+
+    return {
+      hasAccess: true,
+      orgId: project.org_id
+    };
+  } catch (error) {
+    console.error('Project access verification failed:', error);
+    return { hasAccess: false };
+  }
+}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    // ⚠️ SECURITY CHECK: Verify authentication before allowing file uploads
+    const securityResult = await secureApiRoute(request);
+    if (!securityResult.success) {
+      return securityResult.response!;
+    }
+
+    const { user } = securityResult;
     const { projectId } = await params;
+
+    // Verify user has access to this project
+    const projectAccess = await verifyProjectAccess(user!.id, projectId, user!.isMasterAdmin);
+    if (!projectAccess.hasAccess) {
+      logSecurityEvent({
+        type: 'ACCESS_DENIED',
+        userId: user!.id,
+        email: user!.email,
+        route: `/api/cv/projects/${projectId}/upload [POST]`,
+        details: 'Attempted to upload files without project access'
+      });
+
+      throw new AppError(ErrorType.ACCESS_DENIED, 'No access to this project');
+    }
+
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
 
+    // Log file upload attempt
+    logSecurityEvent({
+      type: 'SUSPICIOUS_ACTIVITY',
+      userId: user!.id,
+      email: user!.email,
+      orgId: projectAccess.orgId,
+      route: `/api/cv/projects/${projectId}/upload [POST]`,
+      details: `Uploading ${files.length} files to project ${projectId}`
+    });
+
     if (!files.length) {
-      return NextResponse.json(
-        { error: 'No files provided' },
-        { status: 400 }
-      );
+      throw new AppError(ErrorType.MISSING_REQUIRED_FIELD, 'No files provided', 'files');
+    }
+
+    // Validate each file before processing
+    for (const file of files) {
+      ValidationHelper.validateFile(file, {
+        maxSizeBytes: 10 * 1024 * 1024, // 10MB
+        allowedTypes: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ],
+        allowedExtensions: ['.pdf', '.doc', '.docx']
+      });
     }
 
     // Get project and organization info
@@ -26,22 +125,15 @@ export async function POST(
       .single();
 
     if (projectError || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+      throw new AppError(ErrorType.RESOURCE_NOT_FOUND, `Project ${projectId} not found`);
     }
 
     // Check quota before processing
     const quotaCheck = await checkQuota(project.org_id, 'cv', files.length);
     if (!quotaCheck.canUse) {
-      return NextResponse.json(
-        { 
-          error: 'CV quota exceeded',
-          remaining: quotaCheck.remaining,
-          quota: quotaCheck.quota
-        },
-        { status: 429 }
+      throw new AppError(
+        ErrorType.QUOTA_EXCEEDED,
+        `CV quota exceeded. Remaining: ${quotaCheck.remaining}/${quotaCheck.quota}`
       );
     }
 
@@ -50,20 +142,23 @@ export async function POST(
 
     for (const file of files) {
       try {
-        // Validate file type
-        const allowedTypes = [
-          'application/pdf',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ];
-        if (!allowedTypes.includes(file.type)) {
-          errors.push(`${file.name}: Seuls les fichiers PDF, DOC et DOCX sont supportés`);
-          continue;
-        }
-
-        // Validate file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-          errors.push(`${file.name}: La taille du fichier dépasse la limite de 10MB`);
+        // Note: File validation already done above, but we re-validate here for individual error tracking
+        try {
+          ValidationHelper.validateFile(file);
+        } catch (validationError) {
+          if (validationError instanceof AppError) {
+            errors.push({
+              fileName: file.name,
+              error: validationError.userMessage,
+              type: validationError.type
+            });
+          } else {
+            errors.push({
+              fileName: file.name,
+              error: 'Erreur de validation du fichier',
+              type: ErrorType.VALIDATION_ERROR
+            });
+          }
           continue;
         }
 
@@ -90,7 +185,12 @@ export async function POST(
 
         if (uploadError) {
           console.error('Upload error:', uploadError);
-          errors.push(`${file.name}: Échec du téléchargement`);
+          errors.push({
+            fileName: file.name,
+            error: 'Échec du téléchargement du fichier vers le serveur',
+            type: ErrorType.FILE_UPLOAD_FAILED,
+            details: uploadError.message
+          });
           continue;
         }
 
@@ -111,33 +211,52 @@ export async function POST(
 
         if (candidateError) {
           console.error('Candidate creation error:', candidateError);
-          errors.push(`${file.name}: Échec de création du candidat`);
+          errors.push({
+            fileName: file.name,
+            error: 'Échec de la création du profil candidat en base de données',
+            type: ErrorType.INTERNAL_ERROR,
+            details: candidateError.message
+          });
           continue;
         }
 
-        uploadedCandidates.push(candidate);
+        uploadedCandidates.push({
+          ...candidate,
+          originalFileName: file.name
+        });
 
       } catch (fileError) {
         console.error(`Error processing file ${file.name}:`, fileError);
-        errors.push(`${file.name}: Échec du traitement`);
+        errors.push({
+          fileName: file.name,
+          error: fileError instanceof AppError ? fileError.userMessage : 'Échec du traitement du fichier',
+          type: fileError instanceof AppError ? fileError.type : ErrorType.INTERNAL_ERROR,
+          details: fileError instanceof Error ? fileError.message : String(fileError)
+        });
       }
     }
 
-    return NextResponse.json({
+    // Créer une réponse détaillée et professionnelle
+    const responseData = {
       success: true,
       data: {
-        uploaded: uploadedCandidates.length,
-        total: files.length,
+        summary: {
+          total: files.length,
+          uploaded: uploadedCandidates.length,
+          failed: errors.length
+        },
         candidates: uploadedCandidates,
-        errors: errors,
+        errors: errors.length > 0 ? errors : undefined
       },
-    });
+      message: errors.length === 0
+        ? `${uploadedCandidates.length} CV(s) téléchargé(s) avec succès`
+        : `${uploadedCandidates.length} CV(s) téléchargé(s), ${errors.length} échec(s)`
+    };
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Upload error:', error);
-    return NextResponse.json(
-      { error: 'File upload failed' },
-      { status: 500 }
-    );
+    return ApiErrorHandler.handleError(error, user?.id, `/api/cv/projects/${projectId}/upload [POST]`);
   }
 }

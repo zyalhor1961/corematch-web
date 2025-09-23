@@ -159,31 +159,74 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
 
   const viewCV = async (candidate: Candidate) => {
     // Extract filename and path from notes - IMPORTANT: Stop at first newline to avoid analysis text
-    const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1] || 
-                    candidate.cv_filename || 
+    const filename = candidate.notes?.match(/CV file: ([^|\n]+)/)?.[1] ||
+                    candidate.cv_filename ||
                     `${candidate.first_name || candidate.name || 'candidat'}.pdf`;
-    
+
     // Extract path - make sure to stop at newline or pipe to avoid getting analysis text
     const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
     const filePath = pathMatch?.[1]?.trim();
-    
+
+    console.log('Tentative d\'ouverture CV:', {
+      candidateId: candidate.id,
+      filename,
+      filePath,
+      notes: candidate.notes
+    });
+
     if (filePath) {
-      // Create download URL for the PDF  
-      const supabaseUrl = 'https://glexllbywdvlxpbanjmn.supabase.co';
-      const downloadUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
-      
-      console.log('Ouverture du PDF dans le viewer:', downloadUrl);
-      console.log('Path extrait:', filePath);
-      
-      // Open PDF in integrated viewer
-      setShowPDFViewer({
-        url: downloadUrl,
-        fileName: filename,
-        candidateName: getDisplayName(candidate)
-      });
+      try {
+        // Get Supabase URL from environment or use the current one
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://glexllbywdvlxpbanjmn.supabase.co';
+
+        // Try both public and signed URL approaches
+        let downloadUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
+
+        console.log('URL du PDF construite:', downloadUrl);
+
+        // Test if file exists
+        try {
+          const response = await fetch(downloadUrl, { method: 'HEAD' });
+          if (!response.ok) {
+            console.warn('Fichier non accessible en public, tentative avec URL signée...');
+
+            // Try to get a signed URL from Supabase
+            const { supabase } = await import('@/lib/supabase/client');
+            const { data: signedData, error: signedError } = await supabase.storage
+              .from('cv')
+              .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+            if (signedError) {
+              throw new Error(`Erreur URL signée: ${signedError.message}`);
+            }
+
+            if (signedData?.signedUrl) {
+              downloadUrl = signedData.signedUrl;
+              console.log('URL signée générée:', downloadUrl);
+            } else {
+              throw new Error('Impossible de générer une URL signée');
+            }
+          }
+        } catch (urlError) {
+          console.error('Erreur lors de la vérification de l\'URL:', urlError);
+          // Continue with the original URL, let the PDF viewer handle the error
+        }
+
+        // Open PDF in integrated viewer
+        setShowPDFViewer({
+          url: downloadUrl,
+          fileName: filename,
+          candidateName: getDisplayName(candidate)
+        });
+
+      } catch (error) {
+        console.error('Erreur lors de l\'ouverture du CV:', error);
+        alert(`Erreur lors de l'ouverture du CV: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      }
     } else {
       // Fallback: show file info
-      alert(`CV: ${filename}\nStatus: ${candidate.status}\nTéléversé le: ${new Date(candidate.created_at).toLocaleString('fr-FR')}\n\nLe fichier PDF sera bientôt disponible pour visualisation.`);
+      console.warn('Aucun chemin de fichier trouvé pour le candidat:', candidate);
+      alert(`CV: ${filename}\nStatus: ${candidate.status}\nTéléversé le: ${new Date(candidate.created_at).toLocaleString('fr-FR')}\n\nLe fichier PDF n'est pas encore disponible pour visualisation.`);
     }
   };
 

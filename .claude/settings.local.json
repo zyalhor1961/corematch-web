@@ -61,7 +61,14 @@
       "Read(/F:\\corematch/**)",
       "Bash(npx tsx:*)",
       "WebFetch(domain:corematche.fr)",
-      "WebFetch(domain:corematch-d1ejfqjco-corematchs-projects.vercel.app)"
+      "WebFetch(domain:corematch-d1ejfqjco-corematchs-projects.vercel.app)",
+      "Bash(del large-test-file.txt wrong-type.exe empty-file.pdf test-upload.js)",
+      "WebFetch(domain:corematch-k5x3lwp3t-corematchs-projects.vercel.app)",
+      "Bash(cat:*)",
+      "WebFetch(domain:corematch-lyxlh2jiw-corematchs-projects.vercel.app)",
+      "WebFetch(domain:corematch-de86kqjfb-corematchs-projects.vercel.app)",
+      "WebFetch(domain:corematch-5fnqajuhr-corematchs-projects.vercel.app)",
+      "WebFetch(domain:corematch-hfsd6fv2p-corematchs-projects.vercel.app)"
     ],
     "deny": [],
     "ask": []

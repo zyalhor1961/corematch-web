@@ -7,13 +7,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Allow access to login page immediately
-  if (request.nextUrl.pathname === '/login') {
+  // Allow access to public pages immediately
+  const publicPages = ['/login', '/register', '/pricing', '/products/cv-screening', '/products/deb-assistant'];
+  if (publicPages.includes(request.nextUrl.pathname) || request.nextUrl.pathname === '/') {
     return NextResponse.next()
   }
 
   // Skip auth check for static assets and API routes
-  if (request.nextUrl.pathname.startsWith('/_next') || 
+  if (request.nextUrl.pathname.startsWith('/_next') ||
       request.nextUrl.pathname.startsWith('/api/') ||
       request.nextUrl.pathname === '/favicon.ico') {
     return NextResponse.next()
@@ -105,8 +106,11 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - login (login page)
+     * - register (register page)
+     * - pricing (pricing page)
+     * - products (products pages)
      * - auth/callback (auth callback route)
      */
-    '/((?!_next/static|_next/image|favicon.ico|login|auth/callback).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|register|pricing|products|auth/callback).*)',
   ],
 }

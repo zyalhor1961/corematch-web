@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 
 const createProjectSchema = z.object({
   orgId: z.string().uuid(),
@@ -11,71 +11,47 @@ const createProjectSchema = z.object({
   requirements: z.string().optional(),
 });
 
-async function verifyAuthFromRequest(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return null;
-    }
-    
-    const token = authHeader.substring(7);
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return null;
-    }
-    
-    return user;
-  } catch (error) {
-    console.error('Auth verification error:', error);
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const user = await verifyAuthFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    // Security check with organization access verification
+    const securityResult = await secureApiRoute(request, {
+      requireOrgAccess: true,
+      orgIdSource: 'body',
+      orgIdParam: 'orgId'
+    });
+
+    if (!securityResult.success) {
+      return securityResult.response!;
     }
-    
+
+    const { user, orgId } = securityResult;
+
     const body = await request.json();
-    const { orgId, name, description, job_title, requirements } = createProjectSchema.parse(body);
-    
-    // Verify user has access to this organization
-    const { data: memberData } = await supabaseAdmin
-      .from('organization_members')
-      .select('id, role')
-      .eq('user_id', user.id)
-      .eq('organization_id', orgId)
-      .single();
-    
-    if (!memberData) {
-      return NextResponse.json(
-        { error: 'Access denied to this organization' },
-        { status: 403 }
-      );
-    }
+    const { name, description, job_title, requirements } = createProjectSchema.parse(body);
+
+    console.log('Creating project for user:', user!.id, 'orgId:', orgId);
+
+    // Log security event for project creation
+    logSecurityEvent({
+      type: 'SUSPICIOUS_ACTIVITY',
+      userId: user!.id,
+      email: user!.email,
+      orgId: orgId!,
+      route: '/api/cv/projects [POST]',
+      details: `Project creation: ${name}`
+    });
 
     // Create project with authenticated user as creator
     const { data: project, error } = await supabaseAdmin
       .from('projects')
       .insert({
-        org_id: orgId,
+        org_id: orgId!,
         name,
         description,
         job_title,
         requirements,
-        created_by: user.id,
+        created_by: user!.id,
       })
       .select()
       .single();
@@ -104,49 +80,63 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify authentication
-    const user = await verifyAuthFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    const { searchParams } = new URL(request.url);
-    const orgId = searchParams.get('orgId');
+    // Security check with organization access verification
+    const securityResult = await secureApiRoute(request, {
+      requireOrgAccess: true,
+      allowMasterAdmin: true, // Master admin can see all projects
+      orgIdSource: 'query',
+      orgIdParam: 'orgId'
+    });
 
-    if (!orgId) {
-      return NextResponse.json(
-        { error: 'Missing orgId parameter' },
-        { status: 400 }
-      );
-    }
-    
-    // Verify user has access to this organization
-    const { data: memberData, error: memberError } = await supabaseAdmin
-      .from('organization_members')
-      .select('id, role')
-      .eq('user_id', user.id)
-      .eq('organization_id', orgId)
-      .single();
-    
-    console.log('Membership check for user:', user.id, 'org:', orgId, 'result:', memberData, 'error:', memberError);
-    
-    if (!memberData) {
-      return NextResponse.json(
-        { error: 'Access denied to this organization' },
-        { status: 403 }
-      );
+    if (!securityResult.success) {
+      return securityResult.response!;
     }
 
-    const { data: projects, error } = await supabaseAdmin
-      .from('projects')
-      .select(`
-        *
-      `)
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false });
+    const { user, orgId } = securityResult;
+
+    console.log('Loading projects for user:', user!.id, 'orgId:', orgId, 'isMasterAdmin:', user!.isMasterAdmin);
+
+    // Log access for security monitoring
+    logSecurityEvent({
+      type: 'SUSPICIOUS_ACTIVITY',
+      userId: user!.id,
+      email: user!.email,
+      orgId: orgId!,
+      route: '/api/cv/projects [GET]',
+      details: user!.isMasterAdmin ? 'Master admin accessing all projects' : 'Regular user accessing org projects'
+    });
+
+    let projects;
+    let error;
+
+    if (user!.isMasterAdmin) {
+      // Master admin sees ALL projects from ALL organizations
+      const { data: allProjects, error: allError } = await supabaseAdmin
+        .from('projects')
+        .select(`
+          *,
+          organizations!inner(name)
+        `)
+        .order('created_at', { ascending: false });
+
+      projects = allProjects;
+      error = allError;
+      console.log('Master admin accessing all projects:', allProjects?.length || 0, 'projects');
+    } else {
+      // Regular users see only their organization's projects
+      console.log('Regular user accessing orgId:', orgId);
+
+      const { data: orgProjects, error: orgError } = await supabaseAdmin
+        .from('projects')
+        .select(`
+          *
+        `)
+        .eq('org_id', orgId!)
+        .order('created_at', { ascending: false });
+
+      projects = orgProjects;
+      error = orgError;
+    }
 
     if (error) {
       console.error('Error fetching projects:', error);
@@ -170,12 +160,20 @@ export async function GET(request: NextRequest) {
           .eq('project_id', project.id)
           .eq('status', 'analyzed');
 
-        return {
+        // Enhanced project data for master admin
+        const enhancedProject = {
           ...project,
           candidate_count: candidateCount || 0,
           analyzed_count: analyzedCount || 0,
           shortlisted_count: 0,
         };
+
+        // Add organization name for master admin view
+        if (user!.isMasterAdmin && project.organizations) {
+          enhancedProject.organization_name = project.organizations.name;
+        }
+
+        return enhancedProject;
       })
     );
 

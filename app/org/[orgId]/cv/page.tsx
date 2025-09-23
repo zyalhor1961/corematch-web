@@ -55,6 +55,7 @@ export default function CVScreeningPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -69,6 +70,9 @@ export default function CVScreeningPage() {
   
   const orgId = params?.orgId as string;
 
+  // Check if current user is master admin
+  const isMasterAdmin = currentUser?.email === 'admin@corematch.test';
+
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -78,6 +82,9 @@ export default function CVScreeningPage() {
       if (!session?.access_token) {
         throw new Error("Vous devez être connecté pour voir les projets.");
       }
+
+      // Set current user for master admin check
+      setCurrentUser(session.user);
       
       const response = await fetch(`/api/cv/projects?orgId=${orgId}`, {
         headers: {
@@ -149,8 +156,16 @@ export default function CVScreeningPage() {
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 md:p-6 text-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="text-center lg:text-left">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">🚀 CV Screening</h1>
-              <p className="text-blue-100 text-base md:text-lg lg:text-xl">Intelligence artificielle pour RH de haut niveau</p>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">
+                🚀 CV Screening
+                {isMasterAdmin && <span className="text-yellow-300 text-lg ml-2">👑 MASTER ADMIN</span>}
+              </h1>
+              <p className="text-blue-100 text-base md:text-lg lg:text-xl">
+                {isMasterAdmin
+                  ? "Mode administrateur - Vue globale de tous les projets"
+                  : "Intelligence artificielle pour RH de haut niveau"
+                }
+              </p>
             </div>
             <div className="grid grid-cols-3 gap-4 lg:flex lg:items-center lg:space-x-6">
               {/* Métriques rapides */}
@@ -361,6 +376,15 @@ export default function CVScreeningPage() {
                             <span className="sm:hidden">POS</span>
                           </div>
                         </th>
+                        {isMasterAdmin && (
+                          <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/6">
+                            <div className="flex items-center space-x-1 sm:space-x-2">
+                              <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span className="hidden sm:inline">ORGANISATION</span>
+                              <span className="sm:hidden">ORG</span>
+                            </div>
+                          </th>
+                        )}
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
                           <button 
                             onClick={() => setSortBy('candidates')} 
@@ -443,6 +467,14 @@ export default function CVScreeningPage() {
                                 <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-base">-</span>
                               )}
                             </td>
+
+                            {isMasterAdmin && (
+                              <td className="px-3 sm:px-6 py-3 sm:py-4">
+                                <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 truncate max-w-[8rem] sm:max-w-none">
+                                  {project.organization_name || 'Organisation inconnue'}
+                                </span>
+                              </td>
+                            )}
 
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center space-x-1 sm:space-x-2">
@@ -565,6 +597,11 @@ export default function CVScreeningPage() {
                       {project.job_title && (
                         <p className="text-sm mb-2 text-blue-600 dark:text-blue-400">
                           🎯 {project.job_title}
+                        </p>
+                      )}
+                      {isMasterAdmin && project.organization_name && (
+                        <p className="text-sm mb-2 text-purple-600 dark:text-purple-400">
+                          🏢 {project.organization_name}
                         </p>
                       )}
                       {project.description && (

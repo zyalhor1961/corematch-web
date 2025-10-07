@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../../_helpers';
 import OpenAI from 'openai';
-import pdfParse from 'pdf-parse';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -81,6 +80,9 @@ Important:
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
+    // Import dynamique de pdf-parse pour éviter les problèmes de build
+    const pdfParse = (await import('pdf-parse')).default;
+
     // Extraire le texte du PDF
     const pdfData = await pdfParse(pdfBuffer);
     const pdfText = pdfData.text;

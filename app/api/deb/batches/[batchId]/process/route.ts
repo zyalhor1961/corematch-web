@@ -51,7 +51,7 @@ async function loadBatchOrg(batchId: string) {
 async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
   const systemPrompt = `Tu es un assistant expert en extraction de données de factures et bons de livraison pour les déclarations douanières (DEB).
 
-Analyse TOUTES les pages de ce document PDF (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
+Analyse TOUTES les pages de ce document (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
 
 - supplier_name: nom du fournisseur
 - supplier_vat: numéro TVA intracommunautaire
@@ -82,10 +82,38 @@ Important:
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
-    // Convertir le PDF en base64 pour l'envoyer directement à OpenAI
-    const pdfBase64 = pdfBuffer.toString('base64');
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    const { pdfToPng } = await import('pdf-to-png-converter');
 
-    console.log('PDF converti en base64, taille:', pdfBase64.length, 'caractères');
+    // Sauvegarder temporairement le PDF
+    const tempDir = os.tmpdir();
+    const tempPdfPath = path.join(tempDir, `temp-${Date.now()}.pdf`);
+    fs.writeFileSync(tempPdfPath, pdfBuffer);
+
+    console.log('PDF sauvegardé temporairement:', tempPdfPath);
+
+    // Convertir le PDF en images PNG
+    const pngPages = await pdfToPng(tempPdfPath, {
+      disableFontFace: false,
+      useSystemFonts: false,
+      viewportScale: 2.0,
+    });
+
+    console.log(`PDF converti en ${pngPages.length} image(s)`);
+
+    // Supprimer le fichier temporaire
+    fs.unlinkSync(tempPdfPath);
+
+    // Préparer les images pour OpenAI
+    const imageMessages = pngPages.map((page) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: `data:image/png;base64,${page.content.toString('base64')}`,
+        detail: 'high' as const
+      }
+    }));
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',  // Utiliser gpt-4o pour la vision
@@ -99,15 +127,9 @@ Important:
           content: [
             {
               type: 'text',
-              text: 'Voici un document PDF scanné. Analyse TOUTES les pages et extrais les données au format JSON:'
+              text: `Voici un document scanné de ${pngPages.length} page(s). Analyse TOUTES les pages et extrais les données au format JSON:`
             },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:application/pdf;base64,${pdfBase64}`,
-                detail: 'high'
-              }
-            }
+            ...imageMessages
           ]
         }
       ],

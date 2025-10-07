@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../../_helpers';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { DocumentAnalysisClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
 
 interface ExtractedLine {
   line_no: number;
@@ -49,108 +45,66 @@ async function loadBatchOrg(batchId: string) {
 }
 
 async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
-  const systemPrompt = `Tu es un assistant expert en extraction de données de factures et bons de livraison pour les déclarations douanières (DEB).
-
-Analyse TOUTES les pages de ce document (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
-
-- supplier_name: nom du fournisseur
-- supplier_vat: numéro TVA intracommunautaire
-- supplier_country: code pays ISO 2 lettres (FR, DE, IT, etc.)
-- invoice_number: numéro de facture
-- invoice_date: date au format YYYY-MM-DD
-- delivery_note_number: numéro de bon de livraison (si présent)
-- currency: code devise (EUR, USD, etc.)
-- total_ht: montant total HT
-- shipping_total: frais de port
-- lines: tableau des lignes de produits avec:
-  - line_no: numéro de ligne (1, 2, 3...)
-  - description: description du produit
-  - sku: référence produit
-  - qty: quantité (nombre)
-  - unit: unité (PCE, KG, MTR, etc.)
-  - unit_price: prix unitaire (nombre)
-  - line_amount: montant total ligne (nombre)
-  - hs_code: code HS/douanier (si mentionné)
-  - country_of_origin: pays d'origine (code ISO 2 lettres)
-  - net_mass_kg: poids net en kg (nombre)
-
-Important:
-- Le document peut avoir plusieurs pages, analyse-les TOUTES
-- Si une info n'est pas présente, ne la mets pas dans le JSON
-- Les montants doivent être des nombres, pas des strings
-- Les codes pays doivent être en majuscules (2 lettres)
-- Retourne uniquement le JSON, sans texte avant ou après`;
-
   try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const os = await import('os');
-    const { pdfToPng } = await import('pdf-to-png-converter');
+    const endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT?.replace('/api/projects/Corematch-DEB', '') || '';
+    const key = process.env.AZURE_FORM_RECOGNIZER_KEY || '';
 
-    // Sauvegarder temporairement le PDF
-    const tempDir = os.tmpdir();
-    const tempPdfPath = path.join(tempDir, `temp-${Date.now()}.pdf`);
-    fs.writeFileSync(tempPdfPath, pdfBuffer);
-
-    console.log('PDF sauvegardé temporairement:', tempPdfPath);
-
-    // Convertir le PDF en images PNG
-    const pngPages = await pdfToPng(tempPdfPath, {
-      disableFontFace: false,
-      useSystemFonts: false,
-      viewportScale: 2.0,
-    });
-
-    console.log(`PDF converti en ${pngPages.length} image(s)`);
-
-    // Supprimer le fichier temporaire
-    fs.unlinkSync(tempPdfPath);
-
-    // Préparer les images pour OpenAI
-    const imageMessages = pngPages.map((page) => ({
-      type: 'image_url' as const,
-      image_url: {
-        url: `data:image/png;base64,${page.content.toString('base64')}`,
-        detail: 'high' as const
-      }
-    }));
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',  // Utiliser gpt-4o pour la vision
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Voici un document scanné de ${pngPages.length} page(s). Analyse TOUTES les pages et extrais les données au format JSON:`
-            },
-            ...imageMessages
-          ]
-        }
-      ],
-      temperature: parseFloat(process.env.CM_TEMPERATURE || '0.3'),
-      max_tokens: 4000,
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('Pas de réponse de OpenAI');
+    if (!endpoint || !key) {
+      throw new Error('Azure Form Recognizer credentials not configured');
     }
 
-    console.log('Réponse OpenAI:', content.substring(0, 500));
+    const client = new DocumentAnalysisClient(endpoint, new AzureKeyCredential(key));
 
-    // Nettoyer le JSON (enlever les backticks markdown si présents)
-    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const extracted = JSON.parse(cleanedContent) as ExtractionResult;
+    console.log('Analyse du document avec Azure Document Intelligence...');
+
+    // Analyser le document avec le modèle prebuilt-invoice
+    const poller = await client.beginAnalyzeDocument('prebuilt-invoice', pdfBuffer);
+    const result = await poller.pollUntilDone();
+
+    console.log('Analyse Azure terminée');
+
+    const extracted: ExtractionResult = {
+      lines: []
+    };
+
+    // Extraire les données de la première facture détectée
+    if (result.documents && result.documents.length > 0) {
+      const doc = result.documents[0];
+      const fields = doc.fields;
+
+      // Extraire les informations du fournisseur
+      extracted.supplier_name = fields?.VendorName?.content;
+      extracted.supplier_vat = fields?.VendorTaxId?.content;
+      extracted.supplier_country = fields?.VendorAddress?.value?.countryRegion;
+
+      // Extraire les informations de la facture
+      extracted.invoice_number = fields?.InvoiceId?.content;
+      extracted.invoice_date = fields?.InvoiceDate?.content;
+      extracted.currency = fields?.CurrencyCode?.content || 'EUR';
+      extracted.total_ht = fields?.InvoiceTotal?.value || fields?.SubTotal?.value;
+      extracted.shipping_total = fields?.ShippingCost?.value;
+
+      // Extraire les lignes de produits
+      const items = fields?.Items?.values || [];
+      extracted.lines = items.map((item: any, index: number) => {
+        const itemFields = item.properties;
+        return {
+          line_no: index + 1,
+          description: itemFields?.Description?.content || '',
+          sku: itemFields?.ProductCode?.content,
+          qty: itemFields?.Quantity?.value,
+          unit: itemFields?.Unit?.content,
+          unit_price: itemFields?.UnitPrice?.value,
+          line_amount: itemFields?.Amount?.value,
+        };
+      });
+
+      console.log(`Extraction Azure: ${extracted.lines.length} lignes trouvées`);
+    }
 
     return extracted;
   } catch (error) {
-    console.error('Erreur extraction OpenAI:', error);
+    console.error('Erreur extraction Azure:', error);
     throw error;
   }
 }

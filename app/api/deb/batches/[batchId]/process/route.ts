@@ -84,9 +84,16 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
       // Extraire les informations de la facture
       extracted.invoice_number = fields?.InvoiceId?.content;
       extracted.invoice_date = fields?.InvoiceDate?.content;
-      extracted.currency = fields?.CurrencyCode?.content || 'EUR';
-      extracted.total_ht = fields?.InvoiceTotal?.value || fields?.SubTotal?.value;
-      extracted.shipping_total = fields?.ShippingCost?.value;
+      extracted.currency = fields?.CurrencyCode?.content || fields?.InvoiceTotal?.value?.currencyCode || 'EUR';
+
+      // Extraire les montants (Azure retourne des objets avec {amount, currencyCode})
+      extracted.total_ht = typeof fields?.InvoiceTotal?.value === 'object'
+        ? fields?.InvoiceTotal?.value?.amount
+        : fields?.InvoiceTotal?.value || fields?.SubTotal?.value?.amount;
+
+      extracted.shipping_total = typeof fields?.ShippingCost?.value === 'object'
+        ? fields?.ShippingCost?.value?.amount
+        : fields?.ShippingCost?.value;
 
       // Extraire les lignes de produits
       const items = fields?.Items?.values || [];
@@ -95,14 +102,20 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
       extracted.lines = items.map((item: any, index: number) => {
         const itemFields = item.properties;
         console.log(`Item ${index + 1}:`, JSON.stringify(itemFields));
+
+        // Extraire les valeurs numériques correctement
+        const qty = itemFields?.Quantity?.value;
+        const unitPrice = itemFields?.UnitPrice?.value;
+        const amount = itemFields?.Amount?.value;
+
         return {
           line_no: index + 1,
           description: itemFields?.Description?.content || '',
           sku: itemFields?.ProductCode?.content,
-          qty: itemFields?.Quantity?.value,
+          qty: typeof qty === 'number' ? qty : undefined,
           unit: itemFields?.Unit?.content,
-          unit_price: itemFields?.UnitPrice?.value,
-          line_amount: itemFields?.Amount?.value,
+          unit_price: typeof unitPrice === 'object' ? unitPrice?.amount : unitPrice,
+          line_amount: typeof amount === 'object' ? amount?.amount : amount,
         };
       });
 

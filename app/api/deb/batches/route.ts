@@ -82,9 +82,13 @@ export async function POST(request: NextRequest) {
 
     if (documentError || !document) {
       console.error('Insertion documents echouee', documentError);
+      console.error('Document data:', { documentId, orgId, batchId, objectPath, filename: file.name });
       await supabaseAdmin.storage.from('deb-docs').remove([objectPath]);
       await supabaseAdmin.from('deb_batches').delete().eq('id', batchId);
-      return NextResponse.json({ error: 'Impossible de creer le document' }, { status: 500 });
+      return NextResponse.json({
+        error: 'Impossible de creer le document',
+        details: documentError?.message || 'Unknown error'
+      }, { status: 500 });
     }
 
     const webhookUrl = process.env.N8N_DEB_WEBHOOK_URL;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { requireOrgMembership } from '../../_helpers';
+import { requireOrgMembership } from '../../../_helpers';
 
 const EDITABLE_FIELDS = [
   'description',

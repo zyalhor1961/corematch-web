@@ -66,7 +66,7 @@ export async function GET(
 
     const { data: documents, error: documentsError } = await supabaseAdmin
       .from('documents')
-      .select('
+      .select(`
         id,
         doc_type,
         filename,
@@ -77,7 +77,7 @@ export async function GET(
         invoice_date,
         delivery_note_number,
         status
-      ')
+      `)
       .eq('batch_id', batchId);
 
     if (documentsError) {

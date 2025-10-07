@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../../_helpers';
 import { DocumentAnalysisClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 interface ExtractedLine {
   line_no: number;
@@ -55,93 +60,78 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
 
     const client = new DocumentAnalysisClient(endpoint, new AzureKeyCredential(key));
 
-    console.log('Analyse du document avec Azure Document Intelligence...');
+    console.log('Étape 1: Extraction du texte avec Azure...');
 
-    // Analyser le document avec le modèle prebuilt-invoice
-    const poller = await client.beginAnalyzeDocument('prebuilt-invoice', pdfBuffer);
+    // Analyser avec prebuilt-read pour obtenir tout le texte
+    const poller = await client.beginAnalyzeDocument('prebuilt-read', pdfBuffer);
     const result = await poller.pollUntilDone();
 
-    console.log('Analyse Azure terminée');
-    console.log('Documents trouvés:', result.documents?.length || 0);
-
-    const extracted: ExtractionResult = {
-      lines: []
-    };
-
-    // Extraire les données de la première facture détectée
-    if (result.documents && result.documents.length > 0) {
-      const doc = result.documents[0];
-      const fields = doc.fields;
-
-      console.log('Champs disponibles:', Object.keys(fields || {}));
-      console.log('Items:', fields?.Items);
-
-      // Extraire les informations du fournisseur
-      extracted.supplier_name = fields?.VendorName?.content;
-      extracted.supplier_vat = fields?.VendorTaxId?.content;
-      extracted.supplier_country = fields?.VendorAddress?.value?.countryRegion;
-
-      // Extraire les informations de la facture
-      extracted.invoice_number = fields?.InvoiceId?.content;
-      extracted.invoice_date = fields?.InvoiceDate?.content;
-      extracted.currency = fields?.CurrencyCode?.content || fields?.InvoiceTotal?.value?.currencyCode || 'EUR';
-
-      // Extraire les montants (Azure retourne des objets avec {amount, currencyCode})
-      extracted.total_ht = typeof fields?.InvoiceTotal?.value === 'object'
-        ? fields?.InvoiceTotal?.value?.amount
-        : fields?.InvoiceTotal?.value || fields?.SubTotal?.value?.amount;
-
-      extracted.shipping_total = typeof fields?.ShippingCost?.value === 'object'
-        ? fields?.ShippingCost?.value?.amount
-        : fields?.ShippingCost?.value;
-
-      // Extraire les lignes de produits
-      const items = fields?.Items?.values || [];
-      console.log('Nombre d\'items:', items.length);
-
-      extracted.lines = items.map((item: any, index: number) => {
-        const itemFields = item.properties;
-        console.log(`Item ${index + 1}:`, JSON.stringify(itemFields));
-
-        // Extraire les valeurs numériques correctement
-        const qty = itemFields?.Quantity?.value;
-        const unitPrice = itemFields?.UnitPrice?.value;
-        const amount = itemFields?.Amount?.value;
-
-        // Essayer d'extraire la description de différentes propriétés
-        const description = itemFields?.Description?.content ||
-                          itemFields?.Description?.value ||
-                          itemFields?.ProductName?.content ||
-                          itemFields?.ProductName?.value ||
-                          '';
-
-        // Essayer d'extraire le SKU
-        const sku = itemFields?.ProductCode?.content ||
-                   itemFields?.ProductCode?.value ||
-                   itemFields?.SKU?.content ||
-                   itemFields?.ItemNumber?.content ||
-                   '';
-
-        return {
-          line_no: index + 1,
-          description: description,
-          sku: sku || undefined,
-          qty: typeof qty === 'number' ? qty : undefined,
-          unit: itemFields?.Unit?.content || itemFields?.Unit?.value || 'PCE',
-          unit_price: typeof unitPrice === 'object' ? unitPrice?.amount : unitPrice,
-          line_amount: typeof amount === 'object' ? amount?.amount : amount,
-        };
-      });
-
-      console.log(`Extraction Azure: ${extracted.lines.length} lignes trouvées`);
-      console.log('Données extraites:', JSON.stringify(extracted));
-    } else {
-      console.log('Aucun document détecté par Azure');
+    // Extraire tout le texte du document
+    let fullText = '';
+    if (result.content) {
+      fullText = result.content;
     }
+
+    console.log('Texte extrait:', fullText.substring(0, 300));
+    console.log('Étape 2: Analyse du texte avec OpenAI...');
+
+    const systemPrompt = `Tu es un expert en extraction de données de factures pour les déclarations DEB.
+À partir du texte OCR de la facture, retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) avec:
+{
+  "supplier_name": "nom du fournisseur",
+  "supplier_vat": "numéro TVA",
+  "supplier_country": "code pays 2 lettres (FR, DE, IT...)",
+  "invoice_number": "numéro facture",
+  "invoice_date": "YYYY-MM-DD",
+  "delivery_note_number": "numéro BL si présent",
+  "currency": "EUR",
+  "total_ht": montant_total_nombre,
+  "shipping_total": frais_port_nombre,
+  "lines": [
+    {
+      "line_no": 1,
+      "description": "description produit",
+      "sku": "référence",
+      "qty": quantité_nombre,
+      "unit": "PCE",
+      "unit_price": prix_unitaire_nombre,
+      "line_amount": montant_ligne_nombre
+    }
+  ]
+}
+
+IMPORTANT: Retourne UNIQUEMENT le JSON, rien d'autre. Les nombres doivent être des nombres, pas des strings.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Voici le texte extrait de la facture:\n\n${fullText}\n\nExtrais les données au format JSON:` }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Pas de réponse de OpenAI');
+    }
+
+    console.log('Réponse OpenAI:', content.substring(0, 500));
+
+    // Nettoyer le JSON
+    const cleanedContent = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    const extracted = JSON.parse(cleanedContent) as ExtractionResult;
+
+    console.log(`Extraction terminée: ${extracted.lines?.length || 0} lignes trouvées`);
 
     return extracted;
   } catch (error) {
-    console.error('Erreur extraction Azure:', error);
+    console.error('Erreur extraction:', error);
     throw error;
   }
 }

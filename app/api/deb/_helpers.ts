@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 
 export type MembershipRole = 'org_admin' | 'org_manager' | 'org_viewer';
 
@@ -19,7 +19,8 @@ export async function requireOrgMembership(orgId: string, allowedRoles?: Members
 
   console.log('Checking membership for user:', user.id, 'in org:', orgId);
 
-  const { data: membership, error: membershipError } = await supabase
+  // Use admin client to bypass RLS and avoid infinite recursion
+  const { data: membership, error: membershipError } = await supabaseAdmin
     .from('organization_members')
     .select('role')
     .eq('org_id', orgId)

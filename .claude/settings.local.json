@@ -69,7 +69,18 @@
       "WebFetch(domain:corematch-de86kqjfb-corematchs-projects.vercel.app)",
       "WebFetch(domain:corematch-5fnqajuhr-corematchs-projects.vercel.app)",
       "WebFetch(domain:corematch-hfsd6fv2p-corematchs-projects.vercel.app)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "WebFetch(domain:www.corematch.fr)",
+      "Bash(set NEXT_PUBLIC_SUPABASE_URL=https://glexllbywdvlxpbanjmn.supabase.co)",
+      "Bash(set:*)",
+      "Bash(npx dotenv npx tsx:*)",
+      "Bash(npx dotenv-cli:*)",
+      "Bash(del check-access.js fix-access.js check-schema.js fix-membership.js)",
+      "Bash(npx supabase status:*)",
+      "Bash(npx supabase db push:*)",
+      "Bash(npx supabase link:*)",
+      "Bash(del:*)",
+      "WebFetch(domain:supabase.com)"
     ],
     "deny": [],
     "ask": []

@@ -1,134 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { z } from 'zod';
+import { requireOrgMembership } from '../_helpers';
 
-const createDocumentSchema = z.object({
-  orgId: z.string().uuid(),
-  filename: z.string().min(1),
-  created_by: z.string().uuid(),
-});
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { orgId, filename, created_by } = createDocumentSchema.parse(body);
-
-    // Generate unique file path
-    const fileExt = filename.split('.').pop();
-    const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `deb-docs/${orgId}/${uniqueFilename}`;
-
-    // Create document record (adapting to existing documents table structure)
-    const { data: document, error } = await supabaseAdmin
-      .from('documents')
-      .insert({
-        org_id: orgId,
-        name: filename,
-        description: `Document DEB uploadé: ${filename}`,
-        file_url: filePath,
-        file_type: 'application/pdf',
-        uploaded_by: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating document:', error);
-      return NextResponse.json(
-        { error: 'Failed to create document' },
-        { status: 500 }
-      );
-    }
-
-    // Generate signed upload URL
-    const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage
-      .from('deb-docs')
-      .createSignedUploadUrl(filePath, {
-        upsert: true,
-      });
-
-    if (urlError || !signedUrlData) {
-      console.error('Error creating signed URL:', urlError);
-      return NextResponse.json(
-        { error: 'Failed to generate upload URL' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        document,
-        uploadUrl: signedUrlData.signedUrl,
-      },
-    });
-
-  } catch (error) {
-    console.error('Document creation error:', error);
-    return NextResponse.json(
-      { error: 'Invalid request data' },
-      { status: 400 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Upload via /api/deb/batches' },
+    { status: 405 }
+  );
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const orgId = searchParams.get('orgId');
-    const status = searchParams.get('status');
+    const url = new URL(request.url);
+    const orgId = url.searchParams.get('orgId');
+    const batchId = url.searchParams.get('batchId');
 
-    if (!orgId) {
+    if (!orgId && !batchId) {
       return NextResponse.json(
-        { error: 'Missing orgId parameter' },
+        { error: 'orgId ou batchId requis' },
         { status: 400 }
       );
     }
 
-    let query = supabaseAdmin
-      .from('documents')
-      .select('id, org_id, name, description, file_url, file_type, file_size, created_at, updated_at')
-      .eq('org_id', orgId)
-      .eq('file_type', 'application/pdf') // Only get PDF documents for DEB
-      .order('created_at', { ascending: false });
+    const membershipOrgId = batchId ? undefined : orgId;
+    let verifiedOrgId = orgId;
 
-    const { data: documents, error } = await query;
+    if (batchId && !orgId) {
+      const { data: batch, error } = await supabaseAdmin
+        .from('deb_batches')
+        .select('org_id')
+        .eq('id', batchId)
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching documents:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch documents' },
-        { status: 500 }
-      );
+      if (error) {
+        console.error('Erreur lecture batch pour documents', error);
+        return NextResponse.json({ error: 'Batch introuvable' }, { status: 404 });
+      }
+
+      verifiedOrgId = batch?.org_id ?? null;
     }
 
-    // Transform to match expected DEB format
-    const documentsWithCounts = documents?.map(doc => ({
-      id: doc.id,
-      org_id: doc.org_id,
-      filename: doc.name,
-      supplier_name: null,
-      supplier_vat: null,
-      invoice_number: null,
-      status: 'uploaded',
-      pages_count: 0,
-      line_count: 0,
-      created_at: doc.created_at,
-      export_url: null
-    })) || [];
+    if (!verifiedOrgId) {
+      return NextResponse.json({ error: 'Organisation introuvable' }, { status: 404 });
+    }
 
-    return NextResponse.json({
-      success: true,
-      data: documentsWithCounts,
-    });
+    const membership = await requireOrgMembership(verifiedOrgId, ['org_admin', 'org_manager', 'org_viewer']);
+    if ('error' in membership) {
+      return NextResponse.json({ error: membership.error }, { status: membership.status });
+    }
 
+    const query = supabaseAdmin
+      .from('documents')
+      .select(`
+        id,
+        org_id,
+        batch_id,
+        doc_type,
+        filename,
+        storage_object_path,
+        invoice_number,
+        invoice_date,
+        delivery_note_number,
+        supplier_name,
+        supplier_vat,
+        supplier_country,
+        status,
+        pages_count,
+        total_ht,
+        shipping_total,
+        export_url,
+        metadata,
+        created_at,
+        updated_at
+      `)
+      .order('created_at', { ascending: false });
+
+    if (batchId) {
+      query.eq('batch_id', batchId);
+    } else if (orgId) {
+      query.eq('org_id', orgId);
+    }
+
+    const { data: documents, error: documentsError } = await query;
+
+    if (documentsError) {
+      console.error('Erreur lecture documents', documentsError);
+      return NextResponse.json({ error: 'Impossible de charger les documents' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, data: documents ?? [] });
   } catch (error) {
-    console.error('Documents fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch documents' },
-      { status: 500 }
-    );
+    console.error('Erreur GET /api/deb/documents', error);
+    return NextResponse.json({ error: 'Erreur inattendue' }, { status: 500 });
   }
 }

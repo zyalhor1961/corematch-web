@@ -26,13 +26,30 @@ export default function DashboardPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      // First try the my_orgs view
+      let { data, error } = await supabase
         .from('my_orgs')
         .select('*')
         .order('org_name');
 
-      if (error) {
-        throw new Error(error.message || "Impossible de charger les organisations.");
+      // If my_orgs fails or is empty, try direct organizations query
+      if (error || !data || data.length === 0) {
+        console.log('my_orgs failed, trying direct organizations query');
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('id, name, plan, status')
+          .order('name');
+
+        if (orgError) {
+          throw new Error(orgError.message || "Impossible de charger les organisations.");
+        }
+
+        // Transform to match expected format and add default role
+        data = orgData?.map(org => ({
+          ...org,
+          org_name: org.name, // Map name to org_name for consistency
+          role: 'org_admin' // Default role for direct access
+        })) || [];
       }
 
       if (data?.length === 1) {

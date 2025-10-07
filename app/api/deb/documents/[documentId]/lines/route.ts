@@ -55,8 +55,9 @@ export async function PATCH(
     // Only allow certain fields to be updated
     const allowedFields = [
       'description', 'sku', 'qty', 'unit', 'unit_price', 'line_amount',
-      'hs_code', 'country_of_origin', 'net_mass_kg', 'shipping_allocated',
-      'customs_value_line'
+      'hs_code', 'hs_confidence', 'country_of_origin', 'net_mass_kg',
+      'weight_confidence', 'shipping_allocated', 'customs_value_line',
+      'source_weight', 'source_hs', 'pages_source', 'enrichment_notes'
     ];
 
     const validUpdates: Record<string, unknown> = {};
@@ -72,6 +73,8 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    validUpdates['last_reviewed_at'] = new Date().toISOString();
 
     // Update the line
     const { data: line, error } = await supabaseAdmin

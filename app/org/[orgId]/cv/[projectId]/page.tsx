@@ -65,7 +65,7 @@ export default function ProjectCandidatesPage() {
         throw new Error("Vous devez être connecté pour voir le projet.");
       }
       
-      const response = await fetch(`/api/cv/projects/${projectId}`, {
+      const response = await fetch(`/api/admin/get-project?projectId=${projectId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export default function ProjectCandidatesPage() {
         throw new Error("Vous devez être connecté pour voir les candidats.");
       }
       
-      const response = await fetch(`/api/cv/projects/${projectId}/candidates`, {
+      const response = await fetch(`/api/admin/list-candidates?projectId=${projectId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

@@ -94,18 +94,43 @@ export default function OnboardingPage() {
     }
     
     try {
-      // Step 1: Create organization via RPC
-      const { data: orgData, error: orgError } = await supabase
-        .rpc('create_organization_with_admin', {
-          org_name: orgName,
-          admin_user_id: user.id
-        });
+      // Step 1: Create organization via admin API (bypass RLS completely)
+      const response = await fetch('/api/admin/create-organization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: orgName,
+          admin_user_id: user.id,
+          plan: 'starter',
+          status: 'active'
+        }),
+      });
 
-      if (orgError) throw orgError;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la création de l\'organisation');
+      }
 
-      const orgId = orgData;
+      const { organization: orgData } = await response.json();
+
+      const orgId = orgData?.id;
       if (!orgId) {
         throw new Error("La création de l'organisation a échoué: ID manquant.");
+      }
+
+      // Step 1.5: Add user as organization admin (if organization_members table exists)
+      try {
+        await supabase
+          .from('organization_members')
+          .insert({
+            org_id: orgId,
+            user_id: user.id,
+            role: 'org_admin'
+          });
+      } catch (memberError) {
+        console.log('Could not add to organization_members, continuing...', memberError);
       }
 
       // Step 2: Update user metadata with selected modules

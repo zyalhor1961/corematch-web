@@ -67,8 +67,11 @@ export interface Candidate {
 export interface Document {
   id: string;
   org_id: string;
+  batch_id?: string;
+  parent_document_id?: string;
   doc_type: 'invoice' | 'delivery_note' | 'mixed';
   file_path?: string;
+  storage_object_path?: string;
   filename?: string;
   supplier_name?: string;
   supplier_vat?: string;
@@ -89,8 +92,10 @@ export interface Document {
   pages_count: number;
   line_count?: number;
   confidence_avg?: number;
+  metadata?: Record<string, unknown>;
   created_by?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface DocumentPage {
@@ -114,7 +119,9 @@ export interface DocumentLine {
   unit_price?: number;
   line_amount?: number;
   hs_code?: string;
+  hs_confidence?: number;
   country_of_origin?: string;
+  country_destination?: string;
   net_mass_kg?: number;
   shipping_allocated?: number;
   customs_value_line?: number;
@@ -122,6 +129,9 @@ export interface DocumentLine {
   source_hs?: string;
   bl_links?: string[];
   pages_source?: number[];
+  weight_confidence?: number;
+  enrichment_notes?: string;
+  last_reviewed_at?: string;
   created_at: string;
 }
 

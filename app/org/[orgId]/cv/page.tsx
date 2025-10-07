@@ -86,7 +86,7 @@ export default function CVScreeningPage() {
       // Set current user for master admin check
       setCurrentUser(session.user);
       
-      const response = await fetch(`/api/cv/projects?orgId=${orgId}`, {
+      const response = await fetch(`/api/admin/list-projects?orgId=${orgId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -847,18 +847,19 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
         throw new Error("Vous devez être connecté pour créer un projet.");
       }
       
-      const response = await fetch('/api/cv/projects', {
+      const response = await fetch('/api/admin/create-project', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
+          orgId: orgId, // Ajout de l'orgId manquant
           name: formData.job_title, // Le nom du projet = titre du poste
           job_title: formData.job_title,
           description: formData.description,
           requirements: formData.requirements,
-          orgId 
+          created_by: session.user.id
         })
       });
       if (!response.ok) {

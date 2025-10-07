@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../../_helpers';
 import OpenAI from 'openai';
+import pdfParse from 'pdf-parse';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -48,10 +49,10 @@ async function loadBatchOrg(batchId: string) {
   return data;
 }
 
-async function extractPdfData(fileUrl: string): Promise<ExtractionResult> {
+async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
   const systemPrompt = `Tu es un assistant expert en extraction de données de factures et bons de livraison pour les déclarations douanières (DEB).
 
-Analyse le document et extrais les informations suivantes au format JSON:
+Analyse le texte du document PDF et extrais les informations suivantes au format JSON:
 - supplier_name: nom du fournisseur
 - supplier_vat: numéro TVA intracommunautaire
 - supplier_country: code pays ISO 2 lettres (FR, DE, IT, etc.)
@@ -62,16 +63,16 @@ Analyse le document et extrais les informations suivantes au format JSON:
 - total_ht: montant total HT
 - shipping_total: frais de port
 - lines: tableau des lignes de produits avec:
-  - line_no: numéro de ligne
+  - line_no: numéro de ligne (1, 2, 3...)
   - description: description du produit
   - sku: référence produit
-  - qty: quantité
+  - qty: quantité (nombre)
   - unit: unité (PCE, KG, MTR, etc.)
-  - unit_price: prix unitaire
-  - line_amount: montant total ligne
+  - unit_price: prix unitaire (nombre)
+  - line_amount: montant total ligne (nombre)
   - hs_code: code HS/douanier (si mentionné)
   - country_of_origin: pays d'origine (code ISO 2 lettres)
-  - net_mass_kg: poids net en kg
+  - net_mass_kg: poids net en kg (nombre)
 
 Important:
 - Si une info n'est pas présente, ne la mets pas dans le JSON
@@ -80,6 +81,12 @@ Important:
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
+    // Extraire le texte du PDF
+    const pdfData = await pdfParse(pdfBuffer);
+    const pdfText = pdfData.text;
+
+    console.log('Texte extrait du PDF:', pdfText.substring(0, 500));
+
     const response = await openai.chat.completions.create({
       model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
       messages: [
@@ -89,19 +96,7 @@ Important:
         },
         {
           role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Extrais toutes les données de ce document de facture/bon de livraison:'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: fileUrl,
-                detail: 'high'
-              }
-            }
-          ]
+          content: `Voici le texte extrait d'une facture/bon de livraison. Extrais toutes les données au format JSON:\n\n${pdfText}`
         }
       ],
       temperature: parseFloat(process.env.CM_TEMPERATURE || '0.3'),
@@ -112,6 +107,8 @@ Important:
     if (!content) {
       throw new Error('Pas de réponse de OpenAI');
     }
+
+    console.log('Réponse OpenAI:', content);
 
     // Nettoyer le JSON (enlever les backticks markdown si présents)
     const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -169,17 +166,23 @@ export async function POST(
           .update({ status: 'processing' })
           .eq('id', doc.id);
 
-        // Générer l'URL signée pour le PDF
-        const { data: signedUrlData } = await supabaseAdmin.storage
+        // Télécharger le PDF depuis le storage
+        const { data: pdfData, error: downloadError } = await supabaseAdmin.storage
           .from('deb-docs')
-          .createSignedUrl(doc.storage_object_path, 3600);
+          .download(doc.storage_object_path);
 
-        if (!signedUrlData?.signedUrl) {
-          throw new Error('Impossible de générer URL signée');
+        if (downloadError || !pdfData) {
+          throw new Error('Impossible de télécharger le PDF: ' + downloadError?.message);
         }
 
+        // Convertir Blob en Buffer
+        const arrayBuffer = await pdfData.arrayBuffer();
+        const pdfBuffer = Buffer.from(arrayBuffer);
+
+        console.log('PDF téléchargé, taille:', pdfBuffer.length, 'bytes');
+
         // Extraire les données avec OpenAI
-        const extracted = await extractPdfData(signedUrlData.signedUrl);
+        const extracted = await extractPdfData(pdfBuffer);
 
         // Mettre à jour le document avec les données extraites
         await supabaseAdmin

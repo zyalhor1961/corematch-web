@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
         org_id: orgId,
         batch_id: batchId,
         doc_type: 'mixed',
+        name: file.name,
         file_path: objectPath,
         storage_object_path: objectPath,
         filename: file.name,

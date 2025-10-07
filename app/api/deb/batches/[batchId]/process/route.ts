@@ -62,6 +62,7 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
     const result = await poller.pollUntilDone();
 
     console.log('Analyse Azure terminée');
+    console.log('Documents trouvés:', result.documents?.length || 0);
 
     const extracted: ExtractionResult = {
       lines: []
@@ -71,6 +72,9 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
     if (result.documents && result.documents.length > 0) {
       const doc = result.documents[0];
       const fields = doc.fields;
+
+      console.log('Champs disponibles:', Object.keys(fields || {}));
+      console.log('Items:', fields?.Items);
 
       // Extraire les informations du fournisseur
       extracted.supplier_name = fields?.VendorName?.content;
@@ -86,8 +90,11 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
 
       // Extraire les lignes de produits
       const items = fields?.Items?.values || [];
+      console.log('Nombre d\'items:', items.length);
+
       extracted.lines = items.map((item: any, index: number) => {
         const itemFields = item.properties;
+        console.log(`Item ${index + 1}:`, JSON.stringify(itemFields));
         return {
           line_no: index + 1,
           description: itemFields?.Description?.content || '',
@@ -100,6 +107,9 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
       });
 
       console.log(`Extraction Azure: ${extracted.lines.length} lignes trouvées`);
+      console.log('Données extraites:', JSON.stringify(extracted));
+    } else {
+      console.log('Aucun document détecté par Azure');
     }
 
     return extracted;

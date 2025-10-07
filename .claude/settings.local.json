@@ -80,7 +80,8 @@
       "Bash(npx supabase db push:*)",
       "Bash(npx supabase link:*)",
       "Bash(del:*)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []

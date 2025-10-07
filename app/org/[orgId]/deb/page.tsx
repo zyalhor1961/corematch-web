@@ -11,7 +11,9 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Play,
+  Eye
 } from 'lucide-react';
 
 interface DebDocument {
@@ -146,6 +148,9 @@ export default function DebAssistantPage() {
   const [isLoadingLines, setIsLoadingLines] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
   const loadBatches = useCallback(async () => {
     if (!orgId) return;
     setIsLoadingBatches(true);
@@ -334,6 +339,52 @@ export default function DebAssistantPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+  const handleProcessBatch = async () => {
+    if (!selectedBatchId) return;
+    setIsProcessing(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/deb/batches/${selectedBatchId}/process`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Échec du traitement');
+      }
+      await loadBatches();
+      await loadLines(selectedBatchId);
+    } catch (err: any) {
+      setError(err.message || 'Échec du traitement');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  const handleViewPdf = async () => {
+    if (!selectedBatch) return;
+    try {
+      const response = await fetch(
+        `/api/deb/documents?batchId=${selectedBatch.id}`
+      );
+      if (!response.ok) throw new Error('Impossible de charger le PDF');
+      const payload = await response.json();
+      if (payload.success && payload.data && payload.data.length > 0) {
+        const doc = payload.data[0];
+        // Générer URL signée pour le PDF
+        const urlResponse = await fetch(
+          `/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(doc.storage_object_path)}`
+        );
+        if (urlResponse.ok) {
+          const urlData = await urlResponse.json();
+          if (urlData.signedUrl) {
+            setPdfUrl(urlData.signedUrl);
+            setShowPdfViewer(true);
+          }
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Impossible de charger le PDF');
+    }
+  };
   const dirtyCount = Object.keys(pendingUpdates).length;
   const selectedBatch = batches.find((batch) => batch.id === selectedBatchId) ?? null;
   return (
@@ -452,6 +503,25 @@ export default function DebAssistantPage() {
               )}
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={handleProcessBatch}
+                disabled={!selectedBatchId || isProcessing || selectedBatch?.status === 'processing'}
+                className="flex items-center gap-2"
+              >
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {isProcessing ? 'Traitement...' : 'Traiter avec AI'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleViewPdf}
+                disabled={!selectedBatchId}
+                className="flex items-center gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                Voir PDF
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -592,6 +662,33 @@ export default function DebAssistantPage() {
           )}
         </section>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {showPdfViewer && pdfUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="relative w-full max-w-6xl h-[90vh] bg-white rounded-lg shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
+              <h3 className="text-lg font-semibold">PDF - {selectedBatch?.source_filename}</h3>
+              <button
+                onClick={() => {
+                  setShowPdfViewer(false);
+                  setPdfUrl(null);
+                }}
+                className="rounded-full p-2 hover:bg-gray-200 transition"
+              >
+                <span className="text-2xl">&times;</span>
+              </button>
+            </div>
+            <div className="h-full pb-16">
+              <iframe
+                src={pdfUrl}
+                className="w-full h-full border-0"
+                title="PDF Viewer"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

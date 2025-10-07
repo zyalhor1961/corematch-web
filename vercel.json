@@ -4,6 +4,9 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
+    "app/api/deb/batches/[batchId]/process/route.ts": {
+      "maxDuration": 60
+    },
     "app/**": {
       "maxDuration": 10
     }

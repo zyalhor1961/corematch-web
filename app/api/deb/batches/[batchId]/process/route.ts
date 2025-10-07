@@ -51,7 +51,8 @@ async function loadBatchOrg(batchId: string) {
 async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
   const systemPrompt = `Tu es un assistant expert en extraction de données de factures et bons de livraison pour les déclarations douanières (DEB).
 
-Analyse le texte du document PDF et extrais les informations suivantes au format JSON:
+Analyse TOUTES les images de ce document PDF (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
+
 - supplier_name: nom du fournisseur
 - supplier_vat: numéro TVA intracommunautaire
 - supplier_country: code pays ISO 2 lettres (FR, DE, IT, etc.)
@@ -74,32 +75,56 @@ Analyse le texte du document PDF et extrais les informations suivantes au format
   - net_mass_kg: poids net en kg (nombre)
 
 Important:
+- Le document peut avoir plusieurs pages, analyse-les TOUTES
 - Si une info n'est pas présente, ne la mets pas dans le JSON
 - Les montants doivent être des nombres, pas des strings
 - Les codes pays doivent être en majuscules (2 lettres)
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
-    // Import dynamique de pdfjs-dist
+    // Import dynamique de pdfjs-dist et canvas
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const { createCanvas } = await import('canvas');
 
     // Charger le PDF
     const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
     const pdfDoc = await loadingTask.promise;
 
-    // Extraire le texte de toutes les pages
-    let pdfText = '';
+    console.log('PDF chargé, nombre de pages:', pdfDoc.numPages);
+
+    // Convertir chaque page en image
+    const pageImages: string[] = [];
+
     for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
       const page = await pdfDoc.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      pdfText += pageText + '\n';
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      const canvas = createCanvas(viewport.width, viewport.height);
+      const context = canvas.getContext('2d');
+
+      await page.render({
+        canvasContext: context as any,
+        viewport: viewport,
+      }).promise;
+
+      // Convertir en base64
+      const imageBase64 = canvas.toDataURL('image/png').split(',')[1];
+      pageImages.push(imageBase64);
+
+      console.log(`Page ${pageNum} convertie en image`);
     }
 
-    console.log('Texte extrait du PDF:', pdfText.substring(0, 500));
+    // Préparer les messages pour OpenAI Vision avec toutes les images
+    const imageMessages = pageImages.map((base64, index) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: `data:image/png;base64,${base64}`,
+        detail: 'high' as const
+      }
+    }));
 
     const response = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: 'gpt-4o',  // Utiliser gpt-4o pour la vision
       messages: [
         {
           role: 'system',
@@ -107,7 +132,13 @@ Important:
         },
         {
           role: 'user',
-          content: `Voici le texte extrait d'une facture/bon de livraison. Extrais toutes les données au format JSON:\n\n${pdfText}`
+          content: [
+            {
+              type: 'text',
+              text: `Voici un document scanné de ${pageImages.length} page(s). Analyse TOUTES les pages et extrais les données au format JSON:`
+            },
+            ...imageMessages
+          ]
         }
       ],
       temperature: parseFloat(process.env.CM_TEMPERATURE || '0.3'),
@@ -119,7 +150,7 @@ Important:
       throw new Error('Pas de réponse de OpenAI');
     }
 
-    console.log('Réponse OpenAI:', content);
+    console.log('Réponse OpenAI:', content.substring(0, 500));
 
     // Nettoyer le JSON (enlever les backticks markdown si présents)
     const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

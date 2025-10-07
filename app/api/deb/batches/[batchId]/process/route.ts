@@ -4,6 +4,8 @@ import { requireOrgMembership } from '../../../_helpers';
 import { DocumentAnalysisClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
 import OpenAI from 'openai';
 
+export const maxDuration = 60; // Timeout de 60 secondes
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

@@ -108,12 +108,26 @@ async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
         const unitPrice = itemFields?.UnitPrice?.value;
         const amount = itemFields?.Amount?.value;
 
+        // Essayer d'extraire la description de différentes propriétés
+        const description = itemFields?.Description?.content ||
+                          itemFields?.Description?.value ||
+                          itemFields?.ProductName?.content ||
+                          itemFields?.ProductName?.value ||
+                          '';
+
+        // Essayer d'extraire le SKU
+        const sku = itemFields?.ProductCode?.content ||
+                   itemFields?.ProductCode?.value ||
+                   itemFields?.SKU?.content ||
+                   itemFields?.ItemNumber?.content ||
+                   '';
+
         return {
           line_no: index + 1,
-          description: itemFields?.Description?.content || '',
-          sku: itemFields?.ProductCode?.content,
+          description: description,
+          sku: sku || undefined,
           qty: typeof qty === 'number' ? qty : undefined,
-          unit: itemFields?.Unit?.content,
+          unit: itemFields?.Unit?.content || itemFields?.Unit?.value || 'PCE',
           unit_price: typeof unitPrice === 'object' ? unitPrice?.amount : unitPrice,
           line_amount: typeof amount === 'object' ? amount?.amount : amount,
         };

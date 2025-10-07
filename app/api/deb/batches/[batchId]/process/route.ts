@@ -51,7 +51,7 @@ async function loadBatchOrg(batchId: string) {
 async function extractPdfData(pdfBuffer: Buffer): Promise<ExtractionResult> {
   const systemPrompt = `Tu es un assistant expert en extraction de données de factures et bons de livraison pour les déclarations douanières (DEB).
 
-Analyse TOUTES les images de ce document PDF (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
+Analyse TOUTES les pages de ce document PDF (facture/bon de livraison scanné) et extrais les informations suivantes au format JSON:
 
 - supplier_name: nom du fournisseur
 - supplier_vat: numéro TVA intracommunautaire
@@ -82,46 +82,10 @@ Important:
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
-    // Import dynamique de pdfjs-dist et canvas
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const { createCanvas } = await import('canvas');
+    // Convertir le PDF en base64 pour l'envoyer directement à OpenAI
+    const pdfBase64 = pdfBuffer.toString('base64');
 
-    // Charger le PDF
-    const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
-    const pdfDoc = await loadingTask.promise;
-
-    console.log('PDF chargé, nombre de pages:', pdfDoc.numPages);
-
-    // Convertir chaque page en image
-    const pageImages: string[] = [];
-
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-      const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2.0 });
-
-      const canvas = createCanvas(viewport.width, viewport.height);
-      const context = canvas.getContext('2d');
-
-      await page.render({
-        canvasContext: context as any,
-        viewport: viewport,
-      }).promise;
-
-      // Convertir en base64
-      const imageBase64 = canvas.toDataURL('image/png').split(',')[1];
-      pageImages.push(imageBase64);
-
-      console.log(`Page ${pageNum} convertie en image`);
-    }
-
-    // Préparer les messages pour OpenAI Vision avec toutes les images
-    const imageMessages = pageImages.map((base64, index) => ({
-      type: 'image_url' as const,
-      image_url: {
-        url: `data:image/png;base64,${base64}`,
-        detail: 'high' as const
-      }
-    }));
+    console.log('PDF converti en base64, taille:', pdfBase64.length, 'caractères');
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',  // Utiliser gpt-4o pour la vision
@@ -135,9 +99,15 @@ Important:
           content: [
             {
               type: 'text',
-              text: `Voici un document scanné de ${pageImages.length} page(s). Analyse TOUTES les pages et extrais les données au format JSON:`
+              text: 'Voici un document PDF scanné. Analyse TOUTES les pages et extrais les données au format JSON:'
             },
-            ...imageMessages
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:application/pdf;base64,${pdfBase64}`,
+                detail: 'high'
+              }
+            }
           ]
         }
       ],

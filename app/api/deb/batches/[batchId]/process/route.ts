@@ -80,12 +80,21 @@ Important:
 - Retourne uniquement le JSON, sans texte avant ou après`;
 
   try {
-    // Import dynamique de pdf-parse pour éviter les problèmes de build
-    const pdfParse = (await import('pdf-parse')).default;
+    // Import dynamique de pdfjs-dist
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-    // Extraire le texte du PDF
-    const pdfData = await pdfParse(pdfBuffer);
-    const pdfText = pdfData.text;
+    // Charger le PDF
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
+    const pdfDoc = await loadingTask.promise;
+
+    // Extraire le texte de toutes les pages
+    let pdfText = '';
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      pdfText += pageText + '\n';
+    }
 
     console.log('Texte extrait du PDF:', pdfText.substring(0, 500));
 

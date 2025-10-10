@@ -119,12 +119,13 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
     if (clickedFieldId && boundingBoxes.length > 0 && pdfContainerRef.current) {
       const bbox = boundingBoxes.find(b => b.fieldId === clickedFieldId);
       if (bbox && bbox.polygon.length >= 4) {
+        const pointsToPixels = 72 * scale;
         let y;
         if (bbox.polygon.length === 4) {
-          y = bbox.polygon[1] * scale;
+          y = bbox.polygon[1] * pointsToPixels;
         } else if (bbox.polygon.length === 8) {
           const yCoords = [bbox.polygon[1], bbox.polygon[3], bbox.polygon[5], bbox.polygon[7]];
-          y = Math.min(...yCoords) * scale;
+          y = Math.min(...yCoords) * pointsToPixels;
         }
 
         if (y !== undefined) {
@@ -487,13 +488,17 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                       if (polygon.length < 4) return null;
 
                       // Calculate bounding rectangle
+                      // Azure returns coordinates in inches, need to convert to pixels
+                      // 1 inch = 72 points (PDF standard)
+                      const pointsToPixels = 72 * scale;
+
                       let x, y, width, height;
                       if (polygon.length === 4) {
                         // [x1, y1, x2, y2]
-                        x = polygon[0] * scale;
-                        y = polygon[1] * scale;
-                        width = (polygon[2] - polygon[0]) * scale;
-                        height = (polygon[3] - polygon[1]) * scale;
+                        x = polygon[0] * pointsToPixels;
+                        y = polygon[1] * pointsToPixels;
+                        width = (polygon[2] - polygon[0]) * pointsToPixels;
+                        height = (polygon[3] - polygon[1]) * pointsToPixels;
                       } else if (polygon.length === 8) {
                         // [x1, y1, x2, y2, x3, y3, x4, y4]
                         const xCoords = [polygon[0], polygon[2], polygon[4], polygon[6]];
@@ -502,13 +507,16 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                         const minY = Math.min(...yCoords);
                         const maxX = Math.max(...xCoords);
                         const maxY = Math.max(...yCoords);
-                        x = minX * scale;
-                        y = minY * scale;
-                        width = (maxX - minX) * scale;
-                        height = (maxY - minY) * scale;
+                        x = minX * pointsToPixels;
+                        y = minY * pointsToPixels;
+                        width = (maxX - minX) * pointsToPixels;
+                        height = (maxY - minY) * pointsToPixels;
                       } else {
                         return null;
                       }
+
+                      // Position popup below if bounding box is near top of viewport
+                      const showPopupBelow = y < 150;
 
                       return (
                         <div
@@ -530,7 +538,7 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                           {/* Enhanced Popup with Field Data */}
                           {isHovered && (
                             <div
-                              className="absolute -top-2 left-0 transform -translate-y-full px-3 py-2 rounded-lg shadow-2xl z-50 min-w-[200px] max-w-[350px]"
+                              className={`absolute ${showPopupBelow ? 'top-full mt-2' : '-top-2 transform -translate-y-full'} left-0 px-3 py-2 rounded-lg shadow-2xl z-50 min-w-[200px] max-w-[350px]`}
                               style={{
                                 backgroundColor: 'white',
                                 border: `2px solid ${bbox.color}`,

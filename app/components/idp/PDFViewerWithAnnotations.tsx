@@ -78,6 +78,7 @@ interface PDFViewerWithAnnotationsProps {
   boundingBoxes?: BoundingBox[];
   hoveredFieldId?: string | null;
   onFieldHover?: (fieldId: string | null) => void;
+  clickedFieldId?: string | null;
 }
 
 type AnnotationTool = Annotation['type'] | 'select' | null;
@@ -90,7 +91,8 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   onAnnotationsChange,
   boundingBoxes = [],
   hoveredFieldId = null,
-  onFieldHover
+  onFieldHover,
+  clickedFieldId = null
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -110,6 +112,30 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   const [currentDrawing, setCurrentDrawing] = useState<{ x: number; y: number }[]>([]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to clicked field bounding box
+  useEffect(() => {
+    if (clickedFieldId && boundingBoxes.length > 0 && pdfContainerRef.current) {
+      const bbox = boundingBoxes.find(b => b.fieldId === clickedFieldId);
+      if (bbox && bbox.polygon.length >= 4) {
+        let y;
+        if (bbox.polygon.length === 4) {
+          y = bbox.polygon[1] * scale;
+        } else if (bbox.polygon.length === 8) {
+          const yCoords = [bbox.polygon[1], bbox.polygon[3], bbox.polygon[5], bbox.polygon[7]];
+          y = Math.min(...yCoords) * scale;
+        }
+
+        if (y !== undefined) {
+          pdfContainerRef.current.scrollTo({
+            top: y - 100, // Offset for better visibility
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [clickedFieldId, boundingBoxes, scale]);
 
   // Handle PDF load success
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -394,7 +420,7 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
       </div>
 
       {/* PDF Canvas */}
-      <div className="flex-1 overflow-auto bg-slate-900 p-6 flex justify-center items-start">
+      <div ref={pdfContainerRef} className="flex-1 overflow-auto bg-slate-900 p-6 flex justify-center items-start">
         <div
           ref={canvasRef}
           className="relative"

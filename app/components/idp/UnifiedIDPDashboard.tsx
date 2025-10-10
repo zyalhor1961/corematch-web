@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { PDFViewerWithAnnotations } from './PDFViewerWithAnnotations';
 import { ExtractionDataView } from './ExtractionDataView';
-import { AzureStyledExtractionView } from './AzureStyledExtractionView';
+import { AzureStyledExtractionView, FIELD_TYPE_COLORS, detectFieldCategory } from './AzureStyledExtractionView';
 import { CustomFieldView } from './CustomFieldView';
 import { AuditTrailViewer } from './AuditTrailViewer';
 import { DocumentQueue } from './DocumentQueue';
@@ -89,6 +89,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const [azureData, setAzureData] = useState<any>(null);
   const [isAnalyzingAzure, setIsAnalyzingAzure] = useState(false);
   const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
+  const [clickedFieldId, setClickedFieldId] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load documents from DEB batches
@@ -273,8 +274,8 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
       .map((field: any, index: number) => {
         if (!field.boundingBox || field.boundingBox.length === 0) return null;
 
-        const hue = (index * 137.5) % 360;
-        const color = `hsl(${hue}, 70%, 55%)`;
+        const category = detectFieldCategory(field.name, field.type);
+        const color = FIELD_TYPE_COLORS[category];
 
         return {
           fieldId: `field-${index}`,
@@ -282,7 +283,8 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
           color,
           label: field.name,
           value: field.value,
-          confidence: field.confidence
+          confidence: field.confidence,
+          category
         };
       })
       .filter(Boolean);
@@ -522,6 +524,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
                 boundingBoxes={boundingBoxes}
                 hoveredFieldId={hoveredFieldId}
                 onFieldHover={setHoveredFieldId}
+                clickedFieldId={clickedFieldId}
               />
             </div>
 
@@ -535,6 +538,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
                 isAnalyzing={isAnalyzingAzure}
                 hoveredFieldId={hoveredFieldId}
                 onFieldHover={setHoveredFieldId}
+                onFieldClick={setClickedFieldId}
               />
             </div>
           </div>

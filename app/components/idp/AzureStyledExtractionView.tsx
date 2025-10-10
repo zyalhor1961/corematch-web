@@ -29,7 +29,7 @@ import {
 import { IDPDocument } from './UnifiedIDPDashboard';
 
 // Field type color indicators (Azure style)
-const FIELD_TYPE_COLORS = {
+export const FIELD_TYPE_COLORS = {
   amount: '#DC3545', // Red - Critical financial
   address: '#FD7E14', // Orange - Location data
   recipient: '#28A745', // Green - Recipient info
@@ -41,6 +41,38 @@ const FIELD_TYPE_COLORS = {
   phone: '#FFC107', // Yellow - Phone
   default: '#6C757D' // Gray - Default
 };
+
+// Detect field category for color coding
+export function detectFieldCategory(name: string, type: string): keyof typeof FIELD_TYPE_COLORS {
+  const lowerName = name.toLowerCase();
+
+  if (lowerName.includes('amount') || lowerName.includes('total') || lowerName.includes('price')) {
+    return 'amount';
+  }
+  if (lowerName.includes('address') || lowerName.includes('location') || lowerName.includes('street')) {
+    return 'address';
+  }
+  if (lowerName.includes('recipient') || lowerName.includes('to') || lowerName.includes('customer')) {
+    return 'recipient';
+  }
+  if (lowerName.includes('from') || lowerName.includes('vendor') || lowerName.includes('company')) {
+    return 'entity';
+  }
+  if (lowerName.includes('date') || type === 'date') {
+    return 'date';
+  }
+  if (lowerName.includes('email')) {
+    return 'email';
+  }
+  if (lowerName.includes('phone') || lowerName.includes('tel')) {
+    return 'phone';
+  }
+  if (type === 'number' || type === 'integer' || type === 'float') {
+    return 'number';
+  }
+
+  return 'default';
+}
 
 interface FieldWithBoundingBox {
   id: string;
@@ -60,6 +92,7 @@ interface AzureStyledExtractionViewProps {
   isAnalyzing: boolean;
   hoveredFieldId: string | null;
   onFieldHover: (fieldId: string | null) => void;
+  onFieldClick?: (fieldId: string) => void;
 }
 
 export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps> = ({
@@ -69,7 +102,8 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
   onAnalyze,
   isAnalyzing,
   hoveredFieldId,
-  onFieldHover
+  onFieldHover,
+  onFieldClick
 }) => {
   const [activeTab, setActiveTab] = useState<'fields' | 'content' | 'result'>('fields');
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
@@ -91,38 +125,6 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
       category: detectFieldCategory(field.name, field.type)
     }));
   }, [azureData]);
-
-  // Detect field category for color coding
-  function detectFieldCategory(name: string, type: string): keyof typeof FIELD_TYPE_COLORS {
-    const lowerName = name.toLowerCase();
-
-    if (lowerName.includes('amount') || lowerName.includes('total') || lowerName.includes('price')) {
-      return 'amount';
-    }
-    if (lowerName.includes('address') || lowerName.includes('location') || lowerName.includes('street')) {
-      return 'address';
-    }
-    if (lowerName.includes('recipient') || lowerName.includes('to') || lowerName.includes('customer')) {
-      return 'recipient';
-    }
-    if (lowerName.includes('from') || lowerName.includes('vendor') || lowerName.includes('company')) {
-      return 'entity';
-    }
-    if (lowerName.includes('date') || type === 'date') {
-      return 'date';
-    }
-    if (lowerName.includes('email')) {
-      return 'email';
-    }
-    if (lowerName.includes('phone') || lowerName.includes('tel')) {
-      return 'phone';
-    }
-    if (type === 'number' || type === 'integer' || type === 'float') {
-      return 'number';
-    }
-
-    return 'default';
-  }
 
   // Toggle field expansion
   const toggleField = (fieldId: string) => {
@@ -152,9 +154,8 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
   };
 
   // Generate unique color for each field (hue-based for variety)
-  const getFieldColor = (index: number) => {
-    const hue = (index * 137.5) % 360; // Golden angle for good color distribution
-    return `hsl(${hue}, 70%, 55%)`;
+  const getFieldColor = (field: FieldWithBoundingBox) => {
+    return FIELD_TYPE_COLORS[field.category || 'default'];
   };
 
   const availableModels = [
@@ -295,7 +296,7 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                   </div>
                 ) : (
                   fields.map((field, index) => {
-                    const fieldColor = getFieldColor(index);
+                    const fieldColor = getFieldColor(field);
                     return (
                       <div
                         key={field.id}
@@ -314,7 +315,10 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                         }}
                         onMouseEnter={() => onFieldHover(field.id)}
                         onMouseLeave={() => onFieldHover(null)}
-                        onClick={() => setSelectedField(field.id)}
+                        onClick={() => {
+                          setSelectedField(field.id);
+                          onFieldClick?.(field.id);
+                        }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">

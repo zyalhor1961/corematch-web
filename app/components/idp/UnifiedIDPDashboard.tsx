@@ -280,7 +280,9 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
           fieldId: `field-${index}`,
           polygon: field.boundingBox,
           color,
-          label: field.name
+          label: field.name,
+          value: field.value,
+          confidence: field.confidence
         };
       })
       .filter(Boolean);

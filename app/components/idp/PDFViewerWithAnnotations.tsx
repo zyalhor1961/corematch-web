@@ -65,6 +65,8 @@ interface BoundingBox {
   polygon: number[];
   color: string;
   label: string;
+  value?: any;
+  confidence?: number;
 }
 
 interface PDFViewerWithAnnotationsProps {
@@ -499,16 +501,61 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                           onMouseEnter={() => onFieldHover(bbox.fieldId)}
                           onMouseLeave={() => onFieldHover(null)}
                         >
-                          {/* Label tooltip on hover */}
+                          {/* Enhanced Popup with Field Data */}
                           {isHovered && (
                             <div
-                              className="absolute -top-8 left-0 px-2 py-1 rounded text-xs font-bold whitespace-nowrap shadow-lg z-20"
+                              className="absolute -top-2 left-0 transform -translate-y-full px-3 py-2 rounded-lg shadow-2xl z-50 min-w-[200px] max-w-[350px]"
                               style={{
-                                backgroundColor: bbox.color,
-                                color: 'white'
+                                backgroundColor: 'white',
+                                border: `2px solid ${bbox.color}`,
+                                boxShadow: `0 4px 20px ${bbox.color}40, 0 0 0 1px rgba(0,0,0,0.05)`
                               }}
                             >
-                              {bbox.label}
+                              {/* Field Name with Color Indicator */}
+                              <div className="flex items-center gap-2 mb-1.5 pb-1.5 border-b border-slate-200">
+                                <div
+                                  className="w-3 h-3 rounded-sm flex-shrink-0"
+                                  style={{ backgroundColor: bbox.color }}
+                                />
+                                <span className="text-xs font-bold text-slate-900 truncate">
+                                  {bbox.label}
+                                </span>
+                              </div>
+
+                              {/* Field Value */}
+                              {bbox.value !== undefined && bbox.value !== null && (
+                                <div className="mb-1.5">
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Value</div>
+                                  <div className="text-sm font-semibold text-slate-800 break-words">
+                                    {String(bbox.value)}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Confidence Score */}
+                              {bbox.confidence !== undefined && (
+                                <div className="flex items-center gap-2">
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wide">Confidence</div>
+                                  <div className="flex items-center gap-1.5 flex-1">
+                                    <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full transition-all"
+                                        style={{
+                                          width: `${bbox.confidence * 100}%`,
+                                          backgroundColor: bbox.confidence >= 0.95 ? '#10b981' :
+                                                          bbox.confidence >= 0.80 ? '#f59e0b' : '#ef4444'
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-bold" style={{
+                                      color: bbox.confidence >= 0.95 ? '#10b981' :
+                                             bbox.confidence >= 0.80 ? '#f59e0b' : '#ef4444'
+                                    }}>
+                                      {(bbox.confidence * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

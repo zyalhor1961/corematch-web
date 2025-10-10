@@ -287,64 +287,72 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                 </div>
 
                 {/* Field Cards - Compact & Dynamic */}
-                {fields.map((field, index) => {
-                  const fieldColor = getFieldColor(index);
-                  return (
-                    <div
-                      key={field.id}
-                      className={`group py-2 px-3 rounded-md transition-all duration-200 cursor-pointer border-2 ${
-                        hoveredFieldId === field.id
-                          ? 'shadow-md scale-[1.02]'
-                          : 'border-transparent scale-100'
-                      }`}
-                      style={{
-                        borderColor: hoveredFieldId === field.id ? fieldColor : 'transparent',
-                        backgroundColor: hoveredFieldId === field.id
-                          ? `${fieldColor}20`
-                          : isDarkMode
-                            ? '#1e293b08'
-                            : '#f8fafc'
-                      }}
-                      onMouseEnter={() => onFieldHover(field.id)}
-                      onMouseLeave={() => onFieldHover(null)}
-                      onClick={() => setSelectedField(field.id)}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {/* Color Square Indicator */}
-                          <div
-                            className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                            style={{
-                              backgroundColor: fieldColor,
-                              boxShadow: hoveredFieldId === field.id ? `0 0 8px ${fieldColor}` : 'none'
-                            }}
-                          />
+                {fields.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                      No fields extracted from this document
+                    </p>
+                  </div>
+                ) : (
+                  fields.map((field, index) => {
+                    const fieldColor = getFieldColor(index);
+                    return (
+                      <div
+                        key={field.id}
+                        className={`group py-2 px-3 rounded-md transition-all duration-200 cursor-pointer border-2 ${
+                          hoveredFieldId === field.id
+                            ? 'shadow-md scale-[1.02]'
+                            : 'border-transparent scale-100'
+                        }`}
+                        style={{
+                          borderColor: hoveredFieldId === field.id ? fieldColor : 'transparent',
+                          backgroundColor: hoveredFieldId === field.id
+                            ? `${fieldColor}20`
+                            : isDarkMode
+                              ? '#1e293b08'
+                              : '#f8fafc'
+                        }}
+                        onMouseEnter={() => onFieldHover(field.id)}
+                        onMouseLeave={() => onFieldHover(null)}
+                        onClick={() => setSelectedField(field.id)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {/* Color Square Indicator */}
+                            <div
+                              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                              style={{
+                                backgroundColor: fieldColor,
+                                boxShadow: hoveredFieldId === field.id ? `0 0 8px ${fieldColor}` : 'none'
+                              }}
+                            />
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                                {formatFieldName(field.name)}
-                              </span>
-                              <span className={`text-[10px] px-1 py-0.5 rounded ${
-                                isDarkMode ? 'bg-slate-700/50 text-slate-400' : 'bg-slate-200/70 text-slate-600'
-                              }`}>
-                                #{index + 1}
-                              </span>
-                            </div>
-                            <div className={`text-[11px] truncate mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                              {String(field.value || '')}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                  {formatFieldName(field.name)}
+                                </span>
+                                <span className={`text-[10px] px-1 py-0.5 rounded ${
+                                  isDarkMode ? 'bg-slate-700/50 text-slate-400' : 'bg-slate-200/70 text-slate-600'
+                                }`}>
+                                  #{index + 1}
+                                </span>
+                              </div>
+                              <div className={`text-[11px] truncate mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                                {String(field.value || '')}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Confidence Percentage */}
-                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getConfidenceColor(field.confidence)}`}>
-                          {(field.confidence * 100).toFixed(0)}%
+                          {/* Confidence Percentage */}
+                          <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getConfidenceColor(field.confidence)}`}>
+                            {(field.confidence * 100).toFixed(0)}%
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             )}
 

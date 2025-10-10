@@ -82,6 +82,7 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   const [scale, setScale] = useState<number>(1.2);
   const [rotation, setRotation] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AnnotationTool>('select');
   const [selectedColor, setSelectedColor] = useState('#FFEB3B');
   const [localAnnotations, setLocalAnnotations] = useState<Annotation[]>(annotations);
@@ -97,6 +98,14 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
+    setLoadError(null);
+  };
+
+  // Handle PDF load error
+  const onDocumentLoadError = (error: any) => {
+    console.error('PDF load error:', error);
+    setIsLoading(false);
+    setLoadError(error.message || 'Failed to load PDF document');
   };
 
   // Zoom controls
@@ -384,27 +393,42 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
             </div>
           )}
 
-          <Document
-            file={pdfUrl}
-            onLoadSuccess={onDocumentLoadSuccess}
-            onLoadError={(error) => {
-              console.error('PDF load error:', error);
-              setIsLoading(false);
-            }}
-            className="shadow-2xl"
-            loading={<div className="w-full h-96 bg-slate-800 rounded-lg animate-pulse" />}
-          >
-            <Page
-              pageNumber={currentPage}
-              scale={scale}
-              rotate={rotation}
-              renderTextLayer={true}
-              renderAnnotationLayer={false}
-              className="rounded-lg overflow-hidden bg-white"
-            />
-          </Document>
+          {loadError ? (
+            <div className="flex flex-col items-center justify-center h-96 p-8 text-center">
+              <div className="p-4 rounded-full bg-red-500/10 mb-4">
+                <svg className="w-16 h-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Failed to Load PDF</h3>
+              <p className="text-slate-400 mb-4">{loadError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          ) : pdfUrl ? (
+            <>
+              <Document
+                file={pdfUrl}
+                onLoadSuccess={onDocumentLoadSuccess}
+                onLoadError={onDocumentLoadError}
+                className="shadow-2xl"
+                loading={<div className="w-full h-96 bg-slate-800 rounded-lg animate-pulse" />}
+              >
+                <Page
+                  pageNumber={currentPage}
+                  scale={scale}
+                  rotate={rotation}
+                  renderTextLayer={true}
+                  renderAnnotationLayer={false}
+                  className="rounded-lg overflow-hidden bg-white"
+                />
+              </Document>
 
-          {/* Annotations Overlay */}
+              {/* Annotations Overlay */}
           {currentPageAnnotations.map(annotation => {
             if (annotation.type === 'freehand' && annotation.coordinates.points) {
               // Render freehand drawing
@@ -453,26 +477,38 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
             return null;
           })}
 
-          {/* Current Drawing */}
-          {isDrawing && currentDrawing.length > 0 && (
-            <svg
-              className="absolute top-0 left-0 pointer-events-none"
-              style={{
-                width: '100%',
-                height: '100%'
-              }}
-            >
-              <path
-                d={currentDrawing.map((p, i) =>
-                  i === 0 ? `M ${p.x * scale} ${p.y * scale}` : `L ${p.x * scale} ${p.y * scale}`
-                ).join(' ')}
-                stroke={selectedColor}
-                strokeWidth={3}
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+              {/* Current Drawing */}
+              {isDrawing && currentDrawing.length > 0 && (
+                <svg
+                  className="absolute top-0 left-0 pointer-events-none"
+                  style={{
+                    width: '100%',
+                    height: '100%'
+                  }}
+                >
+                  <path
+                    d={currentDrawing.map((p, i) =>
+                      i === 0 ? `M ${p.x * scale} ${p.y * scale}` : `L ${p.x * scale} ${p.y * scale}`
+                    ).join(' ')}
+                    stroke={selectedColor}
+                    strokeWidth={3}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-96 p-8 text-center">
+              <div className="p-4 rounded-full bg-slate-700 mb-4">
+                <svg className="w-16 h-16 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">No Document Selected</h3>
+              <p className="text-slate-400">Select a document from the queue to view it here</p>
+            </div>
           )}
         </div>
       </div>

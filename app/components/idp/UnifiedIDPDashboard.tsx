@@ -108,7 +108,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
       const payload = await response.json();
       if (payload.success && payload.data) {
         // Convert DEB batches to IDP documents
-        const idpDocs: IDPDocument[] = payload.data.map((batch: any) => {
+        const idpDocsPromises = payload.data.map(async (batch: any) => {
           // Map DEB status to IDP status
           let status: IDPDocument['status'] = 'pending';
           if (batch.status === 'uploaded') status = 'pending';
@@ -117,6 +117,18 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
           else if (batch.status === 'completed') status = 'completed';
           else if (batch.status === 'error' || batch.status === 'failed') status = 'error';
 
+          // Get signed URL for PDF
+          let pdfUrl = '';
+          try {
+            const signedUrlResponse = await fetch(`/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(batch.storage_object_path)}`);
+            if (signedUrlResponse.ok) {
+              const signedUrlData = await signedUrlResponse.json();
+              pdfUrl = signedUrlData.signedUrl;
+            }
+          } catch (error) {
+            console.error('Error getting signed URL for batch:', batch.id, error);
+          }
+
           return {
             id: batch.id,
             filename: batch.source_filename,
@@ -124,9 +136,11 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
             priority: 'medium',
             uploadedAt: new Date(batch.created_at),
             confidence: 0.85,
-            pdfUrl: `/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(batch.storage_object_path)}`
+            pdfUrl
           };
         });
+
+        const idpDocs = await Promise.all(idpDocsPromises);
         setDocuments(idpDocs);
       }
     } catch (error) {

@@ -115,6 +115,8 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
   const [showSuggestions, setShowSuggestions] = useState<Record<string, boolean>>({});
   const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [isAnalyzingAzure, setIsAnalyzingAzure] = useState(false);
+  const [azureError, setAzureError] = useState<string | null>(null);
 
   // Validate field value
   const validateField = useCallback((field: ExtractedField): { valid: boolean; error?: string } => {
@@ -207,6 +209,96 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
       f.id === fieldId ? { ...f, locked: !f.locked } : f
     ));
   }, []);
+
+  // Azure Document Intelligence Analysis
+  const handleAzureAnalysis = useCallback(async () => {
+    if (!document.pdfUrl) {
+      setAzureError('No PDF URL available for analysis');
+      return;
+    }
+
+    setIsAnalyzingAzure(true);
+    setAzureError(null);
+
+    try {
+      const response = await fetch('/api/idp/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentUrl: document.pdfUrl,
+          documentId: document.id,
+          filename: document.filename,
+          autoDetect: true
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Analysis failed');
+      }
+
+      const result = await response.json();
+      const azureData = result.data;
+
+      console.log('Azure analysis complete:', azureData);
+
+      // Convert Azure fields to our ExtractedField format
+      const newFields: ExtractedField[] = azureData.fields.map((field: any, index: number) => ({
+        id: `azure-${index + 1}`,
+        label: field.name.replace(/([A-Z])/g, ' $1').trim().replace(/^./, str => str.toUpperCase()),
+        value: String(field.value || ''),
+        confidence: field.confidence,
+        type: detectFieldType(field.type, field.value),
+        required: false,
+        locked: false
+      }));
+
+      // Add key-value pairs as additional fields
+      azureData.keyValuePairs?.forEach((pair: any, index: number) => {
+        newFields.push({
+          id: `azure-kv-${index + 1}`,
+          label: pair.key,
+          value: String(pair.value || ''),
+          confidence: pair.confidence,
+          type: 'text',
+          required: false,
+          locked: false
+        });
+      });
+
+      // Update fields with Azure data
+      setFields(newFields.length > 0 ? newFields : fields);
+
+      // Update document status to review if confidence is low
+      if (azureData.confidence < 0.80) {
+        onStatusChange('review');
+      }
+
+      // Save the extracted data
+      onDataUpdate({
+        fields: newFields,
+        azureAnalysis: azureData,
+        analyzedAt: new Date()
+      });
+
+    } catch (error: any) {
+      console.error('Azure analysis error:', error);
+      setAzureError(error.message || 'Failed to analyze document');
+    } finally {
+      setIsAnalyzingAzure(false);
+    }
+  }, [document, fields, onDataUpdate, onStatusChange]);
+
+  // Detect field type from Azure field type
+  const detectFieldType = (azureType: string, value: any): ExtractedField['type'] => {
+    const type = azureType?.toLowerCase() || '';
+    if (type.includes('date')) return 'date';
+    if (type.includes('number') || type === 'integer' || type === 'float') return 'number';
+    if (type.includes('currency') || type.includes('money')) return 'currency';
+    if (type.includes('email')) return 'email';
+    if (typeof value === 'number') return 'number';
+    return 'text';
+  };
 
   // AI-powered auto-correction
   const handleAICorrection = useCallback(async () => {
@@ -311,9 +403,51 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
         </div>
       </div>
 
+      {/* Azure Error Display */}
+      {azureError && (
+        <div className={`m-4 p-4 rounded-xl ${isDarkMode ? 'bg-red-900/30 border border-red-500/50' : 'bg-red-50 border border-red-200'}`}>
+          <div className="flex items-start gap-3">
+            <XCircle className={`w-5 h-5 flex-shrink-0 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
+            <div>
+              <h4 className={`font-bold ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Azure Analysis Failed</h4>
+              <p className={`text-sm mt-1 ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>{azureError}</p>
+            </div>
+            <button
+              onClick={() => setAzureError(null)}
+              className={`ml-auto p-1 rounded-lg ${isDarkMode ? 'hover:bg-red-900/50' : 'hover:bg-red-100'}`}
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Action Bar */}
       <div className={`flex items-center justify-between p-4 border-b ${isDarkMode ? 'border-slate-800 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleAzureAnalysis}
+            disabled={isAnalyzingAzure || !document.pdfUrl}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+              isDarkMode
+                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            } disabled:opacity-50`}
+            title="Analyze document with Azure Document Intelligence"
+          >
+            {isAnalyzingAzure ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4" />
+                Azure Analysis
+              </>
+            )}
+          </button>
+
           <button
             onClick={handleAICorrection}
             disabled={isProcessingAI}

@@ -190,27 +190,30 @@ export const DocumentQueue: React.FC<DocumentQueueProps> = ({
           { label: 'Review', value: queueStats.review, icon: AlertTriangle, color: 'amber' },
           { label: 'Completed', value: queueStats.completed, icon: CheckCircle, color: 'green' },
           { label: 'Errors', value: queueStats.errors, icon: XCircle, color: 'red' }
-        ].map((stat, idx) => (
-          <div
-            key={idx}
-            className={`relative overflow-hidden rounded-2xl border ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'} p-5 shadow-lg hover:shadow-xl transition-all group`}
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br from-${stat.color}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-            <div className="relative flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  {stat.label}
-                </p>
-                <p className={`text-3xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                  {stat.value}
-                </p>
-              </div>
-              <div className={`p-3 rounded-xl bg-gradient-to-br from-${stat.color}-500 to-${stat.color}-600 shadow-lg`}>
-                <stat.icon className="w-5 h-5 text-white" />
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={idx}
+              className={`relative overflow-hidden rounded-2xl border ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'} p-5 shadow-lg hover:shadow-xl transition-all group`}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br from-${stat.color}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {stat.label}
+                  </p>
+                  <p className={`text-3xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {stat.value}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-xl bg-gradient-to-br from-${stat.color}-500 to-${stat.color}-600 shadow-lg`}>
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Upload Zone */}

@@ -31,7 +31,9 @@ import {
   Edit3,
   GitBranch,
   History,
-  Zap
+  Zap,
+  X,
+  XCircle
 } from 'lucide-react';
 import { PDFViewerWithAnnotations } from './PDFViewerWithAnnotations';
 import { ExtractionDataView } from './ExtractionDataView';
@@ -89,6 +91,98 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const [documents, setDocuments] = useState<IDPDocument[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowStage[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Load documents from DEB batches
+  React.useEffect(() => {
+    loadDocuments();
+  }, [orgId]);
+
+  const loadDocuments = async () => {
+    try {
+      const response = await fetch(`/api/deb/batches?orgId=${orgId}`);
+      if (!response.ok) throw new Error('Failed to load documents');
+
+      const payload = await response.json();
+      if (payload.success && payload.data) {
+        // Convert DEB batches to IDP documents
+        const idpDocs: IDPDocument[] = payload.data.map((batch: any) => ({
+          id: batch.id,
+          filename: batch.source_filename,
+          status: batch.status === 'uploaded' ? 'pending' :
+                  batch.status === 'needs_review' ? 'review' :
+                  batch.status,
+          priority: 'medium',
+          uploadedAt: new Date(batch.created_at),
+          confidence: 0.85,
+          pdfUrl: `/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(batch.storage_object_path)}`
+        }));
+        setDocuments(idpDocs);
+      }
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (file: File | null) => {
+    if (!file) return;
+
+    // Validate file
+    if (!file.type.includes('pdf')) {
+      setUploadError('Only PDF files are allowed');
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setUploadError('File size must be less than 50MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Upload to DEB API
+      const formData = new FormData();
+      formData.append('orgId', orgId);
+      formData.append('file', file);
+
+      const response = await fetch('/api/deb/batches', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Upload failed');
+      }
+
+      // Reload documents
+      await loadDocuments();
+
+      // Log audit entry
+      const logEntry: AuditLogEntry = {
+        id: `${Date.now()}`,
+        timestamp: new Date(),
+        userId: 'current-user-id',
+        userName: 'Current User',
+        action: 'document_uploaded',
+        details: { filename: file.name, size: file.size }
+      };
+      setAuditLog(prev => [logEntry, ...prev]);
+
+    } catch (error: any) {
+      setUploadError(error.message || 'Upload failed');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   // Handle document selection from queue
   const handleDocumentSelect = useCallback((doc: IDPDocument) => {
@@ -219,7 +313,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats & Upload */}
             <div className="flex items-center gap-4">
               <div className={`px-4 py-2 rounded-xl ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <div className="flex items-center gap-2">
@@ -237,6 +331,36 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Upload Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files?.[0] || null)}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all ${
+                  isDarkMode
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
+                } disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105`}
+              >
+                {isUploading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-5 h-5" />
+                    Upload PDF
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -275,6 +399,31 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
           </div>
         </div>
       </header>
+
+      {/* Upload Error/Success Messages */}
+      {uploadError && (
+        <div className="max-w-[2000px] mx-auto px-6 pt-6">
+          <div className={`rounded-xl border p-4 ${isDarkMode ? 'bg-red-950/50 border-red-500/30' : 'bg-red-50 border-red-200'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-500">
+                  <XCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className={`font-bold ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Upload Failed</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>{uploadError}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUploadError(null)}
+                className={`p-2 rounded-lg transition-all ${isDarkMode ? 'hover:bg-red-900/50' : 'hover:bg-red-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="max-w-[2000px] mx-auto p-6">

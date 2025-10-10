@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/app/components/ThemeProvider';
 import { Button } from '@/app/components/ui/button';
+import { EditableDataTable, TableRow } from '@/app/components/deb/EditableDataTable';
 import {
   Upload,
   FileText,
@@ -843,7 +844,7 @@ export default function DebAssistantPage() {
               </div>
             </div>
 
-            {/* Table */}
+            {/* Enhanced Data Table */}
             {isLoadingLines ? (
               <div className={`flex items-center justify-center rounded-2xl border ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'} p-12`}>
                 <Loader2 className="mr-3 h-6 w-6 animate-spin text-blue-500" />
@@ -855,147 +856,86 @@ export default function DebAssistantPage() {
                 <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>Aucune ligne disponible pour ce lot</p>
               </div>
             ) : (
-              <div className={`overflow-hidden rounded-2xl border ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'} shadow-xl`}>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
-                    <thead className={`${isDarkMode ? 'bg-slate-800/70' : 'bg-slate-100'} sticky top-0 z-10`}>
-                      <tr>
-                        {['Doc', 'Fournisseur', 'Code SH', 'Qté', 'Unité', 'Origine', 'Destination', 'Poids (kg)', 'Valeur €', 'BL', 'Revue'].map((header, idx) => (
-                          <th key={idx} className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                      {lines.map((line) => {
-                        const doc = line.documents || documentsById[line.document_id];
-                        const isDirty = Boolean(pendingUpdates[line.id]);
+              <EditableDataTable
+                data={lines.map(line => {
+                  const doc = line.documents || documentsById[line.document_id];
+                  const hasHSCode = Boolean(line.hs_code);
+                  const hasCountryOrigin = Boolean(line.country_of_origin);
 
-                        return (
-                          <tr
-                            key={line.id}
-                            className={`transition-all ${
-                              isDirty
-                                ? isDarkMode
-                                  ? 'bg-amber-950/30 border-l-4 border-amber-500'
-                                  : 'bg-amber-50 border-l-4 border-amber-400'
-                                : isDarkMode
-                                  ? 'hover:bg-slate-800/50'
-                                  : 'hover:bg-slate-50'
-                            }`}
-                          >
-                            <td className="px-4 py-3">
-                              <div className="text-xs font-semibold">{doc?.invoice_number ?? '-'}</div>
-                              <div className={`text-[11px] ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-                                {doc?.invoice_date ? formatDate(doc.invoice_date) : '-'}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs font-medium">{doc?.supplier_name ?? '-'}</div>
-                              <div className={`text-[11px] ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-                                {doc?.supplier_vat ?? ''}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                className={`w-28 rounded-lg border px-3 py-2 text-sm font-mono transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.hs_code ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'hs_code', e.target.value.toUpperCase())}
-                                placeholder="0000.00"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="number"
-                                className={`w-20 rounded-lg border px-3 py-2 text-sm transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.qty ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'qty', e.target.value)}
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                className={`w-20 rounded-lg border px-3 py-2 text-sm uppercase transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.unit ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'unit', e.target.value.toUpperCase())}
-                                placeholder="KG"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                className={`w-24 rounded-lg border px-3 py-2 text-sm uppercase transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.country_of_origin ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'country_of_origin', e.target.value.toUpperCase())}
-                                placeholder="FR"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                className={`w-24 rounded-lg border px-3 py-2 text-sm uppercase transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.country_destination ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'country_destination', e.target.value.toUpperCase())}
-                                placeholder="DE"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`w-24 rounded-lg border px-3 py-2 text-sm transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.net_mass_kg ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'net_mass_kg', e.target.value)}
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`w-28 rounded-lg border px-3 py-2 text-sm transition-all ${
-                                  isDarkMode
-                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                } focus:outline-none`}
-                                value={line.customs_value_line ?? ''}
-                                onChange={(e) => handleLineChange(line.id, 'customs_value_line', e.target.value)}
-                              />
-                            </td>
-                            <td className={`px-4 py-3 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                              {doc?.delivery_note_number ?? '-'}
-                            </td>
-                            <td className={`px-4 py-3 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                              {line.last_reviewed_at ? formatDate(line.last_reviewed_at) : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                  // Determine confidence and errors
+                  const confidence = hasHSCode && hasCountryOrigin ? 0.95 : hasHSCode || hasCountryOrigin ? 0.80 : 0.60;
+                  const errors: Record<string, string> = {};
+                  if (!line.hs_code) errors.hsCode = 'Code SH requis';
+                  if (!line.country_of_origin) errors.countryOfOrigin = 'Origine requise';
+
+                  return {
+                    id: line.id,
+                    invoiceNumber: doc?.invoice_number || '-',
+                    supplier: doc?.supplier_name || '-',
+                    description: line.description || doc?.supplier_name || '',
+                    quantity: line.qty || 0,
+                    unitPrice: line.unit_price || 0,
+                    total: line.line_amount || line.customs_value_line || 0,
+                    hsCode: line.hs_code || '',
+                    countryOfOrigin: line.country_of_origin || '',
+                    countryDestination: line.country_destination || '',
+                    unit: line.unit || '',
+                    netMassKg: line.net_mass_kg || 0,
+                    confidence,
+                    errors: Object.keys(errors).length > 0 ? errors : undefined,
+                  } as TableRow;
+                })}
+                onDataChange={(newData) => {
+                  // Update lines state and pendingUpdates when AG-Grid data changes
+                  newData.forEach(row => {
+                    const originalLine = lines.find(l => l.id === row.id);
+                    if (!originalLine) return;
+
+                    // Check what changed and update
+                    const changes: Partial<Record<LineEditableField, unknown>> = {};
+
+                    if (row.hsCode !== (originalLine.hs_code || '')) {
+                      changes.hs_code = row.hsCode || null;
+                    }
+                    if (row.countryOfOrigin !== (originalLine.country_of_origin || '')) {
+                      changes.country_of_origin = row.countryOfOrigin || null;
+                    }
+                    if (row.countryDestination !== (originalLine.country_destination || '')) {
+                      changes.country_destination = row.countryDestination || null;
+                    }
+                    if (row.unit !== (originalLine.unit || '')) {
+                      changes.unit = row.unit || null;
+                    }
+                    if (row.quantity !== (originalLine.qty || 0)) {
+                      changes.qty = row.quantity;
+                    }
+                    if (row.netMassKg !== (originalLine.net_mass_kg || 0)) {
+                      changes.net_mass_kg = row.netMassKg;
+                    }
+                    if (row.total !== (originalLine.customs_value_line || 0)) {
+                      changes.customs_value_line = row.total;
+                    }
+
+                    if (Object.keys(changes).length > 0) {
+                      // Update lines state
+                      setLines(prev => prev.map(line =>
+                        line.id === row.id ? { ...line, ...changes } : line
+                      ));
+
+                      // Update pending updates
+                      setPendingUpdates(prev => ({
+                        ...prev,
+                        [row.id]: {
+                          ...(prev[row.id] || {}),
+                          ...changes
+                        }
+                      }));
+                    }
+                  });
+                }}
+                onSave={handleSaveChanges}
+                isDarkMode={isDarkMode}
+              />
             )}
           </section>
         )}

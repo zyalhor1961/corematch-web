@@ -19,12 +19,17 @@ const InvoiceLineSchema = z.object({
 
 export interface TableRow {
   id: string;
+  invoiceNumber?: string;
+  supplier?: string;
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
   hsCode?: string;
   countryOfOrigin?: string;
+  countryDestination?: string;
+  unit?: string;
+  netMassKg?: number;
   confidence: number;
   errors?: Record<string, string>;
 }
@@ -93,48 +98,26 @@ export const EditableDataTable: React.FC<EditableDataTableProps> = ({
 
   const columnDefs = useMemo(() => [
     {
+      field: 'invoiceNumber',
+      headerName: 'Invoice #',
+      editable: false,
+      width: 130,
+      pinned: 'left' as const,
+    },
+    {
+      field: 'supplier',
+      headerName: 'Supplier',
+      editable: false,
+      width: 150,
+      pinned: 'left' as const,
+    },
+    {
       field: 'description',
       headerName: 'Description',
       editable: true,
       flex: 2,
       cellClassRules,
       tooltipValueGetter: (params: any) => params.data.errors?.description || '',
-    },
-    {
-      field: 'quantity',
-      headerName: 'Quantity',
-      editable: true,
-      type: 'numericColumn',
-      width: 120,
-      cellClassRules,
-      valueParser: (params: any) => Number(params.newValue),
-      cellStyle: { textAlign: 'right' },
-    },
-    {
-      field: 'unitPrice',
-      headerName: 'Unit Price (€)',
-      editable: true,
-      type: 'numericColumn',
-      width: 140,
-      cellClassRules,
-      valueFormatter: (params: any) => params.value ? `€${params.value.toFixed(2)}` : '',
-      valueParser: (params: any) => Number(params.newValue),
-      cellStyle: { textAlign: 'right' },
-    },
-    {
-      field: 'total',
-      headerName: 'Total (€)',
-      editable: false,
-      type: 'numericColumn',
-      width: 140,
-      valueGetter: (params: any) => {
-        const qty = params.data.quantity || 0;
-        const price = params.data.unitPrice || 0;
-        return qty * price;
-      },
-      valueFormatter: (params: any) => params.value ? `€${params.value.toFixed(2)}` : '',
-      cellClassRules,
-      cellStyle: { textAlign: 'right', fontWeight: 'bold' },
     },
     {
       field: 'hsCode',
@@ -145,12 +128,59 @@ export const EditableDataTable: React.FC<EditableDataTableProps> = ({
       tooltipValueGetter: (params: any) => params.data.errors?.hsCode || 'Format: 0000.00',
     },
     {
+      field: 'quantity',
+      headerName: 'Qty',
+      editable: true,
+      type: 'numericColumn',
+      width: 100,
+      cellClassRules,
+      valueParser: (params: any) => Number(params.newValue),
+      cellStyle: { textAlign: 'right' },
+    },
+    {
+      field: 'unit',
+      headerName: 'Unit',
+      editable: true,
+      width: 90,
+      cellClassRules,
+    },
+    {
       field: 'countryOfOrigin',
       headerName: 'Origin',
       editable: true,
       width: 100,
       cellClassRules,
       tooltipValueGetter: (params: any) => params.data.errors?.countryOfOrigin || '2-letter country code (e.g., FR, DE)',
+    },
+    {
+      field: 'countryDestination',
+      headerName: 'Destination',
+      editable: true,
+      width: 110,
+      cellClassRules,
+      tooltipValueGetter: (params: any) => '2-letter country code (e.g., FR, DE)',
+    },
+    {
+      field: 'netMassKg',
+      headerName: 'Weight (kg)',
+      editable: true,
+      type: 'numericColumn',
+      width: 120,
+      cellClassRules,
+      valueParser: (params: any) => Number(params.newValue),
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => params.value ? params.value.toFixed(2) : '',
+    },
+    {
+      field: 'total',
+      headerName: 'Value (€)',
+      editable: true,
+      type: 'numericColumn',
+      width: 130,
+      valueFormatter: (params: any) => params.value ? `€${params.value.toFixed(2)}` : '',
+      valueParser: (params: any) => Number(params.newValue),
+      cellClassRules,
+      cellStyle: { textAlign: 'right', fontWeight: 'bold' },
     },
     {
       field: 'confidence',

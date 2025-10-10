@@ -23,3 +23,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* AG-Grid Custom Styles */
+.ag-theme-alpine .ag-cell-error {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  border-left: 3px solid #ef4444 !important;
+}
+
+.ag-theme-alpine .ag-cell-warning {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  border-left: 3px solid #f59e0b !important;
+}
+
+.ag-theme-alpine .ag-cell-success {
+  background-color: rgba(16, 185, 129, 0.05) !important;
+}
+
+/* React-PDF Text Layer Compatibility */
+.react-pdf__Page__textContent {
+  height: 100%;
+  width: 100%;
+}
+
+.react-pdf__Page__annotations {
+  height: 100%;
+  width: 100%;
+}

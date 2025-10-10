@@ -15,11 +15,17 @@ export async function POST(request: NextRequest) {
   );
 
   try {
+    console.log('📤 Upload request received');
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const orgId = formData.get('orgId') as string;
     const userId = formData.get('userId') as string;
     const documentType = formData.get('documentType') as string || 'general';
+
+    console.log('File:', file?.name, file?.size, file?.type);
+    console.log('OrgId:', orgId);
+    console.log('DocumentType:', documentType);
 
     if (!file || !orgId) {
       return NextResponse.json(
@@ -35,6 +41,8 @@ export async function POST(request: NextRequest) {
     const storagePath = `${orgId}/${filename}`;
 
     // Upload to Supabase Storage
+    console.log('📦 Uploading to storage:', storagePath);
+
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('idp-documents')
@@ -44,12 +52,14 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      console.error('❌ Storage upload error:', uploadError);
       return NextResponse.json(
-        { error: 'Failed to upload file to storage' },
+        { error: 'Failed to upload file to storage', details: uploadError.message },
         { status: 500 }
       );
     }
+
+    console.log('✅ File uploaded to storage');
 
     // Get public URL
     const { data: urlData } = supabase
@@ -58,6 +68,8 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(storagePath);
 
     // Create document record in database
+    console.log('💾 Creating document record in database...');
+
     const { data: document, error: dbError } = await supabase
       .from('idp_documents')
       .insert({
@@ -77,12 +89,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      console.error('❌ Database error:', dbError);
       return NextResponse.json(
-        { error: 'Failed to create document record' },
+        { error: 'Failed to create document record', details: dbError.message },
         { status: 500 }
       );
     }
+
+    console.log('✅ Document record created:', document.id);
 
     // Log audit trail
     await supabase

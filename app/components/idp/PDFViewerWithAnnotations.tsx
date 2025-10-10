@@ -488,38 +488,47 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                       if (polygon.length < 4) return null;
 
                       // Calculate bounding rectangle
-                      // Try different coordinate system interpretations
+                      // Azure returns polygon as array of point objects: [{x, y}, {x, y}, {x, y}, {x, y}]
                       let x, y, width, height;
 
-                      if (polygon.length === 4) {
-                        // [x1, y1, x2, y2]
-                        // Option 1: Direct pixel coordinates with scale
+                      // Check if polygon contains point objects with x/y properties
+                      const hasPointObjects = polygon[0] && typeof polygon[0] === 'object' && 'x' in polygon[0];
+
+                      if (hasPointObjects && polygon.length >= 4) {
+                        // Array of point objects: [{x, y}, {x, y}, ...]
+                        // Azure uses inches as units, need to convert to points (1 inch = 72 points)
+                        const xCoords = polygon.map((p: any) => p.x * 72);
+                        const yCoords = polygon.map((p: any) => p.y * 72);
+                        const minX = Math.min(...xCoords);
+                        const minY = Math.min(...yCoords);
+                        const maxX = Math.max(...xCoords);
+                        const maxY = Math.max(...yCoords);
+                        x = minX * scale;
+                        y = minY * scale;
+                        width = (maxX - minX) * scale;
+                        height = (maxY - minY) * scale;
+
+                        // Debug first box
+                        if (bbox.fieldId === boundingBoxes[0]?.fieldId) {
+                          console.log('🔍 Bounding Box Debug (Fixed):', {
+                            label: bbox.label,
+                            polygonSample: polygon[0],
+                            pageWidth,
+                            pageHeight,
+                            scale,
+                            xCoords: xCoords.slice(0, 4),
+                            yCoords: yCoords.slice(0, 4),
+                            calculated: { x, y, width, height }
+                          });
+                        }
+                      } else if (polygon.length === 4 && typeof polygon[0] === 'number') {
+                        // Flat array: [x1, y1, x2, y2]
                         x = polygon[0] * scale;
                         y = polygon[1] * scale;
                         width = (polygon[2] - polygon[0]) * scale;
                         height = (polygon[3] - polygon[1]) * scale;
-
-                        // Debug first box
-                        if (bbox.fieldId === boundingBoxes[0]?.fieldId) {
-                          console.log('🔍 Bounding Box Debug:', {
-                            label: bbox.label,
-                            polygon,
-                            pageWidth,
-                            pageHeight,
-                            scale,
-                            calculated: { x, y, width, height },
-                            'Option 2 (inches*72)': {
-                              x: polygon[0] * 72 * scale,
-                              y: polygon[1] * 72 * scale
-                            },
-                            'Option 3 (normalized)': {
-                              x: polygon[0] * pageWidth * scale,
-                              y: polygon[1] * pageHeight * scale
-                            }
-                          });
-                        }
-                      } else if (polygon.length === 8) {
-                        // [x1, y1, x2, y2, x3, y3, x4, y4]
+                      } else if (polygon.length === 8 && typeof polygon[0] === 'number') {
+                        // Flat array: [x1, y1, x2, y2, x3, y3, x4, y4]
                         const xCoords = [polygon[0], polygon[2], polygon[4], polygon[6]];
                         const yCoords = [polygon[1], polygon[3], polygon[5], polygon[7]];
                         const minX = Math.min(...xCoords);

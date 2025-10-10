@@ -487,37 +487,37 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
 
                       if (polygon.length < 4) return null;
 
-                      // Debug: Log first bounding box info
-                      if (bbox.fieldId === boundingBoxes[0]?.fieldId) {
-                        console.log('🔍 Debug Bounding Box:', {
-                          fieldId: bbox.fieldId,
-                          label: bbox.label,
-                          polygon: bbox.polygon,
-                          pageWidth,
-                          pageHeight,
-                          scale
-                        });
-                      }
-
                       // Calculate bounding rectangle
-                      // Azure coordinates are in inches, PDF page is rendered at pageWidth/pageHeight pixels
-                      // We need to scale from Azure's coordinate system to rendered pixels
-                      // Azure uses inches as the unit, so we multiply by 72 to get points, then scale
-                      const scaleX = (pageWidth * scale) / pageWidth; // This simplifies to just scale
-                      const scaleY = (pageHeight * scale) / pageHeight; // This simplifies to just scale
-
-                      // Actually, Azure polygon is in inches, PDF.js renders at 72 DPI by default
-                      // So we need: inches * 72 * current_scale
-                      const dpi = 72;
-                      const renderScale = scale;
-
+                      // Try different coordinate system interpretations
                       let x, y, width, height;
+
                       if (polygon.length === 4) {
                         // [x1, y1, x2, y2]
-                        x = polygon[0] * dpi * renderScale;
-                        y = polygon[1] * dpi * renderScale;
-                        width = (polygon[2] - polygon[0]) * dpi * renderScale;
-                        height = (polygon[3] - polygon[1]) * dpi * renderScale;
+                        // Option 1: Direct pixel coordinates with scale
+                        x = polygon[0] * scale;
+                        y = polygon[1] * scale;
+                        width = (polygon[2] - polygon[0]) * scale;
+                        height = (polygon[3] - polygon[1]) * scale;
+
+                        // Debug first box
+                        if (bbox.fieldId === boundingBoxes[0]?.fieldId) {
+                          console.log('🔍 Bounding Box Debug:', {
+                            label: bbox.label,
+                            polygon,
+                            pageWidth,
+                            pageHeight,
+                            scale,
+                            calculated: { x, y, width, height },
+                            'Option 2 (inches*72)': {
+                              x: polygon[0] * 72 * scale,
+                              y: polygon[1] * 72 * scale
+                            },
+                            'Option 3 (normalized)': {
+                              x: polygon[0] * pageWidth * scale,
+                              y: polygon[1] * pageHeight * scale
+                            }
+                          });
+                        }
                       } else if (polygon.length === 8) {
                         // [x1, y1, x2, y2, x3, y3, x4, y4]
                         const xCoords = [polygon[0], polygon[2], polygon[4], polygon[6]];
@@ -526,10 +526,10 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                         const minY = Math.min(...yCoords);
                         const maxX = Math.max(...xCoords);
                         const maxY = Math.max(...yCoords);
-                        x = minX * dpi * renderScale;
-                        y = minY * dpi * renderScale;
-                        width = (maxX - minX) * dpi * renderScale;
-                        height = (maxY - minY) * dpi * renderScale;
+                        x = minX * scale;
+                        y = minY * scale;
+                        width = (maxX - minX) * scale;
+                        height = (maxY - minY) * scale;
                       } else {
                         return null;
                       }

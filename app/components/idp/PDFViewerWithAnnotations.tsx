@@ -60,12 +60,22 @@ export interface Annotation {
   timestamp: Date;
 }
 
+interface BoundingBox {
+  fieldId: string;
+  polygon: number[];
+  color: string;
+  label: string;
+}
+
 interface PDFViewerWithAnnotationsProps {
   pdfUrl: string;
   documentId: string;
   annotations?: Annotation[];
   isDarkMode?: boolean;
   onAnnotationsChange?: (annotations: Annotation[]) => void;
+  boundingBoxes?: BoundingBox[];
+  hoveredFieldId?: string | null;
+  onFieldHover?: (fieldId: string | null) => void;
 }
 
 type AnnotationTool = Annotation['type'] | 'select' | null;
@@ -75,7 +85,10 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   documentId,
   annotations = [],
   isDarkMode = false,
-  onAnnotationsChange
+  onAnnotationsChange,
+  boundingBoxes = [],
+  hoveredFieldId = null,
+  onFieldHover
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -83,6 +96,8 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
   const [rotation, setRotation] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pageWidth, setPageWidth] = useState<number>(612); // Default PDF page width (US Letter)
+  const [pageHeight, setPageHeight] = useState<number>(792); // Default PDF page height
   const [selectedTool, setSelectedTool] = useState<AnnotationTool>('select');
   const [selectedColor, setSelectedColor] = useState('#FFEB3B');
   const [localAnnotations, setLocalAnnotations] = useState<Annotation[]>(annotations);
@@ -411,22 +426,97 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
             </div>
           ) : pdfUrl ? (
             <>
-              <Document
-                file={pdfUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={onDocumentLoadError}
-                className="shadow-2xl"
-                loading={<div className="w-full h-96 bg-slate-800 rounded-lg animate-pulse" />}
-              >
-                <Page
-                  pageNumber={currentPage}
-                  scale={scale}
-                  rotate={rotation}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={false}
-                  className="rounded-lg overflow-hidden bg-white"
-                />
-              </Document>
+              <div className="relative inline-block">
+                <Document
+                  file={pdfUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  className="shadow-2xl"
+                  loading={<div className="w-full h-96 bg-slate-800 rounded-lg animate-pulse" />}
+                >
+                  <Page
+                    pageNumber={currentPage}
+                    scale={scale}
+                    rotate={rotation}
+                    renderTextLayer={true}
+                    renderAnnotationLayer={false}
+                    className="rounded-lg overflow-hidden bg-white"
+                    onLoadSuccess={(page) => {
+                      setPageWidth(page.width);
+                      setPageHeight(page.height);
+                    }}
+                  />
+                </Document>
+
+                {/* Bounding Boxes Overlay */}
+                {boundingBoxes.length > 0 && onFieldHover && (
+                  <div className="absolute top-0 left-0 pointer-events-none">
+                    {boundingBoxes.map((bbox) => {
+                      // Simple rectangle rendering
+                      const isHovered = hoveredFieldId === bbox.fieldId;
+                      const polygon = bbox.polygon;
+
+                      if (polygon.length < 4) return null;
+
+                      // Calculate bounding rectangle
+                      let x, y, width, height;
+                      if (polygon.length === 4) {
+                        // [x1, y1, x2, y2]
+                        x = polygon[0] * scale;
+                        y = polygon[1] * scale;
+                        width = (polygon[2] - polygon[0]) * scale;
+                        height = (polygon[3] - polygon[1]) * scale;
+                      } else if (polygon.length === 8) {
+                        // [x1, y1, x2, y2, x3, y3, x4, y4]
+                        const xCoords = [polygon[0], polygon[2], polygon[4], polygon[6]];
+                        const yCoords = [polygon[1], polygon[3], polygon[5], polygon[7]];
+                        const minX = Math.min(...xCoords);
+                        const minY = Math.min(...yCoords);
+                        const maxX = Math.max(...xCoords);
+                        const maxY = Math.max(...yCoords);
+                        x = minX * scale;
+                        y = minY * scale;
+                        width = (maxX - minX) * scale;
+                        height = (maxY - minY) * scale;
+                      } else {
+                        return null;
+                      }
+
+                      return (
+                        <div
+                          key={bbox.fieldId}
+                          className="absolute pointer-events-auto cursor-pointer transition-all duration-200"
+                          style={{
+                            left: `${x}px`,
+                            top: `${y}px`,
+                            width: `${width}px`,
+                            height: `${height}px`,
+                            border: `3px solid ${bbox.color}`,
+                            backgroundColor: isHovered ? `${bbox.color}30` : `${bbox.color}15`,
+                            boxShadow: isHovered ? `0 0 12px ${bbox.color}` : 'none',
+                            zIndex: isHovered ? 10 : 1
+                          }}
+                          onMouseEnter={() => onFieldHover(bbox.fieldId)}
+                          onMouseLeave={() => onFieldHover(null)}
+                        >
+                          {/* Label tooltip on hover */}
+                          {isHovered && (
+                            <div
+                              className="absolute -top-8 left-0 px-2 py-1 rounded text-xs font-bold whitespace-nowrap shadow-lg z-20"
+                              style={{
+                                backgroundColor: bbox.color,
+                                color: 'white'
+                              }}
+                            >
+                              {bbox.label}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Annotations Overlay */}
           {currentPageAnnotations.map(annotation => {

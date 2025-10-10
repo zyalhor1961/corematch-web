@@ -58,6 +58,8 @@ interface AzureStyledExtractionViewProps {
   isDarkMode?: boolean;
   onAnalyze: () => void;
   isAnalyzing: boolean;
+  hoveredFieldId: string | null;
+  onFieldHover: (fieldId: string | null) => void;
 }
 
 export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps> = ({
@@ -65,10 +67,11 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
   azureData,
   isDarkMode = false,
   onAnalyze,
-  isAnalyzing
+  isAnalyzing,
+  hoveredFieldId,
+  onFieldHover
 }) => {
   const [activeTab, setActiveTab] = useState<'fields' | 'content' | 'result'>('fields');
-  const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('prebuilt-invoice');
@@ -146,6 +149,12 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
     if (confidence >= 0.95) return 'text-green-600';
     if (confidence >= 0.80) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  // Generate unique color for each field (hue-based for variety)
+  const getFieldColor = (index: number) => {
+    const hue = (index * 137.5) % 360; // Golden angle for good color distribution
+    return `hsl(${hue}, 70%, 55%)`;
   };
 
   const availableModels = [
@@ -278,31 +287,44 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                 </div>
 
                 {/* Field Cards */}
-                {fields.map((field, index) => (
-                  <div
-                    key={field.id}
-                    className={`group py-3 px-4 rounded-lg transition-all cursor-pointer ${
-                      hoveredFieldId === field.id
-                        ? isDarkMode
-                          ? 'bg-blue-950/30'
-                          : 'bg-blue-50'
-                        : selectedField === field.id
+                {fields.map((field, index) => {
+                  const fieldColor = getFieldColor(index);
+                  return (
+                    <div
+                      key={field.id}
+                      className={`group py-3 px-4 rounded-lg transition-all cursor-pointer border-2 ${
+                        hoveredFieldId === field.id
+                          ? 'shadow-lg'
+                          : 'border-transparent'
+                      } ${
+                        selectedField === field.id
                           ? isDarkMode
                             ? 'bg-slate-800'
                             : 'bg-slate-50'
-                          : 'hover:bg-opacity-50'
-                    }`}
-                    onMouseEnter={() => setHoveredFieldId(field.id)}
-                    onMouseLeave={() => setHoveredFieldId(null)}
-                    onClick={() => setSelectedField(field.id)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {/* Color Dot Indicator */}
-                        <div
-                          className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                          style={{ backgroundColor: FIELD_TYPE_COLORS[field.category || 'default'] }}
-                        />
+                          : ''
+                      }`}
+                      style={{
+                        borderColor: hoveredFieldId === field.id ? fieldColor : 'transparent',
+                        backgroundColor: hoveredFieldId === field.id
+                          ? `${fieldColor}15`
+                          : selectedField === field.id
+                            ? undefined
+                            : undefined
+                      }}
+                      onMouseEnter={() => onFieldHover(field.id)}
+                      onMouseLeave={() => onFieldHover(null)}
+                      onClick={() => setSelectedField(field.id)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {/* Color Square Indicator */}
+                          <div
+                            className="w-3 h-3 rounded-sm mt-1.5 flex-shrink-0 border"
+                            style={{
+                              backgroundColor: fieldColor,
+                              borderColor: fieldColor
+                            }}
+                          />
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -328,7 +350,8 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

@@ -96,6 +96,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [azureData, setAzureData] = useState<any>(null);
   const [isAnalyzingAzure, setIsAnalyzingAzure] = useState(false);
+  const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load documents from DEB batches
@@ -271,6 +272,27 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
       setIsAnalyzingAzure(false);
     }
   }, [selectedDocument]);
+
+  // Prepare bounding boxes from Azure data
+  const boundingBoxes = React.useMemo(() => {
+    if (!azureData?.fields) return [];
+
+    return azureData.fields
+      .map((field: any, index: number) => {
+        if (!field.boundingBox || field.boundingBox.length === 0) return null;
+
+        const hue = (index * 137.5) % 360;
+        const color = `hsl(${hue}, 70%, 55%)`;
+
+        return {
+          fieldId: `field-${index}`,
+          polygon: field.boundingBox,
+          color,
+          label: field.name
+        };
+      })
+      .filter(Boolean);
+  }, [azureData]);
 
   // Handle data extraction updates
   const handleDataUpdate = useCallback((documentId: string, newData: any) => {
@@ -518,6 +540,9 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
                 documentId={selectedDocument.id}
                 annotations={selectedDocument.annotations || []}
                 isDarkMode={isDarkMode}
+                boundingBoxes={boundingBoxes}
+                hoveredFieldId={hoveredFieldId}
+                onFieldHover={setHoveredFieldId}
               />
             </div>
 
@@ -529,6 +554,8 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
                 isDarkMode={isDarkMode}
                 onAnalyze={handleAzureAnalysis}
                 isAnalyzing={isAnalyzingAzure}
+                hoveredFieldId={hoveredFieldId}
+                onFieldHover={setHoveredFieldId}
               />
             </div>
           </div>

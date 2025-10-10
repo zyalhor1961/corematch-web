@@ -480,7 +480,9 @@ export const PDFViewerWithAnnotations: React.FC<PDFViewerWithAnnotationsProps> =
                 {/* Bounding Boxes Overlay */}
                 {boundingBoxes.length > 0 && onFieldHover && (
                   <div className="absolute top-0 left-0 pointer-events-none">
-                    {boundingBoxes.map((bbox) => {
+                    {boundingBoxes
+                      .filter((bbox: any) => (bbox.pageNumber || 1) === pageNumber) // Only show boxes for current page
+                      .map((bbox) => {
                       // Simple rectangle rendering
                       const isHovered = hoveredFieldId === bbox.fieldId;
                       const polygon = bbox.polygon;

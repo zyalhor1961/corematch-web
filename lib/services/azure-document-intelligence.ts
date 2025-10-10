@@ -69,6 +69,7 @@ export interface ExtractedField {
   confidence: number;
   type: string;
   boundingBox?: number[];
+  pageNumber?: number; // Page number where this field appears (1-indexed)
 }
 
 /**
@@ -143,12 +144,14 @@ export async function analyzeDocument(
 
       for (const [fieldName, field] of Object.entries(document.fields || {})) {
         if (field) {
+          const boundingRegion = field.boundingRegions?.[0];
           fields.push({
             name: fieldName,
             value: field.value,
             confidence: field.confidence || 0,
             type: field.kind || 'string',
-            boundingBox: field.boundingRegions?.[0]?.polygon || []
+            boundingBox: boundingRegion?.polygon || [],
+            pageNumber: boundingRegion?.pageNumber || 1
           });
         }
       }
@@ -158,12 +161,14 @@ export async function analyzeDocument(
     if (fields.length === 0 && result.keyValuePairs && result.keyValuePairs.length > 0) {
       for (const pair of result.keyValuePairs) {
         if (pair.key && pair.value) {
+          const boundingRegion = pair.value.boundingRegions?.[0] || pair.key.boundingRegions?.[0];
           fields.push({
             name: pair.key.content || 'Unknown',
             value: pair.value.content || '',
             confidence: pair.confidence || 0,
             type: 'string',
-            boundingBox: pair.value.boundingRegions?.[0]?.polygon || pair.key.boundingRegions?.[0]?.polygon || []
+            boundingBox: boundingRegion?.polygon || [],
+            pageNumber: boundingRegion?.pageNumber || 1
           });
         }
       }
@@ -254,12 +259,14 @@ export async function analyzeDocumentFromBuffer(
 
       for (const [fieldName, field] of Object.entries(document.fields || {})) {
         if (field) {
+          const boundingRegion = field.boundingRegions?.[0];
           fields.push({
             name: fieldName,
             value: field.value,
             confidence: field.confidence || 0,
             type: field.kind || 'string',
-            boundingBox: field.boundingRegions?.[0]?.polygon || []
+            boundingBox: boundingRegion?.polygon || [],
+            pageNumber: boundingRegion?.pageNumber || 1
           });
         }
       }
@@ -269,12 +276,14 @@ export async function analyzeDocumentFromBuffer(
     if (fields.length === 0 && result.keyValuePairs && result.keyValuePairs.length > 0) {
       for (const pair of result.keyValuePairs) {
         if (pair.key && pair.value) {
+          const boundingRegion = pair.value.boundingRegions?.[0] || pair.key.boundingRegions?.[0];
           fields.push({
             name: pair.key.content || 'Unknown',
             value: pair.value.content || '',
             confidence: pair.confidence || 0,
             type: 'string',
-            boundingBox: pair.value.boundingRegions?.[0]?.polygon || pair.key.boundingRegions?.[0]?.polygon || []
+            boundingBox: boundingRegion?.polygon || [],
+            pageNumber: boundingRegion?.pageNumber || 1
           });
         }
       }

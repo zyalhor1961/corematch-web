@@ -286,6 +286,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
         return {
           fieldId: `field-${index}`,
           polygon: field.boundingBox,
+          pageNumber: field.pageNumber || 1, // Include page number
           color,
           label: field.name,
           value: field.value,

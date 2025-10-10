@@ -43,6 +43,7 @@ import { CustomFieldView } from './CustomFieldView';
 import { AuditTrailViewer } from './AuditTrailViewer';
 import { DocumentQueue } from './DocumentQueue';
 import { ExtractionModelManager } from './ExtractionModelManager';
+import { DocumentListView, IDPDocument as DBDocument } from './DocumentListView';
 
 export interface IDPDocument {
   id: string;
@@ -74,13 +75,13 @@ interface UnifiedIDPDashboardProps {
   isDarkMode?: boolean;
 }
 
-type ViewMode = 'queue' | 'viewer' | 'custom-views' | 'audit' | 'models';
+type ViewMode = 'queue' | 'viewer' | 'custom-views' | 'audit' | 'models' | 'documents';
 
 export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   orgId,
   isDarkMode = false
 }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('queue');
+  const [viewMode, setViewMode] = useState<ViewMode>('documents');
   const [selectedDocument, setSelectedDocument] = useState<IDPDocument | null>(null);
   const [documents, setDocuments] = useState<IDPDocument[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
@@ -356,9 +357,36 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
     };
   }, [documents]);
 
+  // State for document library
+  const [dbDocuments, setDbDocuments] = useState<DBDocument[]>([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+
+  // Load documents from database
+  const loadDbDocuments = useCallback(async () => {
+    setIsLoadingDocuments(true);
+    try {
+      const response = await fetch(`/api/idp/documents?orgId=${orgId}`);
+      const result = await response.json();
+      if (result.success) {
+        setDbDocuments(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  }, [orgId]);
+
+  React.useEffect(() => {
+    if (viewMode === 'documents') {
+      loadDbDocuments();
+    }
+  }, [viewMode, loadDbDocuments]);
+
   // Navigation tabs configuration
   const navTabs = [
-    { id: 'queue' as const, label: 'Document Queue', icon: LayoutDashboard, badge: queueStats.pending + queueStats.processing },
+    { id: 'documents' as const, label: 'Document Library', icon: FileText, badge: dbDocuments.length },
+    { id: 'queue' as const, label: 'Processing Queue', icon: LayoutDashboard, badge: queueStats.pending + queueStats.processing },
     { id: 'viewer' as const, label: 'PDF Viewer', icon: Eye, badge: null },
     { id: 'custom-views' as const, label: 'Custom Views', icon: Settings, badge: null },
     { id: 'audit' as const, label: 'Audit Trail', icon: History, badge: auditLog.length },
@@ -500,6 +528,42 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
 
       {/* Main Content Area */}
       <main className="max-w-[2000px] mx-auto p-6">
+        {viewMode === 'documents' && (
+          <DocumentListView
+            documents={dbDocuments}
+            onRefresh={loadDbDocuments}
+            onViewDocument={(doc) => {
+              // Convert DB document to queue document format for viewing
+              setSelectedDocument({
+                id: doc.id,
+                filename: doc.filename,
+                status: 'completed',
+                priority: 'medium',
+                uploadedAt: new Date(doc.created_at),
+                confidence: doc.overall_confidence,
+                pdfUrl: doc.storage_url || ''
+              });
+              setViewMode('viewer');
+            }}
+            onDeleteDocument={async (id) => {
+              if (confirm('Are you sure you want to delete this document?')) {
+                try {
+                  await fetch(`/api/idp/documents?id=${id}`, { method: 'DELETE' });
+                  loadDbDocuments();
+                } catch (error) {
+                  console.error('Error deleting document:', error);
+                }
+              }
+            }}
+            onExportDocuments={async (ids) => {
+              console.log('Exporting documents:', ids);
+              // TODO: Implement export functionality
+            }}
+            isLoading={isLoadingDocuments}
+            isDarkMode={isDarkMode}
+          />
+        )}
+
         {viewMode === 'queue' && (
           <DocumentQueue
             documents={documents}

@@ -432,6 +432,8 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
             documents={documents}
             onDocumentSelect={handleDocumentSelect}
             onStatusChange={handleStatusChange}
+            onUpload={handleFileUpload}
+            isUploading={isUploading}
             queueStats={queueStats}
             isDarkMode={isDarkMode}
           />

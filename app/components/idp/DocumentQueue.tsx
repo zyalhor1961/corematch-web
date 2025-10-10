@@ -30,7 +30,8 @@ import {
   AlertCircle,
   Download,
   Play,
-  Pause
+  Pause,
+  Upload
 } from 'lucide-react';
 import { IDPDocument } from './UnifiedIDPDashboard';
 
@@ -38,6 +39,8 @@ interface DocumentQueueProps {
   documents: IDPDocument[];
   onDocumentSelect: (doc: IDPDocument) => void;
   onStatusChange: (documentId: string, newStatus: IDPDocument['status']) => void;
+  onUpload?: (file: File) => void;
+  isUploading?: boolean;
   queueStats: {
     total: number;
     pending: number;
@@ -113,6 +116,8 @@ export const DocumentQueue: React.FC<DocumentQueueProps> = ({
   documents,
   onDocumentSelect,
   onStatusChange,
+  onUpload,
+  isUploading = false,
   queueStats,
   isDarkMode = false
 }) => {
@@ -120,6 +125,8 @@ export const DocumentQueue: React.FC<DocumentQueueProps> = ({
   const [statusFilter, setStatusFilter] = useState<IDPDocument['status'] | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<IDPDocument['priority'] | 'all'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'priority' | 'confidence'>('date');
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   // Filter and sort documents
   const filteredDocuments = useMemo(() => {
@@ -205,6 +212,97 @@ export const DocumentQueue: React.FC<DocumentQueueProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Upload Zone */}
+      {onUpload && (
+        <div
+          onDragEnter={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragActive(false);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragActive(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file && onUpload) {
+              onUpload(file);
+            }
+          }}
+          className={`relative overflow-hidden rounded-3xl border-2 border-dashed transition-all ${
+            dragActive
+              ? 'border-blue-500 bg-blue-500/10 scale-[1.02]'
+              : isDarkMode
+                ? 'border-slate-700 bg-slate-900/50'
+                : 'border-slate-300 bg-white'
+          } shadow-xl hover:shadow-2xl`}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5"></div>
+          <div className="relative p-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-6">
+                <div className={`p-5 rounded-2xl ${isDarkMode ? 'bg-gradient-to-br from-blue-600 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-600'} shadow-lg`}>
+                  <Upload className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    Upload Documents
+                  </h3>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Drag and drop PDF files here or click to browse
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && onUpload) {
+                      onUpload(file);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-xl font-bold shadow-lg transition-all ${
+                    isDarkMode
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white'
+                      : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105`}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6" />
+                      Select PDF
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className={`rounded-2xl border ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'} p-5 shadow-lg`}>

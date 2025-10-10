@@ -154,6 +154,21 @@ export async function analyzeDocument(
       }
     }
 
+    // If no fields found, use key-value pairs as fields
+    if (fields.length === 0 && result.keyValuePairs && result.keyValuePairs.length > 0) {
+      for (const pair of result.keyValuePairs) {
+        if (pair.key && pair.value) {
+          fields.push({
+            name: pair.key.content || 'Unknown',
+            value: pair.value.content || '',
+            confidence: pair.confidence || 0,
+            type: 'string',
+            boundingBox: pair.value.boundingRegions?.[0]?.polygon || pair.key.boundingRegions?.[0]?.polygon || []
+          });
+        }
+      }
+    }
+
     // Extract tables
     const tables: ExtractedTable[] = (result.tables || []).map(table => ({
       rowCount: table.rowCount,
@@ -245,6 +260,21 @@ export async function analyzeDocumentFromBuffer(
             confidence: field.confidence || 0,
             type: field.kind || 'string',
             boundingBox: field.boundingRegions?.[0]?.polygon || []
+          });
+        }
+      }
+    }
+
+    // If no fields found, use key-value pairs as fields
+    if (fields.length === 0 && result.keyValuePairs && result.keyValuePairs.length > 0) {
+      for (const pair of result.keyValuePairs) {
+        if (pair.key && pair.value) {
+          fields.push({
+            name: pair.key.content || 'Unknown',
+            value: pair.value.content || '',
+            confidence: pair.confidence || 0,
+            type: 'string',
+            boundingBox: pair.value.boundingRegions?.[0]?.polygon || pair.key.boundingRegions?.[0]?.polygon || []
           });
         }
       }

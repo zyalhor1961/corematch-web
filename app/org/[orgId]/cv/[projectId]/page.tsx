@@ -54,7 +54,8 @@ export default function ProjectCandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const orgId = params?.orgId as string;
   const projectId = params?.projectId as string;
 
@@ -139,6 +140,48 @@ export default function ProjectCandidatesPage() {
     if (score >= 80) return 'text-green-600 dark:text-green-400';
     if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
     return 'text-red-600 dark:text-red-400';
+  };
+
+  const handleDeleteCandidate = async (candidateId: string, candidateName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le CV de ${candidateName} ? Cette action est irréversible.`)) {
+      return;
+    }
+
+    setDeletingId(candidateId);
+    setError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Vous devez être connecté pour supprimer un candidat.");
+      }
+
+      const response = await fetch(`/api/cv/projects/${projectId}/candidates/${candidateId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "La suppression a échoué.");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        // Remove candidate from local state
+        setCandidates(prev => prev.filter(c => c.id !== candidateId));
+      } else {
+        throw new Error(data.error || "Une erreur est survenue.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Error deleting candidate:', err);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (isLoading) {
@@ -325,14 +368,29 @@ export default function ProjectCandidatesPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          <button className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <button
+                            className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
+                            title="Voir les détails"
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <button
+                            className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
+                            title="Télécharger le CV"
+                          >
                             <Download className="w-4 h-4" />
                           </button>
-                          <button className={`p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500`}>
-                            <Trash2 className="w-4 h-4" />
+                          <button
+                            onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
+                            disabled={deletingId === candidate.id}
+                            className={`p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title="Supprimer le CV"
+                          >
+                            {deletingId === candidate.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>

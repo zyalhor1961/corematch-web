@@ -175,7 +175,7 @@ export async function analyzeDocument(
     }
 
     // Extract tables
-    const tables: ExtractedTable[] = (result.tables || []).map(table => ({
+    const tables: ExtractedTable[] = (result.tables || []).map((table, tableIndex) => ({
       rowCount: table.rowCount,
       columnCount: table.columnCount,
       cells: (table.cells || []).map(cell => ({
@@ -185,6 +185,25 @@ export async function analyzeDocument(
         confidence: cell.confidence || 0
       }))
     }));
+
+    // Also extract table cells as individual fields for bounding box display
+    if (result.tables && result.tables.length > 0) {
+      for (const [tableIndex, table] of result.tables.entries()) {
+        for (const cell of table.cells || []) {
+          if (cell.content && cell.content.trim()) {
+            const boundingRegion = cell.boundingRegions?.[0];
+            fields.push({
+              name: `Table ${tableIndex + 1} [R${cell.rowIndex + 1}C${cell.columnIndex + 1}]`,
+              value: cell.content,
+              confidence: cell.confidence || 0,
+              type: 'string',
+              boundingBox: boundingRegion?.polygon || [],
+              pageNumber: boundingRegion?.pageNumber || 1
+            });
+          }
+        }
+      }
+    }
 
     // Extract pages with lines
     const pages = (result.pages || []).map(page => ({
@@ -290,7 +309,7 @@ export async function analyzeDocumentFromBuffer(
     }
 
     // Extract tables
-    const tables: ExtractedTable[] = (result.tables || []).map(table => ({
+    const tables: ExtractedTable[] = (result.tables || []).map((table, tableIndex) => ({
       rowCount: table.rowCount,
       columnCount: table.columnCount,
       cells: (table.cells || []).map(cell => ({
@@ -300,6 +319,25 @@ export async function analyzeDocumentFromBuffer(
         confidence: cell.confidence || 0
       }))
     }));
+
+    // Also extract table cells as individual fields for bounding box display
+    if (result.tables && result.tables.length > 0) {
+      for (const [tableIndex, table] of result.tables.entries()) {
+        for (const cell of table.cells || []) {
+          if (cell.content && cell.content.trim()) {
+            const boundingRegion = cell.boundingRegions?.[0];
+            fields.push({
+              name: `Table ${tableIndex + 1} [R${cell.rowIndex + 1}C${cell.columnIndex + 1}]`,
+              value: cell.content,
+              confidence: cell.confidence || 0,
+              type: 'string',
+              boundingBox: boundingRegion?.polygon || [],
+              pageNumber: boundingRegion?.pageNumber || 1
+            });
+          }
+        }
+      }
+    }
 
     // Extract pages
     const pages = (result.pages || []).map(page => ({

@@ -391,9 +391,9 @@ export const DocumentQueue: React.FC<DocumentQueueProps> = ({
           </div>
         ) : (
           filteredDocuments.map(doc => {
-            const statusConfig = STATUS_CONFIG[doc.status];
+            const statusConfig = STATUS_CONFIG[doc.status] || STATUS_CONFIG['pending'];
             const StatusIcon = statusConfig.icon;
-            const priorityConfig = PRIORITY_CONFIG[doc.priority];
+            const priorityConfig = PRIORITY_CONFIG[doc.priority] || PRIORITY_CONFIG['medium'];
 
             return (
               <div

@@ -108,17 +108,25 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
       const payload = await response.json();
       if (payload.success && payload.data) {
         // Convert DEB batches to IDP documents
-        const idpDocs: IDPDocument[] = payload.data.map((batch: any) => ({
-          id: batch.id,
-          filename: batch.source_filename,
-          status: batch.status === 'uploaded' ? 'pending' :
-                  batch.status === 'needs_review' ? 'review' :
-                  batch.status,
-          priority: 'medium',
-          uploadedAt: new Date(batch.created_at),
-          confidence: 0.85,
-          pdfUrl: `/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(batch.storage_object_path)}`
-        }));
+        const idpDocs: IDPDocument[] = payload.data.map((batch: any) => {
+          // Map DEB status to IDP status
+          let status: IDPDocument['status'] = 'pending';
+          if (batch.status === 'uploaded') status = 'pending';
+          else if (batch.status === 'needs_review') status = 'review';
+          else if (batch.status === 'processing') status = 'processing';
+          else if (batch.status === 'completed') status = 'completed';
+          else if (batch.status === 'error' || batch.status === 'failed') status = 'error';
+
+          return {
+            id: batch.id,
+            filename: batch.source_filename,
+            status,
+            priority: 'medium',
+            uploadedAt: new Date(batch.created_at),
+            confidence: 0.85,
+            pdfUrl: `/api/storage/signed-url?bucket=deb-docs&path=${encodeURIComponent(batch.storage_object_path)}`
+          };
+        });
         setDocuments(idpDocs);
       }
     } catch (error) {

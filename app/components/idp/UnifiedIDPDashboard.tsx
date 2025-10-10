@@ -34,7 +34,8 @@ import {
   History,
   Zap,
   X,
-  XCircle
+  XCircle,
+  Table
 } from 'lucide-react';
 import { PDFViewerWithAnnotations } from './PDFViewerWithAnnotations';
 import { ExtractionDataView } from './ExtractionDataView';
@@ -44,6 +45,7 @@ import { AuditTrailViewer } from './AuditTrailViewer';
 import { DocumentQueue } from './DocumentQueue';
 import { ExtractionModelManager } from './ExtractionModelManager';
 import { DocumentListView, IDPDocument as DBDocument } from './DocumentListView';
+import { InvoiceTableView } from './InvoiceTableView';
 
 export interface IDPDocument {
   id: string;
@@ -75,7 +77,7 @@ interface UnifiedIDPDashboardProps {
   isDarkMode?: boolean;
 }
 
-type ViewMode = 'queue' | 'viewer' | 'custom-views' | 'audit' | 'models' | 'documents';
+type ViewMode = 'queue' | 'viewer' | 'custom-views' | 'audit' | 'models' | 'documents' | 'invoice-table';
 
 export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   orgId,
@@ -165,12 +167,14 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
     setUploadError(null);
 
     try {
-      // Upload to DEB API
+      // Upload to IDP API (saves to database and triggers analysis)
       const formData = new FormData();
       formData.append('orgId', orgId);
       formData.append('file', file);
+      formData.append('documentType', 'invoice'); // Default to invoice type
+      formData.append('userId', 'current-user-id'); // TODO: Get from auth
 
-      const response = await fetch('/api/deb/batches', {
+      const response = await fetch('/api/idp/upload', {
         method: 'POST',
         body: formData
       });
@@ -180,8 +184,14 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
         throw new Error(payload.error || 'Upload failed');
       }
 
-      // Reload documents
-      await loadDocuments();
+      const result = await response.json();
+      console.log('Upload successful:', result);
+
+      // Reload documents from database
+      await loadDbDocuments();
+
+      // Switch to documents view to see the uploaded document
+      setViewMode('documents');
 
       // Log audit entry
       const logEntry: AuditLogEntry = {
@@ -392,6 +402,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   // Navigation tabs configuration
   const navTabs = [
     { id: 'documents' as const, label: 'Document Library', icon: FileText, badge: dbDocuments.length },
+    { id: 'invoice-table' as const, label: 'Invoice Table', icon: Table, badge: null },
     { id: 'queue' as const, label: 'Processing Queue', icon: LayoutDashboard, badge: queueStats.pending + queueStats.processing },
     { id: 'viewer' as const, label: 'PDF Viewer', icon: Eye, badge: null },
     { id: 'custom-views' as const, label: 'Custom Views', icon: Settings, badge: null },
@@ -632,6 +643,25 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
         {viewMode === 'models' && (
           <ExtractionModelManager
             orgId={orgId}
+            isDarkMode={isDarkMode}
+          />
+        )}
+
+        {viewMode === 'invoice-table' && (
+          <InvoiceTableView
+            orgId={orgId}
+            onViewDocument={(doc) => {
+              setSelectedDocument({
+                id: doc.document_id,
+                filename: doc.invoice_number || 'Invoice',
+                status: 'completed',
+                priority: 'medium',
+                uploadedAt: new Date(doc.created_at),
+                confidence: doc.confidence,
+                pdfUrl: '' // Will be loaded from document
+              });
+              setViewMode('viewer');
+            }}
             isDarkMode={isDarkMode}
           />
         )}

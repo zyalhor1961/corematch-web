@@ -81,7 +81,9 @@
       "Bash(npx supabase link:*)",
       "Bash(del:*)",
       "WebFetch(domain:supabase.com)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(git log:*)",
+      "Bash(npx netlify:*)"
     ],
     "deny": [],
     "ask": []

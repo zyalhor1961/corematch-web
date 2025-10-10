@@ -4,16 +4,17 @@
  * Unified IDP Dashboard - Enterprise-grade document processing interface
  *
  * Combines best features from:
- * - Rossum: Real-time queues, audit trails, workflow builder
+ * - Rossum: Real-time queues, audit trails
  * - Docsumo: Excel-like tables, visual error highlighting
- * - Azure AI: Confidence scoring, custom models
+ * - Azure AI: Confidence scoring, custom models, synchronized highlighting
  * - Apryse: High-fidelity PDF viewing, annotations
  *
  * Features:
  * - Real-time document processing queue with priority management
  * - Side-by-side PDF viewer with data extraction sync
  * - Excel-like editable tables with validation
- * - Drag-and-drop workflow builder
+ * - Custom field views with save/load functionality
+ * - Interactive bounding boxes with synchronized hover effects
  * - Audit trail and activity logging
  * - Custom extraction model management
  * - Large PDF optimization (chunking, lazy loading)
@@ -38,7 +39,7 @@ import {
 import { PDFViewerWithAnnotations } from './PDFViewerWithAnnotations';
 import { ExtractionDataView } from './ExtractionDataView';
 import { AzureStyledExtractionView } from './AzureStyledExtractionView';
-import { WorkflowBuilder } from './WorkflowBuilder';
+import { CustomFieldView } from './CustomFieldView';
 import { AuditTrailViewer } from './AuditTrailViewer';
 import { DocumentQueue } from './DocumentQueue';
 import { ExtractionModelManager } from './ExtractionModelManager';
@@ -58,14 +59,6 @@ export interface IDPDocument {
   errorMessage?: string;
 }
 
-export interface WorkflowStage {
-  id: string;
-  name: string;
-  type: 'extraction' | 'validation' | 'review' | 'export';
-  config: any;
-  order: number;
-}
-
 export interface AuditLogEntry {
   id: string;
   timestamp: Date;
@@ -81,7 +74,7 @@ interface UnifiedIDPDashboardProps {
   isDarkMode?: boolean;
 }
 
-type ViewMode = 'queue' | 'viewer' | 'workflow' | 'audit' | 'models';
+type ViewMode = 'queue' | 'viewer' | 'custom-views' | 'audit' | 'models';
 
 export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   orgId,
@@ -90,7 +83,6 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('queue');
   const [selectedDocument, setSelectedDocument] = useState<IDPDocument | null>(null);
   const [documents, setDocuments] = useState<IDPDocument[]>([]);
-  const [workflows, setWorkflows] = useState<WorkflowStage[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -336,21 +328,6 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
     setAuditLog(prev => [logEntry, ...prev]);
   }, []);
 
-  // Handle workflow updates
-  const handleWorkflowUpdate = useCallback((updatedWorkflows: WorkflowStage[]) => {
-    setWorkflows(updatedWorkflows);
-
-    // Log audit entry
-    const logEntry: AuditLogEntry = {
-      id: `${Date.now()}`,
-      timestamp: new Date(),
-      userId: 'current-user-id',
-      userName: 'Current User',
-      action: 'workflow_modified',
-      details: { stages: updatedWorkflows.length }
-    };
-    setAuditLog(prev => [logEntry, ...prev]);
-  }, []);
 
   // Calculate queue statistics
   const queueStats = useMemo(() => {
@@ -379,7 +356,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const navTabs = [
     { id: 'queue' as const, label: 'Document Queue', icon: LayoutDashboard, badge: queueStats.pending + queueStats.processing },
     { id: 'viewer' as const, label: 'PDF Viewer', icon: Eye, badge: null },
-    { id: 'workflow' as const, label: 'Workflow Builder', icon: GitBranch, badge: null },
+    { id: 'custom-views' as const, label: 'Custom Views', icon: Settings, badge: null },
     { id: 'audit' as const, label: 'Audit Trail', icon: History, badge: auditLog.length },
     { id: 'models' as const, label: 'Extraction Models', icon: Zap, badge: null },
   ];
@@ -561,10 +538,10 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
           </div>
         )}
 
-        {viewMode === 'workflow' && (
-          <WorkflowBuilder
-            workflows={workflows}
-            onWorkflowUpdate={handleWorkflowUpdate}
+        {viewMode === 'custom-views' && azureData && (
+          <CustomFieldView
+            availableFields={azureData.fields || []}
+            orgId={orgId}
             isDarkMode={isDarkMode}
           />
         )}

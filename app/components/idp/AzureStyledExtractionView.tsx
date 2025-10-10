@@ -286,70 +286,63 @@ export const AzureStyledExtractionView: React.FC<AzureStyledExtractionViewProps>
                   </p>
                 </div>
 
-                {/* Field Cards */}
+                {/* Field Cards - Compact & Dynamic */}
                 {fields.map((field, index) => {
                   const fieldColor = getFieldColor(index);
                   return (
                     <div
                       key={field.id}
-                      className={`group py-3 px-4 rounded-lg transition-all cursor-pointer border-2 ${
+                      className={`group py-2 px-3 rounded-md transition-all duration-200 cursor-pointer border-2 ${
                         hoveredFieldId === field.id
-                          ? 'shadow-lg'
-                          : 'border-transparent'
-                      } ${
-                        selectedField === field.id
-                          ? isDarkMode
-                            ? 'bg-slate-800'
-                            : 'bg-slate-50'
-                          : ''
+                          ? 'shadow-md scale-[1.02]'
+                          : 'border-transparent scale-100'
                       }`}
                       style={{
                         borderColor: hoveredFieldId === field.id ? fieldColor : 'transparent',
                         backgroundColor: hoveredFieldId === field.id
-                          ? `${fieldColor}15`
-                          : selectedField === field.id
-                            ? undefined
-                            : undefined
+                          ? `${fieldColor}20`
+                          : isDarkMode
+                            ? '#1e293b08'
+                            : '#f8fafc'
                       }}
                       onMouseEnter={() => onFieldHover(field.id)}
                       onMouseLeave={() => onFieldHover(null)}
                       onClick={() => setSelectedField(field.id)}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                           {/* Color Square Indicator */}
                           <div
-                            className="w-3 h-3 rounded-sm mt-1.5 flex-shrink-0 border"
+                            className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                             style={{
                               backgroundColor: fieldColor,
-                              borderColor: fieldColor
+                              boxShadow: hoveredFieldId === field.id ? `0 0 8px ${fieldColor}` : 'none'
                             }}
                           />
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                              {formatFieldName(field.name)}
-                            </span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${
-                              isDarkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-600'
-                            }`}>
-                              #{index + 1}
-                            </span>
-                          </div>
-
-                          <div className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                            {String(field.value || '')}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                {formatFieldName(field.name)}
+                              </span>
+                              <span className={`text-[10px] px-1 py-0.5 rounded ${
+                                isDarkMode ? 'bg-slate-700/50 text-slate-400' : 'bg-slate-200/70 text-slate-600'
+                              }`}>
+                                #{index + 1}
+                              </span>
+                            </div>
+                            <div className={`text-[11px] truncate mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {String(field.value || '')}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Confidence Percentage */}
-                      <div className={`text-xs font-medium ${getConfidenceColor(field.confidence)}`}>
-                        {(field.confidence * 100).toFixed(2)}%
+                        {/* Confidence Percentage */}
+                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getConfidenceColor(field.confidence)}`}>
+                          {(field.confidence * 100).toFixed(0)}%
+                        </div>
                       </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>

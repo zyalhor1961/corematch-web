@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { PDFViewerWithAnnotations } from './PDFViewerWithAnnotations';
 import { ExtractionDataView } from './ExtractionDataView';
+import { AzureStyledExtractionView } from './AzureStyledExtractionView';
 import { WorkflowBuilder } from './WorkflowBuilder';
 import { AuditTrailViewer } from './AuditTrailViewer';
 import { DocumentQueue } from './DocumentQueue';
@@ -93,6 +94,8 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [azureData, setAzureData] = useState<any>(null);
+  const [isAnalyzingAzure, setIsAnalyzingAzure] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load documents from DEB batches
@@ -210,6 +213,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
   const handleDocumentSelect = useCallback((doc: IDPDocument) => {
     setSelectedDocument(doc);
     setViewMode('viewer');
+    setAzureData(null); // Reset Azure data when selecting new document
 
     // Log audit entry
     const logEntry: AuditLogEntry = {
@@ -223,6 +227,50 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
     };
     setAuditLog(prev => [logEntry, ...prev]);
   }, []);
+
+  // Handle Azure analysis
+  const handleAzureAnalysis = useCallback(async () => {
+    if (!selectedDocument?.pdfUrl) return;
+
+    setIsAnalyzingAzure(true);
+
+    try {
+      const response = await fetch('/api/idp/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentUrl: selectedDocument.pdfUrl,
+          documentId: selectedDocument.id,
+          filename: selectedDocument.filename,
+          autoDetect: true
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Analysis failed');
+      }
+
+      const result = await response.json();
+      setAzureData(result.data);
+
+      // Log audit entry
+      const logEntry: AuditLogEntry = {
+        id: `${Date.now()}`,
+        timestamp: new Date(),
+        userId: 'current-user-id',
+        userName: 'Current User',
+        action: 'document_analyzed',
+        documentId: selectedDocument.id,
+        details: { model: result.data.modelId, confidence: result.data.confidence }
+      };
+      setAuditLog(prev => [logEntry, ...prev]);
+    } catch (error: any) {
+      console.error('Azure analysis error:', error);
+      setUploadError(error.message || 'Analysis failed');
+    } finally {
+      setIsAnalyzingAzure(false);
+    }
+  }, [selectedDocument]);
 
   // Handle data extraction updates
   const handleDataUpdate = useCallback((documentId: string, newData: any) => {
@@ -462,22 +510,27 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
         )}
 
         {viewMode === 'viewer' && selectedDocument && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* PDF Viewer with Annotations */}
-            <PDFViewerWithAnnotations
-              pdfUrl={selectedDocument.pdfUrl || ''}
-              documentId={selectedDocument.id}
-              annotations={selectedDocument.annotations || []}
-              isDarkMode={isDarkMode}
-            />
+          <div className={`flex gap-6 h-[calc(100vh-250px)] ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+            {/* PDF Viewer - 60% width */}
+            <div className="w-[60%] flex-shrink-0">
+              <PDFViewerWithAnnotations
+                pdfUrl={selectedDocument.pdfUrl || ''}
+                documentId={selectedDocument.id}
+                annotations={selectedDocument.annotations || []}
+                isDarkMode={isDarkMode}
+              />
+            </div>
 
-            {/* Extraction Data View */}
-            <ExtractionDataView
-              document={selectedDocument}
-              onDataUpdate={(newData) => handleDataUpdate(selectedDocument.id, newData)}
-              onStatusChange={(newStatus) => handleStatusChange(selectedDocument.id, newStatus)}
-              isDarkMode={isDarkMode}
-            />
+            {/* Azure-Styled Extraction View - 40% width */}
+            <div className="w-[40%] flex-shrink-0">
+              <AzureStyledExtractionView
+                document={selectedDocument}
+                azureData={azureData}
+                isDarkMode={isDarkMode}
+                onAnalyze={handleAzureAnalysis}
+                isAnalyzing={isAnalyzingAzure}
+              />
+            </div>
           </div>
         )}
 

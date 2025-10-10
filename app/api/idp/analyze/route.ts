@@ -24,8 +24,10 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  let body: any = null;
+
   try {
-    const body = await request.json();
+    body = await request.json();
     const {
       documentUrl,
       documentId,
@@ -216,7 +218,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error in Azure analysis API:', error);
 
-    // Update document status to failed
+    // Update document status to failed if we have documentId
     if (body?.documentId) {
       await supabase
         .from('idp_documents')

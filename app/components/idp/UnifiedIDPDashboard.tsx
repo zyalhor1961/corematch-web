@@ -225,9 +225,13 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
 
   // Handle Azure analysis
   const handleAzureAnalysis = useCallback(async () => {
-    if (!selectedDocument?.pdfUrl) return;
+    if (!selectedDocument?.pdfUrl) {
+      setUploadError('No document URL available. Please upload a document first.');
+      return;
+    }
 
     setIsAnalyzingAzure(true);
+    setUploadError(null);
 
     try {
       const response = await fetch('/api/idp/analyze', {
@@ -236,6 +240,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
         body: JSON.stringify({
           documentUrl: selectedDocument.pdfUrl,
           documentId: selectedDocument.id,
+          orgId: orgId,
           filename: selectedDocument.filename,
           autoDetect: true
         })
@@ -265,7 +270,7 @@ export const UnifiedIDPDashboard: React.FC<UnifiedIDPDashboardProps> = ({
     } finally {
       setIsAnalyzingAzure(false);
     }
-  }, [selectedDocument]);
+  }, [selectedDocument, orgId]);
 
   // Prepare bounding boxes from Azure data
   const boundingBoxes = React.useMemo(() => {

@@ -27,7 +27,11 @@ import {
   TrendingUp,
   Info,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  Table,
+  FileText,
+  List
 } from 'lucide-react';
 import { IDPDocument } from './UnifiedIDPDashboard';
 
@@ -117,6 +121,9 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isAnalyzingAzure, setIsAnalyzingAzure] = useState(false);
   const [azureError, setAzureError] = useState<string | null>(null);
+  const [azureData, setAzureData] = useState<any>(null);
+  const [showExtractedData, setShowExtractedData] = useState(false);
+  const [extractedDataTab, setExtractedDataTab] = useState<'text' | 'tables' | 'fields'>('fields');
 
   // Validate field value
   const validateField = useCallback((field: ExtractedField): { valid: boolean; error?: string } => {
@@ -238,12 +245,15 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
       }
 
       const result = await response.json();
-      const azureData = result.data;
+      const azureAnalysisData = result.data;
 
-      console.log('Azure analysis complete:', azureData);
+      console.log('Azure analysis complete:', azureAnalysisData);
+
+      // Store the raw Azure data for display
+      setAzureData(azureAnalysisData);
 
       // Convert Azure fields to our ExtractedField format
-      const newFields: ExtractedField[] = azureData.fields.map((field: any, index: number) => ({
+      const newFields: ExtractedField[] = azureAnalysisData.fields.map((field: any, index: number) => ({
         id: `azure-${index + 1}`,
         label: field.name.replace(/([A-Z])/g, ' $1').trim().replace(/^./, str => str.toUpperCase()),
         value: String(field.value || ''),
@@ -254,7 +264,7 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
       }));
 
       // Add key-value pairs as additional fields
-      azureData.keyValuePairs?.forEach((pair: any, index: number) => {
+      azureAnalysisData.keyValuePairs?.forEach((pair: any, index: number) => {
         newFields.push({
           id: `azure-kv-${index + 1}`,
           label: pair.key,
@@ -270,14 +280,14 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
       setFields(newFields.length > 0 ? newFields : fields);
 
       // Update document status to review if confidence is low
-      if (azureData.confidence < 0.80) {
+      if (azureAnalysisData.confidence < 0.80) {
         onStatusChange('review');
       }
 
       // Save the extracted data
       onDataUpdate({
         fields: newFields,
-        azureAnalysis: azureData,
+        azureAnalysis: azureAnalysisData,
         analyzedAt: new Date()
       });
 
@@ -447,6 +457,21 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
               </>
             )}
           </button>
+
+          {azureData && (
+            <button
+              onClick={() => setShowExtractedData(!showExtractedData)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+                isDarkMode
+                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+              title="View raw extracted data"
+            >
+              <Eye className="w-4 h-4" />
+              {showExtractedData ? 'Hide' : 'Show'} Extracted Data
+            </button>
+          )}
 
           <button
             onClick={handleAICorrection}
@@ -688,6 +713,217 @@ export const ExtractionDataView: React.FC<ExtractionDataViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Extracted Data Modal */}
+      {showExtractedData && azureData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-6xl max-h-[90vh] rounded-2xl ${isDarkMode ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-slate-200'} shadow-2xl overflow-hidden flex flex-col`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+              <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                Azure Extracted Data
+              </h2>
+              <button
+                onClick={() => setShowExtractedData(false)}
+                className={`p-2 rounded-xl transition-all ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className={`flex items-center gap-2 p-4 border-b ${isDarkMode ? 'border-slate-800 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
+              <button
+                onClick={() => setExtractedDataTab('fields')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+                  extractedDataTab === 'fields'
+                    ? isDarkMode
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-600 text-white'
+                    : isDarkMode
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                Fields ({azureData.fields?.length || 0})
+              </button>
+              <button
+                onClick={() => setExtractedDataTab('text')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+                  extractedDataTab === 'text'
+                    ? isDarkMode
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-600 text-white'
+                    : isDarkMode
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Text ({azureData.pages?.length || 0} pages)
+              </button>
+              <button
+                onClick={() => setExtractedDataTab('tables')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+                  extractedDataTab === 'tables'
+                    ? isDarkMode
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-600 text-white'
+                    : isDarkMode
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Table className="w-4 h-4" />
+                Tables ({azureData.tables?.length || 0})
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {extractedDataTab === 'fields' && (
+                <div className="space-y-3">
+                  <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    Extracted Fields
+                  </h3>
+                  {azureData.fields?.map((field: any, index: number) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                              {field.name}
+                            </h4>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              field.confidence >= 0.95 ? 'bg-green-100 text-green-700' :
+                              field.confidence >= 0.80 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {Math.round(field.confidence * 100)}%
+                            </span>
+                          </div>
+                          <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            <span className={isDarkMode ? 'text-slate-500' : 'text-slate-500'}>Value: </span>
+                            <span className="font-mono">{String(field.value)}</span>
+                          </p>
+                          <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                            Type: {field.type}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {azureData.keyValuePairs && azureData.keyValuePairs.length > 0 && (
+                    <>
+                      <h3 className={`text-lg font-bold mt-6 mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                        Key-Value Pairs
+                      </h3>
+                      {azureData.keyValuePairs.map((pair: any, index: number) => (
+                        <div
+                          key={index}
+                          className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                              {pair.key}
+                            </h4>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              pair.confidence >= 0.95 ? 'bg-green-100 text-green-700' :
+                              pair.confidence >= 0.80 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {Math.round(pair.confidence * 100)}%
+                            </span>
+                          </div>
+                          <p className={`text-sm font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {pair.value}
+                          </p>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {extractedDataTab === 'text' && (
+                <div className="space-y-6">
+                  {azureData.pages?.map((page: any, pageIndex: number) => (
+                    <div
+                      key={pageIndex}
+                      className={`p-6 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    >
+                      <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                        Page {page.pageNumber}
+                      </h3>
+                      <div className={`space-y-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {page.lines?.map((line: any, lineIndex: number) => (
+                          <p key={lineIndex} className="text-sm font-mono leading-relaxed">
+                            {line.content}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {extractedDataTab === 'tables' && (
+                <div className="space-y-6">
+                  {azureData.tables && azureData.tables.length > 0 ? (
+                    azureData.tables.map((table: any, tableIndex: number) => (
+                      <div
+                        key={tableIndex}
+                        className={`p-6 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      >
+                        <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                          Table {tableIndex + 1} ({table.rowCount} rows × {table.columnCount} columns)
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className={`w-full border-collapse ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                            <tbody>
+                              {Array.from({ length: table.rowCount }).map((_, rowIndex) => (
+                                <tr key={rowIndex}>
+                                  {Array.from({ length: table.columnCount }).map((_, colIndex) => {
+                                    const cell = table.cells.find(
+                                      (c: any) => c.rowIndex === rowIndex && c.columnIndex === colIndex
+                                    );
+                                    return (
+                                      <td
+                                        key={colIndex}
+                                        className={`border px-3 py-2 text-sm ${
+                                          isDarkMode
+                                            ? 'border-slate-700 text-slate-300'
+                                            : 'border-slate-200 text-slate-700'
+                                        }`}
+                                      >
+                                        {cell ? cell.content : ''}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <Table className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`} />
+                      <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>No tables found in this document</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

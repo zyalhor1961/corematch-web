@@ -83,7 +83,9 @@
       "WebFetch(domain:supabase.com)",
       "Bash(psql:*)",
       "Bash(git log:*)",
-      "Bash(npx netlify:*)"
+      "Bash(npx netlify:*)",
+      "Bash(npx supabase db remote:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

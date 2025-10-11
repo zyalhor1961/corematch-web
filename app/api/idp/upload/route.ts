@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Use Node.js runtime for better FormData support
+export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**

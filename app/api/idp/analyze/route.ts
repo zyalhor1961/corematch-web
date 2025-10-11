@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       value_text: field.value?.toString() || null,
       value_number: typeof field.value === 'number' ? field.value : parseFloat(field.value) || null,
       confidence: field.confidence,
-      page_number: 1, // TODO: Extract from field if available
+      page_number: field.pageNumber || 1, // Use extracted page number from Azure
       bounding_box: field.boundingBox ? { polygon: field.boundingBox } : null,
       extraction_method: 'azure'
     }));

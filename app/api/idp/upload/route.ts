@@ -40,13 +40,17 @@ export async function POST(request: NextRequest) {
     const filename = `${timestamp}_${sanitizedName}`;
     const storagePath = `${orgId}/${filename}`;
 
+    // Convert File to Buffer for Supabase storage
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
     // Upload to Supabase Storage
     console.log('📦 Uploading to storage:', storagePath);
 
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('idp-documents')
-      .upload(storagePath, file, {
+      .upload(storagePath, buffer, {
         contentType: file.type,
         cacheControl: '3600'
       });

@@ -65,8 +65,25 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ File uploaded to storage');
 
-    // Get public URL
-    const { data: urlData } = supabase
+    // Get signed URL (valid for 1 hour) - required for Azure Document Intelligence
+    console.log('🔗 Creating signed URL for Azure access...');
+    const { data: urlData, error: urlError } = await supabase
+      .storage
+      .from('idp-documents')
+      .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+    if (urlError || !urlData) {
+      console.error('❌ Failed to create signed URL:', urlError);
+      return NextResponse.json(
+        { error: 'Failed to create signed URL', details: urlError?.message },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Signed URL created');
+
+    // Also get public URL for display
+    const { data: publicUrlData } = supabase
       .storage
       .from('idp-documents')
       .getPublicUrl(storagePath);
@@ -85,7 +102,7 @@ export async function POST(request: NextRequest) {
         document_type: documentType,
         storage_bucket: 'idp-documents',
         storage_path: storagePath,
-        storage_url: urlData.publicUrl,
+        storage_url: publicUrlData.publicUrl,
         status: 'uploaded',
         created_by: userId || null
       })
@@ -118,12 +135,13 @@ export async function POST(request: NextRequest) {
         }
       });
 
-    // Trigger Azure analysis
+    // Trigger Azure analysis with signed URL
+    console.log('🔍 Triggering Azure analysis...');
     const analyzeResponse = await fetch(`${request.nextUrl.origin}/api/idp/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        documentUrl: urlData.publicUrl,
+        documentUrl: urlData.signedUrl, // Use signed URL for Azure access
         documentId: document.id,
         orgId: orgId,
         filename: file.name,

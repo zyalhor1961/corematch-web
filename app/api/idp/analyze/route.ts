@@ -73,9 +73,9 @@ function extractFieldData(fields: any[]) {
 
   for (const field of fields) {
     const fieldName = field.name.toLowerCase();
-    const fieldValue = field.value?.toString() || '';
+    const fieldValue = field.value;
 
-    // Amount fields - Azure Invoice model uses "InvoiceTotal", "AmountDue"
+    // Amount fields - Azure returns complex objects like { amount: 92.29, currencyCode: 'EUR' }
     if (fieldName === 'invoicetotal' ||
         fieldName === 'amountdue' ||
         fieldName.includes('total') ||
@@ -83,52 +83,87 @@ function extractFieldData(fields: any[]) {
         fieldName.includes('total à payer') ||
         fieldName.includes('montant total') ||
         fieldName.includes('totalpayer')) {
-      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-      if (!isNaN(parsed) && !totalAmount) {
+
+      let parsed: number | null = null;
+
+      // Handle complex object (Azure Invoice model)
+      if (typeof fieldValue === 'object' && fieldValue !== null && 'amount' in fieldValue) {
+        parsed = fieldValue.amount;
+        // Also extract currency
+        if ('currencyCode' in fieldValue && fieldValue.currencyCode) {
+          currencyCode = fieldValue.currencyCode;
+        }
+      }
+      // Handle string/number
+      else {
+        const strValue = fieldValue?.toString() || '';
+        parsed = parseFloat(strValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+
+        // Try to extract currency from string
+        if (strValue.includes('€') || strValue.includes('EUR')) {
+          currencyCode = 'EUR';
+        } else if (strValue.includes('$') || strValue.includes('USD')) {
+          currencyCode = 'USD';
+        } else if (strValue.includes('£') || strValue.includes('GBP')) {
+          currencyCode = 'GBP';
+        }
+      }
+
+      if (parsed && !isNaN(parsed) && !totalAmount) {
         totalAmount = parsed;
-        console.log(`DEBUG: Found total amount: ${totalAmount} from field "${field.name}"`);
+        console.log(`DEBUG: Found total amount: ${totalAmount} ${currencyCode || ''} from field "${field.name}"`);
       }
     }
 
-    // Tax/VAT fields - Azure uses "TotalTax"
+    // Tax/VAT fields - also complex objects
     if (fieldName === 'totaltax' ||
         fieldName === 'taxamount' ||
         fieldName.includes('tax') ||
         fieldName.includes('vat') ||
         fieldName.includes('tva') ||
         fieldName.includes('montant tva')) {
-      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-      if (!isNaN(parsed) && !taxAmount) {
+
+      let parsed: number | null = null;
+
+      if (typeof fieldValue === 'object' && fieldValue !== null && 'amount' in fieldValue) {
+        parsed = fieldValue.amount;
+      } else {
+        const strValue = fieldValue?.toString() || '';
+        parsed = parseFloat(strValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      }
+
+      if (parsed && !isNaN(parsed) && !taxAmount) {
         taxAmount = parsed;
       }
     }
 
-    // Net/Subtotal fields - Azure uses "SubTotal"
+    // Net/Subtotal fields - also complex objects
     if (fieldName === 'subtotal' ||
         fieldName.includes('net') ||
         fieldName.includes('montant ht') ||
         fieldName.includes('total ht')) {
-      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-      if (!isNaN(parsed) && !netAmount) {
+
+      let parsed: number | null = null;
+
+      if (typeof fieldValue === 'object' && fieldValue !== null && 'amount' in fieldValue) {
+        parsed = fieldValue.amount;
+      } else {
+        const strValue = fieldValue?.toString() || '';
+        parsed = parseFloat(strValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      }
+
+      if (parsed && !isNaN(parsed) && !netAmount) {
         netAmount = parsed;
       }
     }
 
-    // Currency - try to extract from amount fields
-    if (fieldValue.includes('€') || fieldValue.includes('EUR')) {
-      currencyCode = 'EUR';
-    } else if (fieldValue.includes('$') || fieldValue.includes('USD')) {
-      currencyCode = 'USD';
-    } else if (fieldValue.includes('£') || fieldValue.includes('GBP')) {
-      currencyCode = 'GBP';
-    }
-
-    // Dates - Azure uses "InvoiceDate", "DueDate"
+    // Dates - Azure returns date strings
     if (fieldName === 'invoicedate' ||
         fieldName.includes('date de la facture') ||
         fieldName.includes('date facture') ||
         (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
-      const parsed = parseFrenchDate(fieldValue);
+      const strValue = fieldValue?.toString() || '';
+      const parsed = parseFrenchDate(strValue);
       if (parsed && !documentDate) {
         documentDate = parsed;
         console.log(`DEBUG: Found document date: ${documentDate} from field "${field.name}"`);
@@ -138,35 +173,44 @@ function extractFieldData(fields: any[]) {
         fieldName === 'paymentdate' ||
         fieldName.includes('date échéance') ||
         fieldName.includes('date paiement')) {
-      const parsed = parseFrenchDate(fieldValue);
+      const strValue = fieldValue?.toString() || '';
+      const parsed = parseFrenchDate(strValue);
       if (parsed && !dueDate) {
         dueDate = parsed;
       }
     }
 
-    // Vendor - Azure uses "VendorName"
-    if (fieldName === 'vendorname' ||
-        fieldName.includes('vendor') ||
+    // Vendor - Azure uses "VendorName" (NOT VendorTaxId!)
+    if (fieldName === 'vendorname') {
+      const strValue = fieldValue?.toString() || '';
+      if (!vendorName && strValue.length > 0) {
+        vendorName = strValue;
+        console.log(`DEBUG: Found vendor: ${vendorName} from field "${field.name}"`);
+      }
+    }
+    // Fallback to other vendor fields only if VendorName not found
+    else if (!vendorName && (
         fieldName.includes('supplier') ||
         fieldName.includes('merchantname') ||
         fieldName.includes('vendu par') ||
         fieldName.includes('fournisseur') ||
-        fieldName.includes('vendeur')) {
-      if (!vendorName && fieldValue.length > 0) {
-        vendorName = fieldValue;
-        console.log(`DEBUG: Found vendor: ${vendorName} from field "${field.name}"`);
+        fieldName.includes('vendeur'))) {
+      const strValue = fieldValue?.toString() || '';
+      if (strValue.length > 0) {
+        vendorName = strValue;
       }
     }
 
-    // VAT/Tax ID - Azure uses "VendorTaxId" or "VendorAddress/TaxId"
+    // VAT/Tax ID - Azure uses "VendorTaxId"
     if (fieldName === 'vendortaxid' ||
         fieldName.includes('vendorvat') ||
         fieldName.includes('vendortax') ||
         fieldName.includes('vendoraddresstaxid') ||
         fieldName.includes('tva') ||
         fieldName.includes('numéro tva')) {
-      if (!vendorVat && fieldValue.length > 0) {
-        vendorVat = fieldValue;
+      const strValue = fieldValue?.toString() || '';
+      if (!vendorVat && strValue.length > 0) {
+        vendorVat = strValue;
       }
     }
 
@@ -176,19 +220,22 @@ function extractFieldData(fields: any[]) {
         fieldName.includes('numéro de la facture') ||
         fieldName.includes('numéro facture') ||
         fieldName.includes('n° facture')) {
-      if (!invoiceNumber && fieldValue.length > 0) {
-        invoiceNumber = fieldValue;
+      const strValue = fieldValue?.toString() || '';
+      if (!invoiceNumber && strValue.length > 0) {
+        invoiceNumber = strValue;
         console.log(`DEBUG: Found invoice number: ${invoiceNumber} from field "${field.name}"`);
       }
     }
 
-    // Customer (English + French)
-    if (fieldName.includes('customer') ||
+    // Customer - Azure uses "CustomerName"
+    if (fieldName === 'customername' ||
+        fieldName.includes('customer') ||
         fieldName.includes('billto') ||
         fieldName.includes('client') ||
         fieldName.includes('destinataire')) {
-      if (!customerName && fieldValue.length > 0) {
-        customerName = fieldValue;
+      const strValue = fieldValue?.toString() || '';
+      if (!customerName && strValue.length > 0) {
+        customerName = strValue;
       }
     }
   }

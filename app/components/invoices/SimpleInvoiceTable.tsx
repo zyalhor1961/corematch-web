@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle, Info } from 'lucide-react';
 import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
 
 interface SimpleInvoice {
@@ -50,6 +50,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState(AVAILABLE_COLUMNS);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDebugModal, setShowDebugModal] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load invoices
@@ -219,6 +221,26 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     } catch (error) {
       console.error('Error deleting document:', error);
       alert('Error deleting document');
+    }
+  };
+
+  // Show debug info
+  const showDebugInfo = async (documentId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    try {
+      const response = await fetch(`/api/idp/documents/${documentId}/debug`);
+      const data = await response.json();
+
+      if (data.success) {
+        setDebugInfo(data);
+        setShowDebugModal(true);
+      } else {
+        alert('Failed to load debug info');
+      }
+    } catch (error) {
+      console.error('Error loading debug info:', error);
+      alert('Error loading debug info');
     }
   };
 
@@ -552,13 +574,22 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                           )}
                         </div>
                         {(invoice.status === 'processing' || invoice.status === 'failed') && (
-                          <button
-                            onClick={(e) => deleteDocument(invoice.id, e)}
-                            className="ml-2 p-1 hover:bg-red-100 rounded transition-colors"
-                            title="Delete this document"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => showDebugInfo(invoice.id, e)}
+                              className="p-1 hover:bg-blue-100 rounded transition-colors"
+                              title="Show debug info"
+                            >
+                              <Info className="w-4 h-4 text-blue-500" />
+                            </button>
+                            <button
+                              onClick={(e) => deleteDocument(invoice.id, e)}
+                              className="p-1 hover:bg-red-100 rounded transition-colors"
+                              title="Delete this document"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -683,6 +714,135 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           </div>
         </div>
       </div>
+
+      {/* Debug Modal */}
+      {showDebugModal && debugInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={() => setShowDebugModal(false)}
+        >
+          <div
+            className="relative w-[90vw] max-w-4xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 bg-slate-800 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Debug Information</h3>
+                <button
+                  onClick={() => setShowDebugModal(false)}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Diagnostics */}
+              <div className="mb-6">
+                <h4 className="text-md font-bold text-slate-900 mb-3">Diagnostics</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Status</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.status}</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Time Since Upload</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.time_since_upload}</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Extracted Fields</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.document.extracted_fields_count}</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Has Invoice Number</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_invoice_number ? '✅ Yes' : '❌ No'}</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Has Vendor</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_vendor_name ? '✅ Yes' : '❌ No'}</div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="text-xs text-slate-600">Has Amount</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_total_amount ? '✅ Yes' : '❌ No'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Processing Notes */}
+              <div className="mb-6">
+                <h4 className="text-md font-bold text-slate-900 mb-3">Processing Notes</h4>
+                <div className="p-4 bg-red-50 border border-red-200 rounded">
+                  <pre className="text-sm text-slate-900 whitespace-pre-wrap font-mono">
+                    {debugInfo.diagnostics.processing_notes || 'No processing notes available'}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Sample Fields */}
+              {debugInfo.sample_fields && debugInfo.sample_fields.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-bold text-slate-900 mb-3">Sample Extracted Fields</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-bold text-slate-700">Field Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-bold text-slate-700">Value</th>
+                          <th className="px-3 py-2 text-left text-xs font-bold text-slate-700">Confidence</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {debugInfo.sample_fields.map((field: any, index: number) => (
+                          <tr key={index} className="hover:bg-slate-50">
+                            <td className="px-3 py-2 text-slate-900">{field.field_name}</td>
+                            <td className="px-3 py-2 text-slate-900">{field.value_text}</td>
+                            <td className="px-3 py-2 text-slate-900">{(field.confidence * 100).toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Audit Log */}
+              {debugInfo.audit_log && debugInfo.audit_log.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-bold text-slate-900 mb-3">Audit Log</h4>
+                  <div className="space-y-2">
+                    {debugInfo.audit_log.map((log: any, index: number) => (
+                      <div key={index} className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-slate-900">{log.action}</span>
+                          <span className="text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</span>
+                        </div>
+                        {log.metadata && (
+                          <pre className="text-xs text-slate-600 whitespace-pre-wrap">
+                            {JSON.stringify(log.metadata, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Raw Document Data */}
+              <div className="mb-6">
+                <h4 className="text-md font-bold text-slate-900 mb-3">Raw Document Data</h4>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded overflow-x-auto">
+                  <pre className="text-xs text-slate-900 whitespace-pre-wrap font-mono">
+                    {JSON.stringify(debugInfo.document, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Enhanced PDF Viewer Modal */}
       {selectedDocumentId && pdfUrl && (

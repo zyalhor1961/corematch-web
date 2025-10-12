@@ -14,7 +14,8 @@ interface SimpleInvoice {
   shipping_charge?: number;
   total_with_charges?: number;
   currency_code?: string;
-  status: 'processing' | 'completed' | 'warning' | 'failed';
+  // Valid database statuses: uploaded, queued, processing, processed, needs_validation, validated, approved, exported, archived, failed, rejected
+  status: 'uploaded' | 'queued' | 'processing' | 'processed' | 'needs_validation' | 'validated' | 'approved' | 'exported' | 'archived' | 'failed' | 'rejected';
   vat_control_status?: 'passed' | 'warning' | 'failed' | 'pending';
   created_at: string;
   processing_notes?: string;
@@ -152,14 +153,21 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   // Get status icon
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
+      case 'processed':
+      case 'validated':
+      case 'approved':
+      case 'exported':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'warning':
+      case 'needs_validation':
         return <AlertCircle className="w-5 h-5 text-yellow-500" />;
       case 'failed':
+      case 'rejected':
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'processing':
+      case 'queued':
         return <Clock className="w-5 h-5 text-blue-500 animate-spin" />;
+      case 'uploaded':
+      case 'archived':
       default:
         return <Clock className="w-5 h-5 text-gray-500" />;
     }
@@ -745,7 +753,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
               <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
-                {invoices.filter(i => i.status === 'completed').length} Completed
+                {invoices.filter(i => ['processed', 'validated', 'approved', 'exported'].includes(i.status)).length} Completed
               </span>
             </div>
             <div className="flex items-center gap-2">

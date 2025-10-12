@@ -218,7 +218,7 @@ export async function POST(
 
     // Update document with remapped data
     const updateData = {
-      status: 'completed',
+      status: 'processed',
       total_amount: totalAmount,
       tax_amount: taxAmount,
       net_amount: netAmount,

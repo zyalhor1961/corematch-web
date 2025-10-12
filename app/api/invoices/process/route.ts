@@ -249,12 +249,12 @@ export async function POST(request: NextRequest) {
     // ============================================
     console.log('💾 Step 6: Saving to invoice table');
 
-    // Calculate overall status
-    let overallStatus = 'completed';
+    // Calculate overall status (must match database CHECK constraint)
+    let overallStatus = 'processed'; // Valid statuses: uploaded, queued, processing, processed, needs_validation, validated, approved, exported, archived, failed, rejected
     if (controlsStatus === 'failed' || enrichmentStatus === 'failed') {
       overallStatus = 'failed';
     } else if (controlsStatus === 'warning') {
-      overallStatus = 'warning';
+      overallStatus = 'needs_validation'; // Warning means it needs human review
     }
 
     // Update document with final status

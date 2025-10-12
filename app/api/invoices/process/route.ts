@@ -122,7 +122,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (!analyzeResponse.ok) {
-      throw new Error('Azure analysis failed');
+      const errorText = await analyzeResponse.text();
+      console.error('❌ Azure analysis failed:', errorText);
+      throw new Error(`Azure analysis failed: ${analyzeResponse.status} - ${errorText.substring(0, 200)}`);
     }
 
     const analyzeResult = await analyzeResponse.json();
@@ -204,6 +206,10 @@ export async function POST(request: NextRequest) {
         enrichmentResult = await enrichResponse.json();
         enrichmentStatus = 'completed';
         console.log('✅ Step 4 complete: Enriched', enrichmentResult.suggestions?.length || 0, 'items');
+      } else {
+        const errorText = await enrichResponse.text();
+        console.error('❌ HS enrichment failed:', errorText);
+        enrichmentStatus = 'failed';
       }
     } else {
       console.log('⚠️  Step 4 skipped: No line items found');

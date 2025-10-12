@@ -62,6 +62,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Enrich with item descriptions
+    if (data && data.length > 0) {
+      const documentIds = data.map((doc: any) => doc.id);
+
+      // Fetch item descriptions from extracted fields
+      const { data: fieldsData } = await supabase
+        .from('idp_extracted_fields')
+        .select('document_id, value_text')
+        .in('document_id', documentIds)
+        .ilike('field_name', '%item%description%')
+        .limit(1000);
+
+      // Group by document
+      const itemsByDoc: Record<string, string[]> = {};
+      if (fieldsData) {
+        fieldsData.forEach((field: any) => {
+          if (!itemsByDoc[field.document_id]) {
+            itemsByDoc[field.document_id] = [];
+          }
+          if (field.value_text && field.value_text.trim()) {
+            itemsByDoc[field.document_id].push(field.value_text.trim());
+          }
+        });
+      }
+
+      // Add to documents
+      data.forEach((doc: any) => {
+        const items = itemsByDoc[doc.id] || [];
+        doc.item_descriptions = items.length > 0 ? items.join(', ') : '';
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data,

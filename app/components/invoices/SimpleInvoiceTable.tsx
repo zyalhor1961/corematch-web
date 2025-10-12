@@ -17,6 +17,9 @@ interface SimpleInvoice {
   vat_control_status?: 'passed' | 'warning' | 'failed' | 'pending';
   created_at: string;
   processing_notes?: string;
+  item_descriptions?: string;
+  storage_path?: string;
+  page_count?: number;
 }
 
 interface SimpleInvoiceTableProps {
@@ -29,6 +32,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load invoices
@@ -53,7 +58,10 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           status: doc.status,
           vat_control_status: doc.vat_control_status,
           created_at: doc.created_at,
-          processing_notes: doc.processing_notes
+          processing_notes: doc.processing_notes,
+          item_descriptions: doc.item_descriptions || '',
+          storage_path: doc.storage_path,
+          page_count: doc.page_count || 1
         }));
 
         setInvoices(mapped);
@@ -154,6 +162,26 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     );
   };
 
+  // Open PDF viewer
+  const viewPdf = async (storagePath: string) => {
+    try {
+      const response = await fetch(`/api/idp/documents/view-pdf?path=${encodeURIComponent(storagePath)}`);
+      const data = await response.json();
+      if (data.url) {
+        setPdfUrl(data.url);
+        setSelectedPdf(storagePath);
+      }
+    } catch (error) {
+      console.error('Error loading PDF:', error);
+    }
+  };
+
+  // Close PDF viewer
+  const closePdfViewer = () => {
+    setSelectedPdf(null);
+    setPdfUrl(null);
+  };
+
   return (
     <div className={`${isDarkMode ? 'bg-slate-900' : 'bg-white'} rounded-xl shadow-lg`}>
       {/* Header */}
@@ -230,6 +258,9 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                 Vendor
               </th>
               <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                Items
+              </th>
+              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 Date
               </th>
               <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
@@ -249,14 +280,14 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           <tbody className={isDarkMode ? 'divide-slate-700' : 'divide-gray-200'}>
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center">
+                <td colSpan={9} className="px-6 py-12 text-center">
                   <Clock className={`w-8 h-8 mx-auto mb-2 animate-spin ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                   <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>Loading invoices...</p>
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center">
+                <td colSpan={9} className="px-6 py-12 text-center">
                   <FileText className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-slate-600' : 'text-gray-300'}`} />
                   <p className={`font-semibold ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
                     No invoices yet
@@ -270,7 +301,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               invoices.map((invoice) => (
                 <tr
                   key={invoice.id}
-                  className={`${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'} transition-colors`}
+                  onClick={() => invoice.storage_path && viewPdf(invoice.storage_path)}
+                  className={`${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'} transition-colors cursor-pointer`}
                 >
                   {/* Status */}
                   <td className="px-6 py-4">
@@ -298,6 +330,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   <td className="px-6 py-4">
                     <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       {invoice.vendor_name || '-'}
+                    </p>
+                  </td>
+
+                  {/* Items Description */}
+                  <td className="px-6 py-4">
+                    <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-600'} truncate max-w-[200px]`} title={invoice.item_descriptions}>
+                      {invoice.item_descriptions || '-'}
                     </p>
                   </td>
 
@@ -378,6 +417,39 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           </div>
         </div>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {selectedPdf && pdfUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={closePdfViewer}
+        >
+          <div
+            className="relative w-[90vw] h-[90vh] bg-white rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Invoice PDF</h3>
+              <button
+                onClick={closePdfViewer}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-gray-600" />
+              </button>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="w-full h-[calc(100%-4rem)] overflow-auto">
+              <iframe
+                src={pdfUrl}
+                className="w-full h-full"
+                title="Invoice PDF"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

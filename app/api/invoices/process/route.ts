@@ -192,11 +192,27 @@ export async function POST(request: NextRequest) {
         console.log(`✅ Analyzed invoice ${invoiceNum}: Extracted ${analyzeResult.data?.fields?.length || 0} fields`);
 
         // Get extracted data
-        const { data: docData } = await supabase
+        const { data: docData, error: fetchError } = await supabase
           .from('idp_documents')
           .select('*')
           .eq('id', documentId)
           .single();
+
+        if (fetchError) {
+          console.error(`❌ Failed to fetch document data for invoice ${invoiceNum}:`, fetchError);
+        }
+
+        // Log what we got from database
+        console.log(`📊 Invoice ${invoiceNum} Data:`, {
+          invoiceNumber: docData?.invoice_number,
+          vendor: docData?.vendor_name,
+          totalAmount: docData?.total_amount,
+          taxAmount: docData?.tax_amount,
+          netAmount: docData?.net_amount,
+          currency: docData?.currency_code,
+          date: docData?.document_date,
+          status: docData?.status
+        });
 
         // Add to processed invoices list
         processedInvoices.push({

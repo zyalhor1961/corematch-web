@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle, Info, Wrench } from 'lucide-react';
 import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
 
 interface SimpleInvoice {
@@ -244,6 +244,33 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     }
   };
 
+  // Remap/fix stuck document
+  const remapDocument = async (documentId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    if (!confirm('Fix this document by remapping its extracted fields?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/idp/documents/${documentId}/remap`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Document fixed successfully!\n\nInvoice: ${data.mapped.invoiceNumber}\nVendor: ${data.mapped.vendorName}\nAmount: ${data.mapped.totalAmount} ${data.mapped.currencyCode}`);
+        await loadInvoices();
+      } else {
+        alert(`Failed to fix document: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error remapping document:', error);
+      alert('Error fixing document');
+    }
+  };
+
   // Toggle column visibility
   const toggleColumn = (columnKey: string) => {
     setVisibleColumns(prev => ({
@@ -471,7 +498,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               <p className="font-semibold">Documents stuck in processing</p>
               <p className="text-xs mt-1">
                 {invoices.filter(inv => inv.status === 'processing').length} document(s) are stuck in processing status.
-                Hover over the status to see error details, or click the trash icon to delete and re-upload.
+                Click the <span className="inline-flex items-center px-1 py-0.5 bg-green-200 rounded"><Wrench className="w-3 h-3 mr-0.5" />green wrench</span> to fix them automatically,
+                or the <span className="inline-flex items-center px-1 py-0.5 bg-blue-200 rounded"><Info className="w-3 h-3 mr-0.5" />blue info</span> for details.
               </p>
             </div>
           </div>
@@ -575,6 +603,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                         </div>
                         {(invoice.status === 'processing' || invoice.status === 'failed') && (
                           <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => remapDocument(invoice.id, e)}
+                              className="p-1 hover:bg-green-100 rounded transition-colors"
+                              title="Fix this document (remap fields)"
+                            >
+                              <Wrench className="w-4 h-4 text-green-600" />
+                            </button>
                             <button
                               onClick={(e) => showDebugInfo(invoice.id, e)}
                               className="p-1 hover:bg-blue-100 rounded transition-colors"

@@ -83,47 +83,109 @@ export async function POST(request: NextRequest) {
 
     for (const field of result.fields) {
       const fieldName = field.name.toLowerCase();
+      const fieldValue = field.value?.toString() || '';
 
-      // Amount fields
-      if (fieldName.includes('total') || fieldName.includes('invoicetotal') || fieldName.includes('amounttotal')) {
-        totalAmount = parseFloat(field.value) || null;
-      }
-      if (fieldName.includes('tax') || fieldName.includes('vat') || fieldName.includes('taxamount')) {
-        taxAmount = parseFloat(field.value) || null;
-      }
-      if (fieldName.includes('subtotal') || fieldName.includes('net')) {
-        netAmount = parseFloat(field.value) || null;
-      }
-
-      // Currency
-      if (fieldName.includes('currency')) {
-        currencyCode = field.value?.toString().substring(0, 3).toUpperCase() || null;
+      // Amount fields (English + French)
+      if (fieldName.includes('total') ||
+          fieldName.includes('invoicetotal') ||
+          fieldName.includes('amounttotal') ||
+          fieldName.includes('total à payer') ||
+          fieldName.includes('montant total') ||
+          fieldName.includes('totalpayer')) {
+        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+        if (!isNaN(parsed) && !totalAmount) {
+          totalAmount = parsed;
+        }
       }
 
-      // Dates
-      if (fieldName.includes('invoicedate') || fieldName.includes('date')) {
-        documentDate = field.value || null;
-      }
-      if (fieldName.includes('duedate') || fieldName.includes('paymentdate')) {
-        dueDate = field.value || null;
-      }
-
-      // Vendor/Supplier
-      if (fieldName.includes('vendor') || fieldName.includes('supplier') || fieldName.includes('merchantname')) {
-        vendorName = field.value?.toString() || null;
-      }
-      if (fieldName.includes('vendorvat') || fieldName.includes('vendortax') || fieldName.includes('vendoraddresstaxid')) {
-        vendorVat = field.value?.toString() || null;
+      // Tax/VAT fields (English + French)
+      if (fieldName.includes('tax') ||
+          fieldName.includes('vat') ||
+          fieldName.includes('taxamount') ||
+          fieldName.includes('tva') ||
+          fieldName.includes('montant tva')) {
+        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+        if (!isNaN(parsed) && !taxAmount) {
+          taxAmount = parsed;
+        }
       }
 
-      // Invoice number
-      if (fieldName.includes('invoiceid') || fieldName.includes('invoicenumber')) {
-        invoiceNumber = field.value?.toString() || null;
+      // Net/Subtotal fields (English + French)
+      if (fieldName.includes('subtotal') ||
+          fieldName.includes('net') ||
+          fieldName.includes('montant ht') ||
+          fieldName.includes('total ht')) {
+        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+        if (!isNaN(parsed) && !netAmount) {
+          netAmount = parsed;
+        }
       }
 
-      // Customer
-      if (fieldName.includes('customer') || fieldName.includes('billto')) {
-        customerName = field.value?.toString() || null;
+      // Currency - try to extract from amount fields
+      if (fieldValue.includes('€') || fieldValue.includes('EUR')) {
+        currencyCode = 'EUR';
+      } else if (fieldValue.includes('$') || fieldValue.includes('USD')) {
+        currencyCode = 'USD';
+      } else if (fieldValue.includes('£') || fieldValue.includes('GBP')) {
+        currencyCode = 'GBP';
+      }
+
+      // Dates (English + French)
+      if (fieldName.includes('invoicedate') ||
+          fieldName.includes('date de la facture') ||
+          fieldName.includes('date facture') ||
+          (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
+        documentDate = fieldValue || null;
+      }
+      if (fieldName.includes('duedate') ||
+          fieldName.includes('paymentdate') ||
+          fieldName.includes('date échéance') ||
+          fieldName.includes('date paiement')) {
+        dueDate = fieldValue || null;
+      }
+
+      // Vendor/Supplier (English + French)
+      if (fieldName.includes('vendor') ||
+          fieldName.includes('supplier') ||
+          fieldName.includes('merchantname') ||
+          fieldName.includes('vendu par') ||
+          fieldName.includes('fournisseur') ||
+          fieldName.includes('vendeur')) {
+        if (!vendorName && fieldValue.length > 0) {
+          vendorName = fieldValue;
+        }
+      }
+
+      // VAT/Tax ID (English + French)
+      if (fieldName.includes('vendorvat') ||
+          fieldName.includes('vendortax') ||
+          fieldName.includes('vendoraddresstaxid') ||
+          fieldName.includes('tva') ||
+          fieldName.includes('numéro tva')) {
+        if (!vendorVat && fieldValue.length > 0) {
+          vendorVat = fieldValue;
+        }
+      }
+
+      // Invoice number (English + French)
+      if (fieldName.includes('invoiceid') ||
+          fieldName.includes('invoicenumber') ||
+          fieldName.includes('numéro de la facture') ||
+          fieldName.includes('numéro facture') ||
+          fieldName.includes('n° facture')) {
+        if (!invoiceNumber && fieldValue.length > 0) {
+          invoiceNumber = fieldValue;
+        }
+      }
+
+      // Customer (English + French)
+      if (fieldName.includes('customer') ||
+          fieldName.includes('billto') ||
+          fieldName.includes('client') ||
+          fieldName.includes('destinataire')) {
+        if (!customerName && fieldValue.length > 0) {
+          customerName = fieldValue;
+        }
       }
     }
 

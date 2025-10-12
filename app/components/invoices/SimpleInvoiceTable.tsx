@@ -56,18 +56,22 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const columnSelectorRef = React.useRef<HTMLDivElement>(null);
 
   // Close column selector when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (showColumnSelector) {
+      if (showColumnSelector && columnSelectorRef.current && !columnSelectorRef.current.contains(event.target as Node)) {
         setShowColumnSelector(false);
       }
     };
 
     if (showColumnSelector) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      // Use setTimeout to avoid immediate closure
+      setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showColumnSelector]);
 
@@ -409,7 +413,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
 
           <div className="flex items-center gap-3">
             {/* Column Selector */}
-            <div className="relative">
+            <div className="relative" ref={columnSelectorRef}>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -426,7 +430,6 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   className={`absolute right-0 top-12 z-[100] w-56 rounded-lg shadow-xl border ${
                     isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
                   }`}
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className={`p-3 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
                     <h4 className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>

@@ -1,14 +1,99 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import Busboy from 'busboy';
+import { Readable } from 'stream';
 
-// Use Node.js runtime
+// Use Node.js runtime for better FormData support
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
+ * Parse multipart/form-data using busboy
+ */
+async function parseMultipartForm(request: NextRequest): Promise<{
+  fields: Record<string, string>;
+  files: Array<{
+    fieldname: string;
+    filename: string;
+    mimetype: string;
+    buffer: Buffer;
+  }>;
+}> {
+  return new Promise(async (resolve, reject) => {
+    const contentType = request.headers.get('content-type');
+    if (!contentType?.includes('multipart/form-data')) {
+      return reject(new Error('Content-Type must be multipart/form-data'));
+    }
+
+    const fields: Record<string, string> = {};
+    const files: Array<{
+      fieldname: string;
+      filename: string;
+      mimetype: string;
+      buffer: Buffer;
+    }> = [];
+
+    const busboy = Busboy({ headers: { 'content-type': contentType } });
+
+    busboy.on('field', (fieldname, value) => {
+      fields[fieldname] = value;
+    });
+
+    busboy.on('file', (fieldname, file, info) => {
+      const { filename, mimeType } = info;
+      const chunks: Buffer[] = [];
+
+      file.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+
+      file.on('end', () => {
+        files.push({
+          fieldname,
+          filename,
+          mimetype: mimeType,
+          buffer: Buffer.concat(chunks),
+        });
+      });
+    });
+
+    busboy.on('finish', () => {
+      resolve({ fields, files });
+    });
+
+    busboy.on('error', (error) => {
+      reject(error);
+    });
+
+    // Convert Web ReadableStream to Node.js Readable
+    const reader = request.body?.getReader();
+    if (!reader) {
+      return reject(new Error('No request body'));
+    }
+
+    const nodeStream = new Readable({
+      async read() {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            this.push(null);
+          } else {
+            this.push(Buffer.from(value));
+          }
+        } catch (error) {
+          this.destroy(error as Error);
+        }
+      },
+    });
+
+    nodeStream.pipe(busboy);
+  });
+}
+
+/**
  * POST /api/idp/upload
  *
- * Upload a document using native FormData API (Vercel-compatible)
+ * Upload a document and save to database, then trigger Azure analysis
  */
 export async function POST(request: NextRequest) {
   try {
@@ -39,34 +124,31 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Supabase client created');
 
-    // Parse FormData (native API - works better with Vercel)
-    console.log('📝 Parsing form data...');
-    const formData = await request.formData();
+    // Parse multipart form data
+    const { fields, files } = await parseMultipartForm(request);
 
     // Extract fields
-    const file = formData.get('file') as File | null;
-    const orgId = formData.get('orgId') as string | null;
-    const userId = formData.get('userId') as string | null;
-    const documentType = (formData.get('documentType') as string) || 'general';
+    const orgId = fields.orgId;
+    const userId = fields.userId;
+    const documentType = fields.documentType || 'general';
 
-    if (!file || !orgId) {
+    // Extract file
+    const uploadedFile = files.find((f) => f.fieldname === 'file');
+
+    if (!uploadedFile || !orgId) {
       return NextResponse.json(
         { error: 'File and orgId are required' },
         { status: 400 }
       );
     }
 
-    console.log('File:', file.name, file.size, file.type);
+    console.log('File:', uploadedFile.filename, uploadedFile.buffer.length, uploadedFile.mimetype);
     console.log('OrgId:', orgId);
     console.log('DocumentType:', documentType);
 
-    // Convert File to Buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     // Generate unique filename
     const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const sanitizedName = uploadedFile.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
     const filename = `${timestamp}_${sanitizedName}`;
     const storagePath = `${orgId}/${filename}`;
 
@@ -76,8 +158,8 @@ export async function POST(request: NextRequest) {
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('idp-documents')
-      .upload(storagePath, buffer, {
-        contentType: file.type || 'application/pdf',
+      .upload(storagePath, uploadedFile.buffer, {
+        contentType: uploadedFile.mimetype || 'application/pdf',
         cacheControl: '3600',
       });
 
@@ -91,12 +173,12 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ File uploaded to storage');
 
-    // Get signed URL (valid for 1 hour)
+    // Get signed URL (valid for 1 hour) - required for Azure Document Intelligence
     console.log('🔗 Creating signed URL for Azure access...');
     const { data: urlData, error: urlError } = await supabase
       .storage
       .from('idp-documents')
-      .createSignedUrl(storagePath, 3600);
+      .createSignedUrl(storagePath, 3600); // 1 hour expiry
 
     if (urlError || !urlData) {
       console.error('❌ Failed to create signed URL:', urlError);
@@ -108,7 +190,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Signed URL created');
 
-    // Get public URL for display
+    // Also get public URL for display
     const { data: publicUrlData } = supabase
       .storage
       .from('idp-documents')
@@ -122,9 +204,9 @@ export async function POST(request: NextRequest) {
       .insert({
         org_id: orgId,
         filename: filename,
-        original_filename: file.name,
-        file_size_bytes: file.size,
-        mime_type: file.type || 'application/pdf',
+        original_filename: uploadedFile.filename,
+        file_size_bytes: uploadedFile.buffer.length,
+        mime_type: uploadedFile.mimetype || 'application/pdf',
         document_type: documentType,
         storage_bucket: 'idp-documents',
         storage_path: storagePath,
@@ -153,13 +235,13 @@ export async function POST(request: NextRequest) {
       action_category: 'document',
       user_id: userId || null,
       metadata: {
-        filename: file.name,
-        file_size: file.size,
+        filename: uploadedFile.filename,
+        file_size: uploadedFile.buffer.length,
         document_type: documentType,
       },
     });
 
-    // Trigger Azure analysis (don't block on this)
+    // Trigger Azure analysis with signed URL (don't block on this)
     console.log('🔍 Triggering Azure analysis...');
     let analyzing = false;
     let analysisError = null;
@@ -169,10 +251,10 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentUrl: urlData.signedUrl,
+          documentUrl: urlData.signedUrl, // Use signed URL for Azure access
           documentId: document.id,
           orgId: orgId,
-          filename: file.name,
+          filename: uploadedFile.filename,
           documentType: documentType,
           autoDetect: true,
         }),
@@ -183,6 +265,7 @@ export async function POST(request: NextRequest) {
         console.error('❌ Analysis failed:', errorText);
         analysisError = errorText;
 
+        // Mark document as failed
         await supabase
           .from('idp_documents')
           .update({
@@ -198,6 +281,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Analysis trigger error:', analysisErr);
       analysisError = analysisErr.message;
 
+      // Mark document as failed but don't fail the upload
       await supabase
         .from('idp_documents')
         .update({
@@ -207,6 +291,7 @@ export async function POST(request: NextRequest) {
         .eq('id', document.id);
     }
 
+    // Return success even if analysis fails (upload succeeded)
     return NextResponse.json({
       success: true,
       document: {
@@ -219,10 +304,7 @@ export async function POST(request: NextRequest) {
         : 'Document uploaded but analysis failed - check logs'
     });
   } catch (error: any) {
-    console.error('❌ Upload error:', error);
-    return NextResponse.json({
-      error: error.message || 'Upload failed',
-      details: error.stack
-    }, { status: 500 });
+    console.error('Upload error:', error);
+    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 });
   }
 }

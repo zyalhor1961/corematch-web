@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle } from 'lucide-react';
 import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
 
 interface SimpleInvoice {
@@ -196,6 +196,30 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const closePdfViewer = () => {
     setSelectedDocumentId(null);
     setPdfUrl(null);
+  };
+
+  // Delete document
+  const deleteDocument = async (documentId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    if (!confirm('Delete this document? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/idp/documents?id=${documentId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await loadInvoices();
+      } else {
+        alert('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Error deleting document');
+    }
   };
 
   // Toggle column visibility
@@ -416,6 +440,20 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
             ❌ {uploadError}
           </div>
         )}
+
+        {/* Warning for stuck documents */}
+        {invoices.filter(inv => inv.status === 'processing').length > 0 && (
+          <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Documents stuck in processing</p>
+              <p className="text-xs mt-1">
+                {invoices.filter(inv => inv.status === 'processing').length} document(s) are stuck in processing status.
+                Hover over the status to see error details, or click the trash icon to delete and re-upload.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -502,9 +540,26 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {getStatusIcon(invoice.status)}
-                        <span className={`text-sm font-medium capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {invoice.status}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className={`text-sm font-medium capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {invoice.status}
+                          </span>
+                          {(invoice.status === 'processing' || invoice.status === 'failed') && invoice.processing_notes && (
+                            <span className="text-xs text-red-500 flex items-center gap-1 mt-1" title={invoice.processing_notes}>
+                              <AlertTriangle className="w-3 h-3" />
+                              {invoice.processing_notes.substring(0, 30)}...
+                            </span>
+                          )}
+                        </div>
+                        {(invoice.status === 'processing' || invoice.status === 'failed') && (
+                          <button
+                            onClick={(e) => deleteDocument(invoice.id, e)}
+                            className="ml-2 p-1 hover:bg-red-100 rounded transition-colors"
+                            title="Delete this document"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}

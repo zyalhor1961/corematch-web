@@ -80,22 +80,24 @@ export async function POST(request: NextRequest) {
     console.log('✅ Step 1 complete: Original PDF uploaded');
 
     // ============================================
-    // STEP 2: DETECT AND SPLIT INVOICES
+    // STEP 2: DETECT AND SPLIT INVOICES (TWO-PASS)
     // ============================================
-    console.log('✂️  Step 2: Splitting PDF into 2-page chunks (1 invoice per chunk)...');
+    console.log('✂️  Step 2: Detecting invoice boundaries (Pass 1: Azure detection)...');
 
-    const splitInvoices = await detectAndSplitInvoices(buffer);
+    const splitInvoices = await detectAndSplitInvoices(buffer, urlData.signedUrl);
 
-    console.log(`✅ Step 2 complete: Split into ${splitInvoices.length} invoice(s)`);
+    console.log(`✅ Step 2 complete: Detected and split into ${splitInvoices.length} invoice(s)`);
 
     // ============================================
-    // STEP 3: PROCESS EACH INVOICE SEPARATELY
+    // STEP 3: PROCESS EACH INVOICE SEPARATELY (PASS 2)
     // ============================================
+    console.log(`\n🔄 Pass 2: Processing each split invoice individually...`);
+
     for (let i = 0; i < splitInvoices.length; i++) {
       const invoiceData = splitInvoices[i];
       const invoiceNum = i + 1;
 
-      console.log(`\n📋 Processing Invoice ${invoiceNum} of ${splitInvoices.length} (Pages: ${invoiceData.pages.join(', ')})`);
+      console.log(`\n📋 Invoice ${invoiceNum}/${splitInvoices.length}: Pages ${invoiceData.pages.join(', ')} (${invoiceData.pages.length} page${invoiceData.pages.length > 1 ? 's' : ''})`);
 
       try {
         // Upload this invoice's PDF
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest) {
             org_id: orgId,
             filename: invoiceFilename,
             original_filename: splitInvoices.length > 1
-              ? `${file.name} (Invoice ${invoiceNum})`
+              ? `${file.name} (Invoice ${invoiceNum} - Pages ${invoiceData.pages.join(', ')})`
               : file.name,
             file_size_bytes: invoiceData.pdfBuffer.length,
             mime_type: 'application/pdf',
@@ -144,7 +146,7 @@ export async function POST(request: NextRequest) {
             storage_bucket: 'idp-documents',
             storage_path: invoiceStoragePath,
             status: 'processing',
-            processing_notes: `Invoice ${invoiceNum} of ${splitInvoices.length} - Pages ${invoiceData.pages.join(', ')}`
+            processing_notes: `Invoice ${invoiceNum} of ${splitInvoices.length} from original PDF - Pages ${invoiceData.pages.join(', ')}`
           })
           .select()
           .single();
@@ -157,8 +159,8 @@ export async function POST(request: NextRequest) {
         const documentId = document.id;
         console.log(`✅ Created document record: ${documentId}`);
 
-        // Analyze with Azure
-        console.log(`🔍 Analyzing invoice ${invoiceNum} with Azure...`);
+        // Analyze with Azure (Pass 2 - clean analysis of individual invoice)
+        console.log(`🔍 Pass 2 Analysis: Sending invoice ${invoiceNum} to Azure...`);
 
         const analyzeResponse = await fetch(`${request.nextUrl.origin}/api/idp/analyze`, {
           method: 'POST',

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload</title>
+</head>
+<body>
+    <h1>Test IDP Upload</h1>
+
+    <form id="uploadForm">
+        <label>Organization ID: <input type="text" id="orgId" value="test-org-id" /></label><br/><br/>
+        <label>User ID: <input type="text" id="userId" value="test-user-id" /></label><br/><br/>
+        <label>File: <input type="file" id="file" accept=".pdf" /></label><br/><br/>
+        <button type="submit">Upload</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Uploading...</p>';
+
+            const formData = new FormData();
+            formData.append('orgId', document.getElementById('orgId').value);
+            formData.append('userId', document.getElementById('userId').value);
+            formData.append('file', document.getElementById('file').files[0]);
+
+            try {
+                const response = await fetch('https://corematch.fr/api/idp/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = '<pre style="color: green;">' + JSON.stringify(data, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<pre style="color: red;">Error: ' + JSON.stringify(data, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<pre style="color: red;">Error: ' + error.message + '</pre>';
+            }
+        });
+    </script>
+</body>
+</html>

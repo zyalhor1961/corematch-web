@@ -50,18 +50,24 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    console.log(`📦 PDF Buffer size: ${buffer.length} bytes (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
     // Upload original PDF to temporary location
     const timestamp = Date.now();
     const originalFilename = `${timestamp}_original_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const originalStoragePath = `${orgId}/temp/${originalFilename}`;
 
-    const { error: uploadError } = await supabase
+    const { error: uploadError, data: uploadData } = await supabase
       .storage
       .from('idp-documents')
       .upload(originalStoragePath, buffer, {
         contentType: 'application/pdf',
         cacheControl: '3600',
       });
+
+    if (uploadData) {
+      console.log(`📤 Uploaded to storage: ${uploadData.path}`);
+    }
 
     if (uploadError) {
       throw new Error(`Upload failed: ${uploadError.message}`);

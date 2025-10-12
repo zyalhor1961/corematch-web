@@ -116,17 +116,23 @@ function extractFieldData(fields: any[]) {
     }
 
     // Tax/VAT fields - also complex objects
-    if (fieldName === 'totaltax' ||
+    // EXCLUDE tax IDs (VendorTaxId, CustomerTaxId) from tax amount matching!
+    const isTaxId = fieldName.includes('taxid') || fieldName.includes('tax id') ||
+                    fieldName.includes('vendortaxid') || fieldName.includes('customertaxid');
+
+    if (!isTaxId && (
+        fieldName === 'totaltax' ||
         fieldName === 'taxamount' ||
-        fieldName.includes('tax') ||
+        fieldName.includes('taxamount') ||
         fieldName.includes('vat') ||
         fieldName.includes('tva') ||
-        fieldName.includes('montant tva')) {
+        fieldName.includes('montant tva'))) {
 
       let parsed: number | null = null;
 
       if (typeof fieldValue === 'object' && fieldValue !== null && 'amount' in fieldValue) {
         parsed = fieldValue.amount;
+        console.log(`DEBUG: Found tax amount: ${parsed} from field "${field.name}"`);
       } else {
         const strValue = fieldValue?.toString() || '';
         parsed = parseFloat(strValue.replace(/[^\d,.-]/g, '').replace(',', '.'));

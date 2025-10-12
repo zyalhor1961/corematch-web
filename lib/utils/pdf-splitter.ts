@@ -29,6 +29,7 @@ export async function detectInvoiceBoundaries(
 ): Promise<InvoiceBoundary[]> {
   try {
     console.log('🔍 Pass 1: Detecting invoice boundaries using Azure Invoice model...');
+    console.log(`📡 Sending to Azure: ${pdfUrl.substring(0, 100)}...`);
 
     // Send whole PDF to Azure Invoice model
     const result = await analyzeDocument(pdfUrl, AzurePrebuiltModel.INVOICE);
@@ -38,7 +39,17 @@ export async function detectInvoiceBoundaries(
     }
 
     const totalPages = result.pages.length;
-    console.log(`📄 PDF has ${totalPages} total pages`);
+    console.log(`📄 Azure analyzed ${totalPages} page(s) in PDF`);
+    console.log(`📋 Azure detected ${result.documents?.length || 0} document(s)`);
+    console.log(`🔢 Total fields extracted: ${result.fields?.length || 0}`);
+
+    // ⚠️ Azure Free tier only analyzes first 2 pages!
+    // If you see "Azure analyzed 2 pages" but your PDF has more pages,
+    // you need to upgrade to Azure Standard tier for full document processing.
+    if (totalPages === 2) {
+      console.warn('⚠️  WARNING: Azure only analyzed 2 pages. If your PDF has more pages, this might be a FREE tier limitation!');
+      console.warn('⚠️  Azure Free tier only processes first 2 pages. Upgrade to Standard tier for full PDFs.');
+    }
 
     // Group fields by document index to find page ranges
     const pagesByDoc: Map<number, Set<number>> = new Map();

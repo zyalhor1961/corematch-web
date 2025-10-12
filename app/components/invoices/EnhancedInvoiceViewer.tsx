@@ -64,9 +64,9 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
   const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.2);
   const [isLoadingPdf, setIsLoadingPdf] = useState(true);
+  const [pageHeights, setPageHeights] = useState<number[]>([]);
 
   // Load extracted fields
   useEffect(() => {
@@ -101,9 +101,6 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
     }));
   }, [fields]);
 
-  // Filter fields by current page
-  const currentPageFields = processedFields.filter(f => f.pageNumber === currentPage);
-
   // Format field name
   const formatFieldName = (name: string) => {
     return name
@@ -129,10 +126,6 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
   // Zoom controls
   const handleZoomIn = () => setScale(s => Math.min(3.0, s + 0.2));
   const handleZoomOut = () => setScale(s => Math.max(0.5, s - 0.2));
-
-  // Page navigation
-  const handlePrevPage = () => setCurrentPage(p => Math.max(1, p - 1));
-  const handleNextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
 
   return (
     <div
@@ -184,7 +177,6 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                   onMouseLeave={() => setHoveredFieldId(null)}
                   onClick={() => {
                     setSelectedFieldId(field.id);
-                    setCurrentPage(field.pageNumber);
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -229,38 +221,9 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
         <div className="flex-1 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-800">
-            {/* Navigation */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrevPage}
-                disabled={currentPage <= 1}
-                className="p-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 rounded-lg">
-                <input
-                  type="number"
-                  value={currentPage}
-                  onChange={(e) => {
-                    const page = parseInt(e.target.value);
-                    if (page >= 1 && page <= numPages) {
-                      setCurrentPage(page);
-                    }
-                  }}
-                  className="w-12 bg-transparent text-white text-center focus:outline-none"
-                  min={1}
-                  max={numPages}
-                />
-                <span className="text-white text-sm">/ {numPages}</span>
-              </div>
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage >= numPages}
-                className="p-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+            {/* Document Info */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 rounded-lg">
+              <span className="text-white text-sm font-medium">{numPages} {numPages === 1 ? 'page' : 'pages'}</span>
             </div>
 
             {/* Zoom Controls */}
@@ -295,31 +258,44 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
           <div className="flex-1 overflow-auto bg-slate-900 p-6 flex justify-center items-start">
             <div className="relative">
               {isLoadingPdf && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg">
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg z-50">
                   <RefreshCw className="w-12 h-12 animate-spin text-white" />
                 </div>
               )}
 
-              <div className="relative inline-block">
+              <div className="relative inline-block space-y-4">
                 <Document
                   file={pdfUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
                   className="shadow-2xl"
                   loading={<div className="w-full h-96 bg-slate-800 rounded-lg animate-pulse" />}
                 >
-                  <Page
-                    pageNumber={currentPage}
-                    scale={scale}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={false}
-                    className="rounded-lg overflow-hidden bg-white"
-                  />
-                </Document>
+                  {Array.from(new Array(numPages), (el, index) => {
+                    const pageNum = index + 1;
+                    const pageFields = processedFields.filter(f => f.pageNumber === pageNum);
 
-                {/* Bounding Boxes Overlay */}
-                {currentPageFields.length > 0 && (
-                  <div className="absolute top-0 left-0 pointer-events-none w-full h-full">
-                    {currentPageFields.map((field) => {
+                    return (
+                      <div key={`page_${pageNum}`} className="relative mb-4 inline-block">
+                        <Page
+                          pageNumber={pageNum}
+                          scale={scale}
+                          renderTextLayer={true}
+                          renderAnnotationLayer={false}
+                          className="rounded-lg overflow-hidden bg-white shadow-lg"
+                          onLoadSuccess={(page) => {
+                            // Track page heights for positioning
+                            setPageHeights(prev => {
+                              const newHeights = [...prev];
+                              newHeights[pageNum - 1] = page.height * scale;
+                              return newHeights;
+                            });
+                          }}
+                        />
+
+                        {/* Bounding Boxes Overlay for this page */}
+                        {pageFields.length > 0 && (
+                          <div className="absolute top-0 left-0 pointer-events-none w-full h-full">
+                            {pageFields.map((field) => {
                       const isHovered = hoveredFieldId === field.id || selectedFieldId === field.id;
                       const boundingBox = field.boundingBox;
 
@@ -349,8 +325,8 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                         width = maxX - minX;
                         height = maxY - minY;
 
-                        // Debug first field
-                        if (field.id === currentPageFields[0]?.id) {
+                        // Debug first field on first page
+                        if (pageNum === 1 && field.id === pageFields[0]?.id) {
                           console.log('🔍 Bounding Box Debug:', {
                             fieldName: field.name,
                             polygon: polygon.slice(0, 2),
@@ -413,17 +389,21 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                           )}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Document>
               </div>
             </div>
           </div>
 
-          {/* Footer - Field Count */}
+          {/* Footer - Total Field Count */}
           <div className="p-3 border-t border-slate-200 bg-slate-50 text-center">
             <span className="text-sm text-slate-600">
-              {currentPageFields.length} field{currentPageFields.length !== 1 ? 's' : ''} on this page
+              {processedFields.length} field{processedFields.length !== 1 ? 's' : ''} total • {numPages} page{numPages !== 1 ? 's' : ''}
             </span>
           </div>
         </div>

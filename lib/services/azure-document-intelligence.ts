@@ -137,22 +137,30 @@ export async function analyzeDocument(
       throw new Error('Analysis completed but no result returned');
     }
 
-    // Extract fields
+    // Extract fields from ALL documents (handles multi-invoice PDFs)
     const fields: ExtractedField[] = [];
-    if (result.documents && result.documents.length > 0) {
-      const document = result.documents[0];
+    const documentCount = result.documents?.length || 0;
 
-      for (const [fieldName, field] of Object.entries(document.fields || {})) {
-        if (field) {
-          const boundingRegion = field.boundingRegions?.[0];
-          fields.push({
-            name: fieldName,
-            value: field.value,
-            confidence: field.confidence || 0,
-            type: field.kind || 'string',
-            boundingBox: boundingRegion?.polygon || [],
-            pageNumber: boundingRegion?.pageNumber || 1
-          });
+    if (result.documents && result.documents.length > 0) {
+      console.log(`Azure detected ${documentCount} document(s) in PDF`);
+
+      // Process ALL documents, not just the first one
+      for (let docIndex = 0; docIndex < result.documents.length; docIndex++) {
+        const document = result.documents[docIndex];
+        const docPrefix = documentCount > 1 ? `Doc${docIndex + 1}_` : '';
+
+        for (const [fieldName, field] of Object.entries(document.fields || {})) {
+          if (field) {
+            const boundingRegion = field.boundingRegions?.[0];
+            fields.push({
+              name: `${docPrefix}${fieldName}`, // Prefix with doc number if multiple
+              value: field.value,
+              confidence: field.confidence || 0,
+              type: field.kind || 'string',
+              boundingBox: boundingRegion?.polygon || [],
+              pageNumber: boundingRegion?.pageNumber || 1
+            });
+          }
         }
       }
     }
@@ -271,22 +279,30 @@ export async function analyzeDocumentFromBuffer(
       throw new Error('Analysis completed but no result returned');
     }
 
-    // Extract fields (same as above)
+    // Extract fields from ALL documents (handles multi-invoice PDFs)
     const fields: ExtractedField[] = [];
-    if (result.documents && result.documents.length > 0) {
-      const document = result.documents[0];
+    const documentCount = result.documents?.length || 0;
 
-      for (const [fieldName, field] of Object.entries(document.fields || {})) {
-        if (field) {
-          const boundingRegion = field.boundingRegions?.[0];
-          fields.push({
-            name: fieldName,
-            value: field.value,
-            confidence: field.confidence || 0,
-            type: field.kind || 'string',
-            boundingBox: boundingRegion?.polygon || [],
-            pageNumber: boundingRegion?.pageNumber || 1
-          });
+    if (result.documents && result.documents.length > 0) {
+      console.log(`Azure detected ${documentCount} document(s) in PDF`);
+
+      // Process ALL documents, not just the first one
+      for (let docIndex = 0; docIndex < result.documents.length; docIndex++) {
+        const document = result.documents[docIndex];
+        const docPrefix = documentCount > 1 ? `Doc${docIndex + 1}_` : '';
+
+        for (const [fieldName, field] of Object.entries(document.fields || {})) {
+          if (field) {
+            const boundingRegion = field.boundingRegions?.[0];
+            fields.push({
+              name: `${docPrefix}${fieldName}`, // Prefix with doc number if multiple
+              value: field.value,
+              confidence: field.confidence || 0,
+              type: field.kind || 'string',
+              boundingBox: boundingRegion?.polygon || [],
+              pageNumber: boundingRegion?.pageNumber || 1
+            });
+          }
         }
       }
     }

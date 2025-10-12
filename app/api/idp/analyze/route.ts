@@ -54,6 +54,149 @@ function parseFrenchDate(dateStr: string): string | null {
 }
 
 /**
+ * Extract financial and metadata fields from Azure result
+ */
+function extractFieldData(fields: any[]) {
+  let totalAmount: number | null = null;
+  let taxAmount: number | null = null;
+  let netAmount: number | null = null;
+  let currencyCode: string | null = null;
+  let documentDate: string | null = null;
+  let dueDate: string | null = null;
+  let vendorName: string | null = null;
+  let vendorVat: string | null = null;
+  let invoiceNumber: string | null = null;
+  let customerName: string | null = null;
+
+  for (const field of fields) {
+    const fieldName = field.name.toLowerCase();
+    const fieldValue = field.value?.toString() || '';
+
+    // Amount fields (English + French)
+    if (fieldName.includes('total') ||
+        fieldName.includes('invoicetotal') ||
+        fieldName.includes('amounttotal') ||
+        fieldName.includes('total à payer') ||
+        fieldName.includes('montant total') ||
+        fieldName.includes('totalpayer')) {
+      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      if (!isNaN(parsed) && !totalAmount) {
+        totalAmount = parsed;
+      }
+    }
+
+    // Tax/VAT fields (English + French)
+    if (fieldName.includes('tax') ||
+        fieldName.includes('vat') ||
+        fieldName.includes('taxamount') ||
+        fieldName.includes('tva') ||
+        fieldName.includes('montant tva')) {
+      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      if (!isNaN(parsed) && !taxAmount) {
+        taxAmount = parsed;
+      }
+    }
+
+    // Net/Subtotal fields (English + French)
+    if (fieldName.includes('subtotal') ||
+        fieldName.includes('net') ||
+        fieldName.includes('montant ht') ||
+        fieldName.includes('total ht')) {
+      const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      if (!isNaN(parsed) && !netAmount) {
+        netAmount = parsed;
+      }
+    }
+
+    // Currency - try to extract from amount fields
+    if (fieldValue.includes('€') || fieldValue.includes('EUR')) {
+      currencyCode = 'EUR';
+    } else if (fieldValue.includes('$') || fieldValue.includes('USD')) {
+      currencyCode = 'USD';
+    } else if (fieldValue.includes('£') || fieldValue.includes('GBP')) {
+      currencyCode = 'GBP';
+    }
+
+    // Dates (English + French) - parse to ISO format
+    if (fieldName.includes('invoicedate') ||
+        fieldName.includes('date de la facture') ||
+        fieldName.includes('date facture') ||
+        (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
+      const parsed = parseFrenchDate(fieldValue);
+      if (parsed && !documentDate) {
+        documentDate = parsed;
+      }
+    }
+    if (fieldName.includes('duedate') ||
+        fieldName.includes('paymentdate') ||
+        fieldName.includes('date échéance') ||
+        fieldName.includes('date paiement')) {
+      const parsed = parseFrenchDate(fieldValue);
+      if (parsed && !dueDate) {
+        dueDate = parsed;
+      }
+    }
+
+    // Vendor/Supplier (English + French)
+    if (fieldName.includes('vendor') ||
+        fieldName.includes('supplier') ||
+        fieldName.includes('merchantname') ||
+        fieldName.includes('vendu par') ||
+        fieldName.includes('fournisseur') ||
+        fieldName.includes('vendeur')) {
+      if (!vendorName && fieldValue.length > 0) {
+        vendorName = fieldValue;
+      }
+    }
+
+    // VAT/Tax ID (English + French)
+    if (fieldName.includes('vendorvat') ||
+        fieldName.includes('vendortax') ||
+        fieldName.includes('vendoraddresstaxid') ||
+        fieldName.includes('tva') ||
+        fieldName.includes('numéro tva')) {
+      if (!vendorVat && fieldValue.length > 0) {
+        vendorVat = fieldValue;
+      }
+    }
+
+    // Invoice number (English + French)
+    if (fieldName.includes('invoiceid') ||
+        fieldName.includes('invoicenumber') ||
+        fieldName.includes('numéro de la facture') ||
+        fieldName.includes('numéro facture') ||
+        fieldName.includes('n° facture')) {
+      if (!invoiceNumber && fieldValue.length > 0) {
+        invoiceNumber = fieldValue;
+      }
+    }
+
+    // Customer (English + French)
+    if (fieldName.includes('customer') ||
+        fieldName.includes('billto') ||
+        fieldName.includes('client') ||
+        fieldName.includes('destinataire')) {
+      if (!customerName && fieldValue.length > 0) {
+        customerName = fieldValue;
+      }
+    }
+  }
+
+  return {
+    totalAmount,
+    taxAmount,
+    netAmount,
+    currencyCode,
+    documentDate,
+    dueDate,
+    vendorName,
+    vendorVat,
+    invoiceNumber,
+    customerName
+  };
+}
+
+/**
  * POST /api/idp/analyze
  *
  * Analyze a document using Azure Document Intelligence and save to database
@@ -118,180 +261,202 @@ export async function POST(request: NextRequest) {
     console.log(`Analysis complete! Extracted ${result.fields.length} fields, ${result.tables.length} tables`);
     console.log(`Overall confidence: ${Math.round(result.confidence * 100)}%`);
 
-    // Extract financial data from fields
-    let totalAmount: number | null = null;
-    let taxAmount: number | null = null;
-    let netAmount: number | null = null;
-    let currencyCode: string | null = null;
-    let documentDate: string | null = null;
-    let dueDate: string | null = null;
-    let vendorName: string | null = null;
-    let vendorVat: string | null = null;
-    let invoiceNumber: string | null = null;
-    let customerName: string | null = null;
+    // ============================================
+    // DETECT MULTIPLE INVOICES IN ONE PDF
+    // ============================================
+    // Check if fields have Doc1_, Doc2_ prefixes (indicating multiple invoices)
+    const hasMultipleInvoices = result.fields.some(f => /^Doc\d+_/.test(f.name));
 
-    for (const field of result.fields) {
-      const fieldName = field.name.toLowerCase();
-      const fieldValue = field.value?.toString() || '';
+    if (hasMultipleInvoices) {
+      console.log('🔍 Multiple invoices detected in PDF! Splitting...');
 
-      // Amount fields (English + French)
-      if (fieldName.includes('total') ||
-          fieldName.includes('invoicetotal') ||
-          fieldName.includes('amounttotal') ||
-          fieldName.includes('total à payer') ||
-          fieldName.includes('montant total') ||
-          fieldName.includes('totalpayer')) {
-        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-        if (!isNaN(parsed) && !totalAmount) {
-          totalAmount = parsed;
+      // Group fields by document number
+      const fieldsByDoc: { [docNum: string]: typeof result.fields } = {};
+
+      for (const field of result.fields) {
+        const match = field.name.match(/^Doc(\d+)_/);
+        if (match) {
+          const docNum = match[1];
+          if (!fieldsByDoc[docNum]) {
+            fieldsByDoc[docNum] = [];
+          }
+          // Remove prefix for processing
+          fieldsByDoc[docNum].push({
+            ...field,
+            name: field.name.replace(/^Doc\d+_/, '')
+          });
+        } else {
+          // Fields without prefix go to Doc1
+          if (!fieldsByDoc['1']) {
+            fieldsByDoc['1'] = [];
+          }
+          fieldsByDoc['1'].push(field);
         }
       }
 
-      // Tax/VAT fields (English + French)
-      if (fieldName.includes('tax') ||
-          fieldName.includes('vat') ||
-          fieldName.includes('taxamount') ||
-          fieldName.includes('tva') ||
-          fieldName.includes('montant tva')) {
-        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-        if (!isNaN(parsed) && !taxAmount) {
-          taxAmount = parsed;
+      const docNumbers = Object.keys(fieldsByDoc).sort();
+      console.log(`📄 Split into ${docNumbers.length} invoices:`, docNumbers);
+
+      // Get original document details
+      const { data: originalDoc } = await supabase
+        .from('idp_documents')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+      // Process each invoice separately
+      const createdDocuments = [];
+
+      for (let i = 0; i < docNumbers.length; i++) {
+        const docNum = docNumbers[i];
+        const docFields = fieldsByDoc[docNum];
+        const isFirstDoc = i === 0;
+
+        // Use existing documentId for first invoice, create new ones for others
+        let currentDocId = documentId;
+
+        if (!isFirstDoc && originalDoc) {
+          // Create new document record for additional invoices
+          const { data: newDoc, error: createError } = await supabase
+            .from('idp_documents')
+            .insert({
+              org_id: originalDoc.org_id,
+              filename: originalDoc.filename.replace(/(\.[^.]+)$/, `_invoice${i + 1}$1`),
+              original_filename: `${originalDoc.original_filename} (Invoice ${i + 1})`,
+              file_size_bytes: originalDoc.file_size_bytes,
+              mime_type: originalDoc.mime_type,
+              document_type: originalDoc.document_type,
+              storage_bucket: originalDoc.storage_bucket,
+              storage_path: originalDoc.storage_path,
+              status: 'processing',
+              created_by: originalDoc.created_by
+            })
+            .select()
+            .single();
+
+          if (createError || !newDoc) {
+            console.error(`Failed to create document record for invoice ${i + 1}:`, createError);
+            continue;
+          }
+
+          currentDocId = newDoc.id;
+          console.log(`✅ Created new document record for invoice ${i + 1}: ${currentDocId}`);
         }
-      }
 
-      // Net/Subtotal fields (English + French)
-      if (fieldName.includes('subtotal') ||
-          fieldName.includes('net') ||
-          fieldName.includes('montant ht') ||
-          fieldName.includes('total ht')) {
-        const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
-        if (!isNaN(parsed) && !netAmount) {
-          netAmount = parsed;
+        // Extract data from this invoice's fields
+        const extracted = extractFieldData(docFields);
+
+        // Update document with extracted data
+        await supabase
+          .from('idp_documents')
+          .update({
+            status: 'processed',
+            azure_model_id: selectedModel,
+            azure_analyzed_at: new Date().toISOString(),
+            overall_confidence: result.confidence,
+            field_count: docFields.length,
+            page_count: result.pages.length,
+            total_amount: extracted.totalAmount,
+            tax_amount: extracted.taxAmount,
+            net_amount: extracted.netAmount,
+            currency_code: extracted.currencyCode || 'EUR',
+            document_date: extracted.documentDate,
+            due_date: extracted.dueDate,
+            vendor_name: extracted.vendorName,
+            vendor_vat: extracted.vendorVat,
+            invoice_number: extracted.invoiceNumber,
+            customer_name: extracted.customerName,
+            processed_at: new Date().toISOString(),
+            processing_notes: isFirstDoc
+              ? `Multi-invoice PDF: Invoice 1 of ${docNumbers.length}`
+              : `Multi-invoice PDF: Invoice ${i + 1} of ${docNumbers.length}`
+          })
+          .eq('id', currentDocId);
+
+        // Save fields for this invoice
+        const fieldsToInsert = docFields.map((field) => ({
+          document_id: currentDocId,
+          field_name: field.name,
+          field_type: field.type,
+          value_text: field.value?.toString() || null,
+          value_number: typeof field.value === 'number' ? field.value : parseFloat(field.value) || null,
+          confidence: field.confidence,
+          page_number: field.pageNumber || 1,
+          bounding_box: field.boundingBox ? { polygon: field.boundingBox } : null,
+          extraction_method: 'azure'
+        }));
+
+        if (fieldsToInsert.length > 0) {
+          await supabase
+            .from('idp_extracted_fields')
+            .insert(fieldsToInsert);
         }
+
+        createdDocuments.push({
+          documentId: currentDocId,
+          invoiceNumber: extracted.invoiceNumber,
+          totalAmount: extracted.totalAmount,
+          fieldCount: docFields.length
+        });
       }
 
-      // Currency - try to extract from amount fields
-      if (fieldValue.includes('€') || fieldValue.includes('EUR')) {
-        currencyCode = 'EUR';
-      } else if (fieldValue.includes('$') || fieldValue.includes('USD')) {
-        currencyCode = 'USD';
-      } else if (fieldValue.includes('£') || fieldValue.includes('GBP')) {
-        currencyCode = 'GBP';
+      console.log(`✅ Processed ${createdDocuments.length} invoices from multi-invoice PDF`);
+
+    } else {
+      // SINGLE INVOICE - Original logic
+      console.log('📄 Single invoice detected, processing normally');
+
+      const extracted = extractFieldData(result.fields);
+
+      // Update document with extracted data
+      const { error: updateError } = await supabase
+        .from('idp_documents')
+        .update({
+          status: 'processed',
+          azure_model_id: selectedModel,
+          azure_analyzed_at: new Date().toISOString(),
+          overall_confidence: result.confidence,
+          field_count: result.fields.length,
+          page_count: result.pages.length,
+          total_amount: extracted.totalAmount,
+          tax_amount: extracted.taxAmount,
+          net_amount: extracted.netAmount,
+          currency_code: extracted.currencyCode || 'EUR',
+          document_date: extracted.documentDate,
+          due_date: extracted.dueDate,
+          vendor_name: extracted.vendorName,
+          vendor_vat: extracted.vendorVat,
+          invoice_number: extracted.invoiceNumber,
+          customer_name: extracted.customerName,
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', documentId);
+
+      if (updateError) {
+        console.error('Error updating document:', updateError);
       }
 
-      // Dates (English + French) - parse to ISO format
-      if (fieldName.includes('invoicedate') ||
-          fieldName.includes('date de la facture') ||
-          fieldName.includes('date facture') ||
-          (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
-        const parsed = parseFrenchDate(fieldValue);
-        if (parsed && !documentDate) {
-          documentDate = parsed;
+      // Save extracted fields
+      const fieldsToInsert = result.fields.map((field, index) => ({
+        document_id: documentId,
+        field_name: field.name,
+        field_type: field.type,
+        value_text: field.value?.toString() || null,
+        value_number: typeof field.value === 'number' ? field.value : parseFloat(field.value) || null,
+        confidence: field.confidence,
+        page_number: field.pageNumber || 1,
+        bounding_box: field.boundingBox ? { polygon: field.boundingBox } : null,
+        extraction_method: 'azure'
+      }));
+
+      if (fieldsToInsert.length > 0) {
+        const { error: fieldsError } = await supabase
+          .from('idp_extracted_fields')
+          .insert(fieldsToInsert);
+
+        if (fieldsError) {
+          console.error('Error saving fields:', fieldsError);
         }
-      }
-      if (fieldName.includes('duedate') ||
-          fieldName.includes('paymentdate') ||
-          fieldName.includes('date échéance') ||
-          fieldName.includes('date paiement')) {
-        const parsed = parseFrenchDate(fieldValue);
-        if (parsed && !dueDate) {
-          dueDate = parsed;
-        }
-      }
-
-      // Vendor/Supplier (English + French)
-      if (fieldName.includes('vendor') ||
-          fieldName.includes('supplier') ||
-          fieldName.includes('merchantname') ||
-          fieldName.includes('vendu par') ||
-          fieldName.includes('fournisseur') ||
-          fieldName.includes('vendeur')) {
-        if (!vendorName && fieldValue.length > 0) {
-          vendorName = fieldValue;
-        }
-      }
-
-      // VAT/Tax ID (English + French)
-      if (fieldName.includes('vendorvat') ||
-          fieldName.includes('vendortax') ||
-          fieldName.includes('vendoraddresstaxid') ||
-          fieldName.includes('tva') ||
-          fieldName.includes('numéro tva')) {
-        if (!vendorVat && fieldValue.length > 0) {
-          vendorVat = fieldValue;
-        }
-      }
-
-      // Invoice number (English + French)
-      if (fieldName.includes('invoiceid') ||
-          fieldName.includes('invoicenumber') ||
-          fieldName.includes('numéro de la facture') ||
-          fieldName.includes('numéro facture') ||
-          fieldName.includes('n° facture')) {
-        if (!invoiceNumber && fieldValue.length > 0) {
-          invoiceNumber = fieldValue;
-        }
-      }
-
-      // Customer (English + French)
-      if (fieldName.includes('customer') ||
-          fieldName.includes('billto') ||
-          fieldName.includes('client') ||
-          fieldName.includes('destinataire')) {
-        if (!customerName && fieldValue.length > 0) {
-          customerName = fieldValue;
-        }
-      }
-    }
-
-    // Update document with extracted data
-    const { error: updateError } = await supabase
-      .from('idp_documents')
-      .update({
-        status: 'processed',
-        azure_model_id: selectedModel,
-        azure_analyzed_at: new Date().toISOString(),
-        overall_confidence: result.confidence,
-        field_count: result.fields.length,
-        page_count: result.pages.length,
-        total_amount: totalAmount,
-        tax_amount: taxAmount,
-        net_amount: netAmount,
-        currency_code: currencyCode || 'EUR',
-        document_date: documentDate,
-        due_date: dueDate,
-        vendor_name: vendorName,
-        vendor_vat: vendorVat,
-        invoice_number: invoiceNumber,
-        customer_name: customerName,
-        processed_at: new Date().toISOString()
-      })
-      .eq('id', documentId);
-
-    if (updateError) {
-      console.error('Error updating document:', updateError);
-    }
-
-    // Save extracted fields
-    const fieldsToInsert = result.fields.map((field, index) => ({
-      document_id: documentId,
-      field_name: field.name,
-      field_type: field.type,
-      value_text: field.value?.toString() || null,
-      value_number: typeof field.value === 'number' ? field.value : parseFloat(field.value) || null,
-      confidence: field.confidence,
-      page_number: field.pageNumber || 1, // Use extracted page number from Azure
-      bounding_box: field.boundingBox ? { polygon: field.boundingBox } : null,
-      extraction_method: 'azure'
-    }));
-
-    if (fieldsToInsert.length > 0) {
-      const { error: fieldsError } = await supabase
-        .from('idp_extracted_fields')
-        .insert(fieldsToInsert);
-
-      if (fieldsError) {
-        console.error('Error saving fields:', fieldsError);
       }
     }
 

@@ -45,7 +45,7 @@ interface ExtractedField {
   value_text: string;
   confidence: number;
   page_number: number;
-  bounding_region?: any[];
+  bounding_box?: any; // Contains { polygon: [...] }
 }
 
 interface EnhancedInvoiceViewerProps {
@@ -95,7 +95,7 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
       value: field.value_text,
       confidence: field.confidence,
       pageNumber: field.page_number || 1,
-      boundingBox: field.bounding_region || [],
+      boundingBox: field.bounding_box, // This is {polygon: [...]}
       category: detectFieldCategory(field.field_name),
       color: FIELD_TYPE_COLORS[detectFieldCategory(field.field_name)]
     }));
@@ -176,8 +176,9 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                   style={{
                     borderColor: (hoveredFieldId === field.id || selectedFieldId === field.id) ? field.color : 'transparent',
                     backgroundColor: (hoveredFieldId === field.id || selectedFieldId === field.id)
-                      ? `${field.color}20`
-                      : '#ffffff'
+                      ? `${field.color}35`
+                      : '#ffffff',
+                    borderWidth: (hoveredFieldId === field.id || selectedFieldId === field.id) ? '3px' : '2px'
                   }}
                   onMouseEnter={() => setHoveredFieldId(field.id)}
                   onMouseLeave={() => setHoveredFieldId(null)}
@@ -190,10 +191,10 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {/* Color Indicator */}
                       <div
-                        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                        className="w-4 h-4 rounded-md flex-shrink-0"
                         style={{
                           backgroundColor: field.color,
-                          boxShadow: hoveredFieldId === field.id ? `0 0 8px ${field.color}` : 'none'
+                          boxShadow: hoveredFieldId === field.id ? `0 0 12px ${field.color}` : `0 0 4px ${field.color}50`
                         }}
                       />
 
@@ -217,10 +218,6 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                       </div>
                     </div>
 
-                    {/* Confidence */}
-                    <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getConfidenceColor(field.confidence)}`}>
-                      {(field.confidence * 100).toFixed(0)}%
-                    </div>
                   </div>
                 </div>
               ))
@@ -321,26 +318,50 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
 
                 {/* Bounding Boxes Overlay */}
                 {currentPageFields.length > 0 && (
-                  <div className="absolute top-0 left-0 pointer-events-none">
+                  <div className="absolute top-0 left-0 pointer-events-none w-full h-full">
                     {currentPageFields.map((field) => {
                       const isHovered = hoveredFieldId === field.id || selectedFieldId === field.id;
-                      const boundingRegion = field.boundingBox;
+                      const boundingBox = field.boundingBox;
 
-                      if (!boundingRegion || boundingRegion.length === 0) return null;
+                      // Check if bounding box exists and has polygon data
+                      if (!boundingBox || !boundingBox.polygon) {
+                        console.log('No bounding box for field:', field.name);
+                        return null;
+                      }
+
+                      const polygon = boundingBox.polygon;
+                      if (!polygon || polygon.length < 4) {
+                        console.log('Invalid polygon for field:', field.name, polygon);
+                        return null;
+                      }
 
                       // Azure returns polygon as array of point objects: [{x, y}, {x, y}, {x, y}, {x, y}]
-                      const polygon = boundingRegion[0]?.polygon || [];
-                      if (polygon.length < 4) return null;
+                      // x and y are in inches, need to convert to pixels (72 points per inch)
+                      let xCoords, yCoords, minX, minY, maxX, maxY, width, height;
 
-                      // Convert from inches to pixels (72 points per inch)
-                      const xCoords = polygon.map((p: any) => p.x * 72 * scale);
-                      const yCoords = polygon.map((p: any) => p.y * 72 * scale);
-                      const minX = Math.min(...xCoords);
-                      const minY = Math.min(...yCoords);
-                      const maxX = Math.max(...xCoords);
-                      const maxY = Math.max(...yCoords);
-                      const width = maxX - minX;
-                      const height = maxY - minY;
+                      try {
+                        xCoords = polygon.map((p: any) => p.x * 72 * scale);
+                        yCoords = polygon.map((p: any) => p.y * 72 * scale);
+                        minX = Math.min(...xCoords);
+                        minY = Math.min(...yCoords);
+                        maxX = Math.max(...xCoords);
+                        maxY = Math.max(...yCoords);
+                        width = maxX - minX;
+                        height = maxY - minY;
+
+                        // Debug first field
+                        if (field.id === currentPageFields[0]?.id) {
+                          console.log('🔍 Bounding Box Debug:', {
+                            fieldName: field.name,
+                            polygon: polygon.slice(0, 2),
+                            scale,
+                            calculated: { minX, minY, width, height }
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Error calculating bounding box:', field.name, error);
+                        return null;
+                      }
 
                       return (
                         <div
@@ -351,10 +372,11 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                             top: `${minY}px`,
                             width: `${width}px`,
                             height: `${height}px`,
-                            border: `3px solid ${field.color}`,
-                            backgroundColor: isHovered ? `${field.color}30` : `${field.color}15`,
-                            boxShadow: isHovered ? `0 0 12px ${field.color}` : 'none',
-                            zIndex: isHovered ? 10 : 1
+                            border: `4px solid ${field.color}`,
+                            backgroundColor: isHovered ? `${field.color}40` : `${field.color}20`,
+                            boxShadow: isHovered ? `0 0 20px ${field.color}, 0 0 40px ${field.color}50` : `0 0 8px ${field.color}40`,
+                            zIndex: isHovered ? 10 : 1,
+                            borderRadius: '4px'
                           }}
                           onMouseEnter={() => setHoveredFieldId(field.id)}
                           onMouseLeave={() => setHoveredFieldId(null)}
@@ -382,33 +404,9 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                               </div>
 
                               {/* Field Value */}
-                              <div className="mb-1.5">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Value</div>
+                              <div>
                                 <div className="text-sm font-semibold text-slate-800 break-words">
                                   {String(field.value)}
-                                </div>
-                              </div>
-
-                              {/* Confidence */}
-                              <div className="flex items-center gap-2">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-wide">Confidence</div>
-                                <div className="flex items-center gap-1.5 flex-1">
-                                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full transition-all"
-                                      style={{
-                                        width: `${field.confidence * 100}%`,
-                                        backgroundColor: field.confidence >= 0.95 ? '#10b981' :
-                                                        field.confidence >= 0.80 ? '#f59e0b' : '#ef4444'
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-bold" style={{
-                                    color: field.confidence >= 0.95 ? '#10b981' :
-                                           field.confidence >= 0.80 ? '#f59e0b' : '#ef4444'
-                                  }}>
-                                    {(field.confidence * 100).toFixed(0)}%
-                                  </span>
                                 </div>
                               </div>
                             </div>

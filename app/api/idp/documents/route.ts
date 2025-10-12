@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Use DISTINCT ON to get only one row per unique invoice
+    // Group by original_filename to avoid showing duplicate rows for multi-page invoices
     let query = supabase
       .from('idp_documents')
       .select('*', { count: 'exact' })
@@ -62,9 +64,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Enrich with item descriptions
+    // Deduplicate invoices - one invoice = one row, even if multi-page
+    // Group by invoice_number (or original_filename if no invoice_number yet)
+    let deduplicatedData = data;
     if (data && data.length > 0) {
-      const documentIds = data.map((doc: any) => doc.id);
+      const invoiceMap = new Map<string, any>();
+
+      data.forEach((doc: any) => {
+        // Use invoice_number as key, fallback to original_filename if not yet extracted
+        const key = doc.invoice_number || doc.original_filename || doc.id;
+        const existing = invoiceMap.get(key);
+
+        // If no existing document with this key, or if this one is more complete (has invoice_number)
+        if (!existing || (!existing.invoice_number && doc.invoice_number) ||
+            (existing.status === 'processing' && doc.status !== 'processing')) {
+          invoiceMap.set(key, doc);
+        }
+      });
+
+      deduplicatedData = Array.from(invoiceMap.values());
+      console.log(`Deduplicated ${data.length} documents to ${deduplicatedData.length} unique invoices`);
+    }
+
+    // Enrich with item descriptions
+    if (deduplicatedData && deduplicatedData.length > 0) {
+      const documentIds = deduplicatedData.map((doc: any) => doc.id);
 
       // Fetch item descriptions from extracted fields
       const { data: fieldsData } = await supabase
@@ -88,7 +112,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Add to documents
-      data.forEach((doc: any) => {
+      deduplicatedData.forEach((doc: any) => {
         const items = itemsByDoc[doc.id] || [];
         doc.item_descriptions = items.length > 0 ? items.join(', ') : '';
       });
@@ -96,12 +120,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data,
+      data: deduplicatedData,
       pagination: {
-        total: count || 0,
+        total: deduplicatedData?.length || 0,
         limit,
         offset,
-        hasMore: (count || 0) > offset + limit
+        hasMore: (deduplicatedData?.length || 0) > offset + limit
       }
     });
   } catch (error: any) {

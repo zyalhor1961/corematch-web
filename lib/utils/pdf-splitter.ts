@@ -54,6 +54,19 @@ export async function detectInvoiceBoundaries(
     // Group fields by document index to find page ranges
     const pagesByDoc: Map<number, Set<number>> = new Map();
 
+    console.log(`🔎 Analyzing ${result.fields.length} fields for boundary detection...`);
+
+    // Log first 10 fields to see naming pattern
+    console.log('Sample field names:', result.fields.slice(0, 10).map(f => ({
+      name: f.name,
+      page: f.pageNumber,
+      value: typeof f.value === 'object' ? JSON.stringify(f.value).substring(0, 50) : f.value
+    })));
+
+    // Count fields with Doc prefixes
+    const fieldsWithDocPrefix = result.fields.filter(f => /^Doc\d+_/.test(f.name));
+    console.log(`📊 Fields with Doc prefix: ${fieldsWithDocPrefix.length}/${result.fields.length}`);
+
     for (const field of result.fields) {
       // Check for Doc1_, Doc2_, Doc3_ prefixes
       const match = field.name.match(/^Doc(\d+)_/);
@@ -64,6 +77,12 @@ export async function detectInvoiceBoundaries(
         pagesByDoc.set(docIndex, new Set());
       }
       pagesByDoc.get(docIndex)!.add(pageNum);
+    }
+
+    console.log(`📋 Detected ${pagesByDoc.size} document(s) from field analysis`);
+    for (const [docIndex, pages] of pagesByDoc.entries()) {
+      const pageArray = Array.from(pages).sort((a, b) => a - b);
+      console.log(`  Doc${docIndex}: ${pageArray.length} unique page(s) - Pages ${Math.min(...pageArray)}-${Math.max(...pageArray)}`);
     }
 
     const boundaries: InvoiceBoundary[] = [];

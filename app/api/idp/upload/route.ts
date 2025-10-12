@@ -222,36 +222,67 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Trigger Azure analysis with signed URL
+    // Trigger Azure analysis with signed URL (don't block on this)
     console.log('🔍 Triggering Azure analysis...');
-    const analyzeResponse = await fetch(`${request.nextUrl.origin}/api/idp/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        documentUrl: urlData.signedUrl, // Use signed URL for Azure access
-        documentId: document.id,
-        orgId: orgId,
-        filename: uploadedFile.filename,
-        documentType: documentType,
-        autoDetect: true,
-      }),
-    });
+    let analyzing = false;
+    let analysisError = null;
 
-    if (!analyzeResponse.ok) {
-      console.error('Analysis failed:', await analyzeResponse.text());
-      // Mark document as failed
+    try {
+      const analyzeResponse = await fetch(`${request.nextUrl.origin}/api/idp/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentUrl: urlData.signedUrl, // Use signed URL for Azure access
+          documentId: document.id,
+          orgId: orgId,
+          filename: uploadedFile.filename,
+          documentType: documentType,
+          autoDetect: true,
+        }),
+      });
+
+      if (!analyzeResponse.ok) {
+        const errorText = await analyzeResponse.text();
+        console.error('❌ Analysis failed:', errorText);
+        analysisError = errorText;
+
+        // Mark document as failed
+        await supabase
+          .from('idp_documents')
+          .update({
+            status: 'failed',
+            processing_notes: `Azure analysis failed: ${errorText.substring(0, 500)}`
+          })
+          .eq('id', document.id);
+      } else {
+        analyzing = true;
+        console.log('✅ Analysis started successfully');
+      }
+    } catch (analysisErr: any) {
+      console.error('❌ Analysis trigger error:', analysisErr);
+      analysisError = analysisErr.message;
+
+      // Mark document as failed but don't fail the upload
       await supabase
         .from('idp_documents')
-        .update({ status: 'failed', processing_notes: 'Azure analysis failed' })
+        .update({
+          status: 'failed',
+          processing_notes: `Analysis error: ${analysisErr.message}`
+        })
         .eq('id', document.id);
     }
 
+    // Return success even if analysis fails (upload succeeded)
     return NextResponse.json({
       success: true,
       document: {
         ...document,
-        analyzing: analyzeResponse.ok,
+        analyzing,
+        analysisError,
       },
+      message: analyzing
+        ? 'Document uploaded and analysis started'
+        : 'Document uploaded but analysis failed - check logs'
     });
   } catch (error: any) {
     console.error('Upload error:', error);

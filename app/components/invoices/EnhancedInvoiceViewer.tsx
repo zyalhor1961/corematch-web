@@ -372,11 +372,11 @@ export const EnhancedInvoiceViewer: React.FC<EnhancedInvoiceViewerProps> = ({
                             top: `${minY}px`,
                             width: `${width}px`,
                             height: `${height}px`,
-                            border: `4px solid ${field.color}`,
-                            backgroundColor: isHovered ? `${field.color}40` : `${field.color}20`,
-                            boxShadow: isHovered ? `0 0 20px ${field.color}, 0 0 40px ${field.color}50` : `0 0 8px ${field.color}40`,
+                            border: isHovered ? `2px solid ${field.color}` : `1px solid ${field.color}80`,
+                            backgroundColor: isHovered ? `${field.color}35` : `${field.color}15`,
+                            boxShadow: isHovered ? `0 0 12px ${field.color}60` : 'none',
                             zIndex: isHovered ? 10 : 1,
-                            borderRadius: '4px'
+                            borderRadius: '2px'
                           }}
                           onMouseEnter={() => setHoveredFieldId(field.id)}
                           onMouseLeave={() => setHoveredFieldId(null)}

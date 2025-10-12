@@ -4,7 +4,25 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
+    "app/api/idp/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/idp/analyze/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/deb/documents/[documentId]/vat-control/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/deb/documents/[documentId]/enrich-hs-codes/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/deb/documents/[documentId]/prepare-archive/route.ts": {
+      "maxDuration": 30
+    },
     "app/api/deb/batches/[batchId]/process/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cv/projects/[projectId]/analyze-all/route.ts": {
       "maxDuration": 60
     },
     "app/**": {

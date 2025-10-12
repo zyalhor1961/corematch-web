@@ -64,31 +64,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Deduplicate invoices - one invoice = one row, even if multi-page
-    // Group by invoice_number (or original_filename if no invoice_number yet)
-    let deduplicatedData = data;
+    console.log(`📊 Fetched ${data?.length || 0} documents from database`);
+
+    // Log sample documents to debug display issue
     if (data && data.length > 0) {
-      const invoiceMap = new Map<string, any>();
-
-      data.forEach((doc: any) => {
-        // Use invoice_number as key, fallback to original_filename if not yet extracted
-        const key = doc.invoice_number || doc.original_filename || doc.id;
-        const existing = invoiceMap.get(key);
-
-        // If no existing document with this key, or if this one is more complete (has invoice_number)
-        if (!existing || (!existing.invoice_number && doc.invoice_number) ||
-            (existing.status === 'processing' && doc.status !== 'processing')) {
-          invoiceMap.set(key, doc);
-        }
-      });
-
-      deduplicatedData = Array.from(invoiceMap.values());
-      console.log(`Deduplicated ${data.length} documents to ${deduplicatedData.length} unique invoices`);
+      console.log('Sample documents:', data.slice(0, 3).map(d => ({
+        id: d.id,
+        invoice_number: d.invoice_number,
+        vendor: d.vendor_name,
+        total: d.total_amount,
+        status: d.status,
+        original_filename: d.original_filename
+      })));
     }
 
     // Enrich with item descriptions
-    if (deduplicatedData && deduplicatedData.length > 0) {
-      const documentIds = deduplicatedData.map((doc: any) => doc.id);
+    if (data && data.length > 0) {
+      const documentIds = data.map((doc: any) => doc.id);
 
       // Fetch item descriptions from extracted fields
       const { data: fieldsData } = await supabase
@@ -112,7 +104,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Add to documents
-      deduplicatedData.forEach((doc: any) => {
+      data.forEach((doc: any) => {
         const items = itemsByDoc[doc.id] || [];
         doc.item_descriptions = items.length > 0 ? items.join(', ') : '';
       });
@@ -120,12 +112,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: deduplicatedData,
+      data: data,
       pagination: {
-        total: deduplicatedData?.length || 0,
+        total: data?.length || 0,
         limit,
         offset,
-        hasMore: (deduplicatedData?.length || 0) > offset + limit
+        hasMore: (data?.length || 0) > offset + limit
       }
     });
   } catch (error: any) {

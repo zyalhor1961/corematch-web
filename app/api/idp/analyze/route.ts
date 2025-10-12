@@ -68,13 +68,17 @@ function extractFieldData(fields: any[]) {
   let invoiceNumber: string | null = null;
   let customerName: string | null = null;
 
+  // Log first 5 fields for debugging
+  console.log('DEBUG: Sample fields:', fields.slice(0, 5).map(f => ({ name: f.name, value: f.value })));
+
   for (const field of fields) {
     const fieldName = field.name.toLowerCase();
     const fieldValue = field.value?.toString() || '';
 
-    // Amount fields (English + French)
-    if (fieldName.includes('total') ||
-        fieldName.includes('invoicetotal') ||
+    // Amount fields - Azure Invoice model uses "InvoiceTotal", "AmountDue"
+    if (fieldName === 'invoicetotal' ||
+        fieldName === 'amountdue' ||
+        fieldName.includes('total') ||
         fieldName.includes('amounttotal') ||
         fieldName.includes('total à payer') ||
         fieldName.includes('montant total') ||
@@ -82,13 +86,15 @@ function extractFieldData(fields: any[]) {
       const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
       if (!isNaN(parsed) && !totalAmount) {
         totalAmount = parsed;
+        console.log(`DEBUG: Found total amount: ${totalAmount} from field "${field.name}"`);
       }
     }
 
-    // Tax/VAT fields (English + French)
-    if (fieldName.includes('tax') ||
+    // Tax/VAT fields - Azure uses "TotalTax"
+    if (fieldName === 'totaltax' ||
+        fieldName === 'taxamount' ||
+        fieldName.includes('tax') ||
         fieldName.includes('vat') ||
-        fieldName.includes('taxamount') ||
         fieldName.includes('tva') ||
         fieldName.includes('montant tva')) {
       const parsed = parseFloat(fieldValue.replace(/[^\d,.-]/g, '').replace(',', '.'));
@@ -97,8 +103,8 @@ function extractFieldData(fields: any[]) {
       }
     }
 
-    // Net/Subtotal fields (English + French)
-    if (fieldName.includes('subtotal') ||
+    // Net/Subtotal fields - Azure uses "SubTotal"
+    if (fieldName === 'subtotal' ||
         fieldName.includes('net') ||
         fieldName.includes('montant ht') ||
         fieldName.includes('total ht')) {
@@ -117,18 +123,19 @@ function extractFieldData(fields: any[]) {
       currencyCode = 'GBP';
     }
 
-    // Dates (English + French) - parse to ISO format
-    if (fieldName.includes('invoicedate') ||
+    // Dates - Azure uses "InvoiceDate", "DueDate"
+    if (fieldName === 'invoicedate' ||
         fieldName.includes('date de la facture') ||
         fieldName.includes('date facture') ||
         (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
       const parsed = parseFrenchDate(fieldValue);
       if (parsed && !documentDate) {
         documentDate = parsed;
+        console.log(`DEBUG: Found document date: ${documentDate} from field "${field.name}"`);
       }
     }
-    if (fieldName.includes('duedate') ||
-        fieldName.includes('paymentdate') ||
+    if (fieldName === 'duedate' ||
+        fieldName === 'paymentdate' ||
         fieldName.includes('date échéance') ||
         fieldName.includes('date paiement')) {
       const parsed = parseFrenchDate(fieldValue);
@@ -137,8 +144,9 @@ function extractFieldData(fields: any[]) {
       }
     }
 
-    // Vendor/Supplier (English + French)
-    if (fieldName.includes('vendor') ||
+    // Vendor - Azure uses "VendorName"
+    if (fieldName === 'vendorname' ||
+        fieldName.includes('vendor') ||
         fieldName.includes('supplier') ||
         fieldName.includes('merchantname') ||
         fieldName.includes('vendu par') ||
@@ -146,11 +154,13 @@ function extractFieldData(fields: any[]) {
         fieldName.includes('vendeur')) {
       if (!vendorName && fieldValue.length > 0) {
         vendorName = fieldValue;
+        console.log(`DEBUG: Found vendor: ${vendorName} from field "${field.name}"`);
       }
     }
 
-    // VAT/Tax ID (English + French)
-    if (fieldName.includes('vendorvat') ||
+    // VAT/Tax ID - Azure uses "VendorTaxId" or "VendorAddress/TaxId"
+    if (fieldName === 'vendortaxid' ||
+        fieldName.includes('vendorvat') ||
         fieldName.includes('vendortax') ||
         fieldName.includes('vendoraddresstaxid') ||
         fieldName.includes('tva') ||
@@ -160,14 +170,15 @@ function extractFieldData(fields: any[]) {
       }
     }
 
-    // Invoice number (English + French)
-    if (fieldName.includes('invoiceid') ||
-        fieldName.includes('invoicenumber') ||
+    // Invoice number - Azure uses "InvoiceId"
+    if (fieldName === 'invoiceid' ||
+        fieldName === 'invoicenumber' ||
         fieldName.includes('numéro de la facture') ||
         fieldName.includes('numéro facture') ||
         fieldName.includes('n° facture')) {
       if (!invoiceNumber && fieldValue.length > 0) {
         invoiceNumber = fieldValue;
+        console.log(`DEBUG: Found invoice number: ${invoiceNumber} from field "${field.name}"`);
       }
     }
 

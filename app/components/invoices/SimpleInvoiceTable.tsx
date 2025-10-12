@@ -52,6 +52,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDebugModal, setShowDebugModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load invoices
@@ -264,11 +266,22 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         await loadInvoices();
       } else {
         console.error('Remap error details:', data);
-        alert(`Failed to fix document:\n${data.error}\n\nDetails: ${data.details || 'No additional details'}\nCode: ${data.code || 'Unknown'}`);
+        const errorMsg = `Failed to fix document:\n${data.error}\n\nDetails: ${data.details || 'No additional details'}\nCode: ${data.code || 'Unknown'}`;
+        setErrorMessage(errorMsg);
+        setShowErrorModal(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error remapping document:', error);
-      alert('Error fixing document');
+      setErrorMessage(`Error fixing document:\n${error.message || 'Unknown error'}`);
+      setShowErrorModal(true);
+    }
+  };
+
+  // Copy error to clipboard
+  const copyErrorToClipboard = () => {
+    if (errorMessage) {
+      navigator.clipboard.writeText(errorMessage);
+      alert('Error message copied to clipboard!');
     }
   };
 
@@ -750,6 +763,57 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           </div>
         </div>
       </div>
+
+      {/* Error Modal */}
+      {showErrorModal && errorMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={() => setShowErrorModal(false)}
+        >
+          <div
+            className="relative w-[600px] bg-white rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-red-200 bg-red-50 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-red-900 flex items-center gap-2">
+                  <XCircle className="w-5 h-5" />
+                  Error
+                </h3>
+                <button
+                  onClick={() => setShowErrorModal(false)}
+                  className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-5 h-5 text-red-700" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded font-mono text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                {errorMessage}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={copyErrorToClipboard}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Copy to Clipboard
+                </button>
+                <button
+                  onClick={() => setShowErrorModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Debug Modal */}
       {showDebugModal && debugInfo && (

@@ -5,6 +5,55 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; // 60 seconds for document analysis
 
 /**
+ * Parse French date formats to ISO date
+ * Examples: "31 juillet 2025" -> "2025-07-31"
+ */
+function parseFrenchDate(dateStr: string): string | null {
+  if (!dateStr) return null;
+
+  // French month names
+  const frenchMonths: { [key: string]: string } = {
+    'janvier': '01', 'février': '02', 'fevrier': '02', 'mars': '03', 'avril': '04',
+    'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08', 'aout': '08',
+    'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12', 'decembre': '12'
+  };
+
+  // Try to match French format: "31 juillet 2025" or "31/07/2025"
+  const frenchPattern = /(\d{1,2})\s+([a-zéû]+)\s+(\d{4})/i;
+  const match = dateStr.match(frenchPattern);
+
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const monthName = match[2].toLowerCase();
+    const year = match[3];
+    const month = frenchMonths[monthName];
+
+    if (month) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // Try numeric format: "31/07/2025" or "31-07-2025"
+  const numericPattern = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
+  const numMatch = dateStr.match(numericPattern);
+
+  if (numMatch) {
+    const day = numMatch[1].padStart(2, '0');
+    const month = numMatch[2].padStart(2, '0');
+    const year = numMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Try ISO format (already correct)
+  const isoPattern = /(\d{4})-(\d{2})-(\d{2})/;
+  if (isoPattern.test(dateStr)) {
+    return dateStr.substring(0, 10); // Keep only date part
+  }
+
+  return null;
+}
+
+/**
  * POST /api/idp/analyze
  *
  * Analyze a document using Azure Document Intelligence and save to database
@@ -130,18 +179,24 @@ export async function POST(request: NextRequest) {
         currencyCode = 'GBP';
       }
 
-      // Dates (English + French)
+      // Dates (English + French) - parse to ISO format
       if (fieldName.includes('invoicedate') ||
           fieldName.includes('date de la facture') ||
           fieldName.includes('date facture') ||
           (fieldName.includes('date') && !fieldName.includes('duedate') && !fieldName.includes('paymentdate') && !documentDate)) {
-        documentDate = fieldValue || null;
+        const parsed = parseFrenchDate(fieldValue);
+        if (parsed && !documentDate) {
+          documentDate = parsed;
+        }
       }
       if (fieldName.includes('duedate') ||
           fieldName.includes('paymentdate') ||
           fieldName.includes('date échéance') ||
           fieldName.includes('date paiement')) {
-        dueDate = fieldValue || null;
+        const parsed = parseFrenchDate(fieldValue);
+        if (parsed && !dueDate) {
+          dueDate = parsed;
+        }
       }
 
       // Vendor/Supplier (English + French)

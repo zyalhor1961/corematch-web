@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings } from 'lucide-react';
 import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
 
 interface SimpleInvoice {
@@ -28,6 +28,19 @@ interface SimpleInvoiceTableProps {
   isDarkMode?: boolean;
 }
 
+// Available columns configuration
+const AVAILABLE_COLUMNS = {
+  status: { label: 'Status', visible: true },
+  invoice: { label: 'Invoice', visible: true },
+  vendor: { label: 'Vendor', visible: true },
+  items: { label: 'Items', visible: true },
+  date: { label: 'Date', visible: true },
+  amount: { label: 'Amount', visible: true },
+  charges: { label: '+ Charges', visible: true },
+  totalWithCharges: { label: 'Total with Charges', visible: true },
+  controls: { label: 'Controls', visible: true }
+};
+
 export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, isDarkMode = false }) => {
   const [invoices, setInvoices] = useState<SimpleInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,6 +48,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState(AVAILABLE_COLUMNS);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load invoices
@@ -183,6 +198,92 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     setPdfUrl(null);
   };
 
+  // Toggle column visibility
+  const toggleColumn = (columnKey: string) => {
+    setVisibleColumns(prev => ({
+      ...prev,
+      [columnKey]: {
+        ...prev[columnKey as keyof typeof prev],
+        visible: !prev[columnKey as keyof typeof prev].visible
+      }
+    }));
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = Object.entries(visibleColumns)
+      .filter(([_, col]) => col.visible)
+      .map(([_, col]) => col.label);
+
+    const rows = invoices.map(invoice => {
+      const row: string[] = [];
+      if (visibleColumns.status.visible) row.push(invoice.status);
+      if (visibleColumns.invoice.visible) row.push(invoice.invoice_number || '');
+      if (visibleColumns.vendor.visible) row.push(invoice.vendor_name || '');
+      if (visibleColumns.items.visible) row.push(invoice.item_descriptions || '');
+      if (visibleColumns.date.visible) row.push(invoice.document_date || '');
+      if (visibleColumns.amount.visible) row.push((invoice.total_amount || 0).toString());
+      if (visibleColumns.charges.visible) row.push((invoice.shipping_charge || 0).toString());
+      if (visibleColumns.totalWithCharges.visible) row.push((invoice.total_with_charges || invoice.total_amount || 0).toString());
+      if (visibleColumns.controls.visible) row.push(invoice.vat_control_status || '');
+      return row;
+    });
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Export to Excel (using CSV format with .xlsx extension for simplicity)
+  const exportToExcel = () => {
+    const headers = Object.entries(visibleColumns)
+      .filter(([_, col]) => col.visible)
+      .map(([_, col]) => col.label);
+
+    const rows = invoices.map(invoice => {
+      const row: string[] = [];
+      if (visibleColumns.status.visible) row.push(invoice.status);
+      if (visibleColumns.invoice.visible) row.push(invoice.invoice_number || '');
+      if (visibleColumns.vendor.visible) row.push(invoice.vendor_name || '');
+      if (visibleColumns.items.visible) row.push(invoice.item_descriptions || '');
+      if (visibleColumns.date.visible) row.push(invoice.document_date || '');
+      if (visibleColumns.amount.visible) row.push((invoice.total_amount || 0).toString());
+      if (visibleColumns.charges.visible) row.push((invoice.shipping_charge || 0).toString());
+      if (visibleColumns.totalWithCharges.visible) row.push((invoice.total_with_charges || invoice.total_amount || 0).toString());
+      if (visibleColumns.controls.visible) row.push(invoice.vat_control_status || '');
+      return row;
+    });
+
+    // Create HTML table for Excel
+    const htmlTable = `
+      <table>
+        <thead>
+          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+
+    const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoices_${new Date().toISOString().split('T')[0]}.xls`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className={`${isDarkMode ? 'bg-slate-900' : 'bg-white'} rounded-xl shadow-lg`}>
       {/* Header */}
@@ -198,10 +299,83 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Column Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnSelector(!showColumnSelector)}
+                className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+                title="Column Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+
+              {showColumnSelector && (
+                <div className={`absolute right-0 top-12 z-50 w-56 rounded-lg shadow-xl border ${
+                  isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+                }`}>
+                  <div className={`p-3 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                    <h4 className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Show Columns
+                    </h4>
+                  </div>
+                  <div className="p-2 max-h-80 overflow-y-auto">
+                    {Object.entries(visibleColumns).map(([key, col]) => (
+                      <label
+                        key={key}
+                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer hover:bg-opacity-10 ${
+                          isDarkMode ? 'hover:bg-white' : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={col.visible}
+                          onChange={() => toggleColumn(key)}
+                          className="rounded"
+                        />
+                        <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          {col.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Export Buttons */}
+            <button
+              onClick={exportToCSV}
+              disabled={invoices.length === 0}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                isDarkMode
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+              } disabled:opacity-50`}
+              title="Export to CSV"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
+
+            <button
+              onClick={exportToExcel}
+              disabled={invoices.length === 0}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                isDarkMode
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+              } disabled:opacity-50`}
+              title="Export to Excel"
+            >
+              <Download className="w-4 h-4" />
+              Excel
+            </button>
+
             <button
               onClick={loadInvoices}
               disabled={isLoading}
               className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+              title="Refresh"
             >
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -249,46 +423,64 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         <table className="w-full">
           <thead className={isDarkMode ? 'bg-slate-800' : 'bg-gray-50'}>
             <tr>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Status
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Invoice
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Vendor
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Items
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Date
-              </th>
-              <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Amount
-              </th>
-              <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                + Charges
-              </th>
-              <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Total with Charges
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Controls
-              </th>
+              {visibleColumns.status.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Status
+                </th>
+              )}
+              {visibleColumns.invoice.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Invoice
+                </th>
+              )}
+              {visibleColumns.vendor.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Vendor
+                </th>
+              )}
+              {visibleColumns.items.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Items
+                </th>
+              )}
+              {visibleColumns.date.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Date
+                </th>
+              )}
+              {visibleColumns.amount.visible && (
+                <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Amount
+                </th>
+              )}
+              {visibleColumns.charges.visible && (
+                <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  + Charges
+                </th>
+              )}
+              {visibleColumns.totalWithCharges.visible && (
+                <th className={`px-6 py-3 text-right text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Total with Charges
+                </th>
+              )}
+              {visibleColumns.controls.visible && (
+                <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Controls
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className={isDarkMode ? 'divide-slate-700' : 'divide-gray-200'}>
             {isLoading ? (
               <tr>
-                <td colSpan={9} className="px-6 py-12 text-center">
+                <td colSpan={Object.values(visibleColumns).filter(col => col.visible).length} className="px-6 py-12 text-center">
                   <Clock className={`w-8 h-8 mx-auto mb-2 animate-spin ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                   <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>Loading invoices...</p>
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-12 text-center">
+                <td colSpan={Object.values(visibleColumns).filter(col => col.visible).length} className="px-6 py-12 text-center">
                   <FileText className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-slate-600' : 'text-gray-300'}`} />
                   <p className={`font-semibold ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
                     No invoices yet
@@ -306,83 +498,101 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   className={`${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'} transition-colors cursor-pointer`}
                 >
                   {/* Status */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(invoice.status)}
-                      <span className={`text-sm font-medium capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {invoice.status}
-                      </span>
-                    </div>
-                  </td>
+                  {visibleColumns.status.visible && (
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(invoice.status)}
+                        <span className={`text-sm font-medium capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {invoice.status}
+                        </span>
+                      </div>
+                    </td>
+                  )}
 
                   {/* Invoice Number & Filename */}
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {invoice.invoice_number || 'Processing...'}
-                      </p>
-                      <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                        {invoice.filename}
-                      </p>
-                    </div>
-                  </td>
-
-                  {/* Vendor */}
-                  <td className="px-6 py-4">
-                    <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                      {invoice.vendor_name || '-'}
-                    </p>
-                  </td>
-
-                  {/* Items Description */}
-                  <td className="px-6 py-4">
-                    <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-600'} truncate max-w-[200px]`} title={invoice.item_descriptions}>
-                      {invoice.item_descriptions || '-'}
-                    </p>
-                  </td>
-
-                  {/* Date */}
-                  <td className="px-6 py-4">
-                    <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                      {invoice.document_date ? new Date(invoice.document_date).toLocaleDateString() : '-'}
-                    </p>
-                  </td>
-
-                  {/* Original Amount */}
-                  <td className="px-6 py-4 text-right">
-                    <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {invoice.total_amount ? `${invoice.total_amount.toFixed(2)} ${invoice.currency_code}` : '-'}
-                    </p>
-                  </td>
-
-                  {/* Shipping Charges */}
-                  <td className="px-6 py-4 text-right">
-                    {invoice.shipping_charge && invoice.shipping_charge > 0 ? (
-                      <div className="flex items-center justify-end gap-1">
-                        <Package className="w-4 h-4 text-orange-500" />
-                        <p className={`text-sm font-medium text-orange-500`}>
-                          +{invoice.shipping_charge.toFixed(2)}
+                  {visibleColumns.invoice.visible && (
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {invoice.invoice_number || 'Processing...'}
+                        </p>
+                        <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                          {invoice.filename}
                         </p>
                       </div>
-                    ) : (
-                      <p className={`text-sm ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>-</p>
-                    )}
-                  </td>
+                    </td>
+                  )}
+
+                  {/* Vendor */}
+                  {visibleColumns.vendor.visible && (
+                    <td className="px-6 py-4">
+                      <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                        {invoice.vendor_name || '-'}
+                      </p>
+                    </td>
+                  )}
+
+                  {/* Items Description */}
+                  {visibleColumns.items.visible && (
+                    <td className="px-6 py-4">
+                      <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-600'} truncate max-w-[200px]`} title={invoice.item_descriptions}>
+                        {invoice.item_descriptions || '-'}
+                      </p>
+                    </td>
+                  )}
+
+                  {/* Date */}
+                  {visibleColumns.date.visible && (
+                    <td className="px-6 py-4">
+                      <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                        {invoice.document_date ? new Date(invoice.document_date).toLocaleDateString() : '-'}
+                      </p>
+                    </td>
+                  )}
+
+                  {/* Original Amount */}
+                  {visibleColumns.amount.visible && (
+                    <td className="px-6 py-4 text-right">
+                      <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {invoice.total_amount ? `${invoice.total_amount.toFixed(2)} ${invoice.currency_code}` : '-'}
+                      </p>
+                    </td>
+                  )}
+
+                  {/* Shipping Charges */}
+                  {visibleColumns.charges.visible && (
+                    <td className="px-6 py-4 text-right">
+                      {invoice.shipping_charge && invoice.shipping_charge > 0 ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Package className="w-4 h-4 text-orange-500" />
+                          <p className={`text-sm font-medium text-orange-500`}>
+                            +{invoice.shipping_charge.toFixed(2)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className={`text-sm ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>-</p>
+                      )}
+                    </td>
+                  )}
 
                   {/* Total with Charges */}
-                  <td className="px-6 py-4 text-right">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${isDarkMode ? 'bg-green-900/30' : 'bg-green-50'}`}>
-                      <DollarSign className="w-4 h-4 text-green-600" />
-                      <p className={`font-bold text-green-600`}>
-                        {invoice.total_with_charges ? invoice.total_with_charges.toFixed(2) : invoice.total_amount?.toFixed(2) || '-'} {invoice.currency_code}
-                      </p>
-                    </div>
-                  </td>
+                  {visibleColumns.totalWithCharges.visible && (
+                    <td className="px-6 py-4 text-right">
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${isDarkMode ? 'bg-green-900/30' : 'bg-green-50'}`}>
+                        <DollarSign className="w-4 h-4 text-green-600" />
+                        <p className={`font-bold text-green-600`}>
+                          {invoice.total_with_charges ? invoice.total_with_charges.toFixed(2) : invoice.total_amount?.toFixed(2) || '-'} {invoice.currency_code}
+                        </p>
+                      </div>
+                    </td>
+                  )}
 
                   {/* Controls */}
-                  <td className="px-6 py-4">
-                    {getVatBadge(invoice.vat_control_status)}
-                  </td>
+                  {visibleColumns.controls.visible && (
+                    <td className="px-6 py-4">
+                      {getVatBadge(invoice.vat_control_status)}
+                    </td>
+                  )}
                 </tr>
               ))
             )}

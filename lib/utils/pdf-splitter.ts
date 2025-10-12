@@ -21,44 +21,75 @@ export interface SplitInvoice {
 }
 
 /**
- * Detect invoice boundaries by splitting into 2-page chunks
- * Most invoices are 1-2 pages, so this is a practical heuristic
+ * Detect invoice boundaries using Azure Invoice model (Pass 1)
+ * Azure detects multiple invoices and tells us which pages belong to each
  */
 export async function detectInvoiceBoundaries(
-  pdfBuffer: Buffer
+  pdfUrl: string
 ): Promise<InvoiceBoundary[]> {
   try {
-    console.log('🔍 Detecting invoice boundaries...');
+    console.log('🔍 Pass 1: Detecting invoice boundaries using Azure Invoice model...');
 
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const totalPages = pdfDoc.getPageCount();
+    // Send whole PDF to Azure Invoice model
+    const result = await analyzeDocument(pdfUrl, AzurePrebuiltModel.INVOICE);
 
-    console.log(`📄 PDF has ${totalPages} total pages`);
-
-    const boundaries: InvoiceBoundary[] = [];
-    const PAGES_PER_INVOICE = 2; // Assume max 2 pages per invoice
-
-    let currentPage = 1;
-    let invoiceIndex = 1;
-
-    while (currentPage <= totalPages) {
-      const startPage = currentPage;
-      const endPage = Math.min(currentPage + PAGES_PER_INVOICE - 1, totalPages);
-
-      boundaries.push({
-        startPage,
-        endPage,
-        documentIndex: invoiceIndex,
-        reason: `Invoice ${invoiceIndex}: pages ${startPage}-${endPage}`
-      });
-
-      console.log(`📋 Invoice ${invoiceIndex}: Pages ${startPage}-${endPage}`);
-
-      currentPage = endPage + 1;
-      invoiceIndex++;
+    if (!result.pages || result.pages.length === 0) {
+      throw new Error('No pages detected in PDF');
     }
 
-    console.log(`✅ Split PDF into ${boundaries.length} invoice(s) (${PAGES_PER_INVOICE} pages each)`);
+    const totalPages = result.pages.length;
+    console.log(`📄 PDF has ${totalPages} total pages`);
+
+    // Group fields by document index to find page ranges
+    const pagesByDoc: Map<number, Set<number>> = new Map();
+
+    for (const field of result.fields) {
+      // Check for Doc1_, Doc2_, Doc3_ prefixes
+      const match = field.name.match(/^Doc(\d+)_/);
+      const docIndex = match ? parseInt(match[1]) : 1;
+      const pageNum = field.pageNumber || 1;
+
+      if (!pagesByDoc.has(docIndex)) {
+        pagesByDoc.set(docIndex, new Set());
+      }
+      pagesByDoc.get(docIndex)!.add(pageNum);
+    }
+
+    const boundaries: InvoiceBoundary[] = [];
+
+    if (pagesByDoc.size > 1) {
+      // Multiple invoices detected
+      console.log(`✅ Azure detected ${pagesByDoc.size} invoice(s) in PDF`);
+
+      // Sort by document index
+      const sortedDocs = Array.from(pagesByDoc.entries()).sort((a, b) => a[0] - b[0]);
+
+      for (const [docIndex, pages] of sortedDocs) {
+        const pageArray = Array.from(pages).sort((a, b) => a - b);
+        const startPage = Math.min(...pageArray);
+        const endPage = Math.max(...pageArray);
+
+        boundaries.push({
+          startPage,
+          endPage,
+          documentIndex: docIndex,
+          reason: `Azure detected invoice ${docIndex}: pages ${startPage}-${endPage} (${pageArray.length} pages)`
+        });
+
+        console.log(`📋 Invoice ${docIndex}: Pages ${startPage}-${endPage} (${pageArray.length} pages)`);
+      }
+    } else {
+      // Single invoice
+      console.log('📄 Single invoice detected in PDF');
+      boundaries.push({
+        startPage: 1,
+        endPage: totalPages,
+        documentIndex: 1,
+        reason: `Single invoice: pages 1-${totalPages}`
+      });
+    }
+
+    console.log(`✅ Pass 1 complete: Detected ${boundaries.length} invoice(s)`);
     return boundaries;
 
   } catch (error: any) {
@@ -68,7 +99,7 @@ export async function detectInvoiceBoundaries(
       startPage: 1,
       endPage: 999,
       documentIndex: 1,
-      reason: 'Fallback - treating entire PDF as one invoice'
+      reason: 'Fallback - treating entire PDF as one invoice due to error'
     }];
   }
 }
@@ -136,14 +167,19 @@ export async function splitPdfByPages(
 
 /**
  * Main function: detect and split a PDF into separate invoices
+ *
+ * Two-pass approach:
+ * Pass 1: Send whole PDF to Azure to detect invoice boundaries
+ * Pass 2: Split PDF based on detected boundaries
  */
 export async function detectAndSplitInvoices(
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  pdfUrl: string
 ): Promise<SplitInvoice[]> {
-  // Step 1: Detect boundaries (using 2-page chunks)
-  const boundaries = await detectInvoiceBoundaries(pdfBuffer);
+  // Pass 1: Detect boundaries by sending whole PDF to Azure
+  const boundaries = await detectInvoiceBoundaries(pdfUrl);
 
-  // Step 2: Split PDF
+  // Pass 2: Split PDF based on detected boundaries
   const splitInvoices = await splitPdfByPages(pdfBuffer, boundaries);
 
   return splitInvoices;

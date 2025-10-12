@@ -57,6 +57,20 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [showErrorModal, setShowErrorModal] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Close column selector when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showColumnSelector) {
+        setShowColumnSelector(false);
+      }
+    };
+
+    if (showColumnSelector) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showColumnSelector]);
+
   // Load invoices
   const loadInvoices = async () => {
     setIsLoading(true);
@@ -397,7 +411,10 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
             {/* Column Selector */}
             <div className="relative">
               <button
-                onClick={() => setShowColumnSelector(!showColumnSelector)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowColumnSelector(!showColumnSelector);
+                }}
                 className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'}`}
                 title="Column Settings"
               >
@@ -405,9 +422,12 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               </button>
 
               {showColumnSelector && (
-                <div className={`absolute right-0 top-12 z-50 w-56 rounded-lg shadow-xl border ${
-                  isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-                }`}>
+                <div
+                  className={`absolute right-0 top-12 z-[100] w-56 rounded-lg shadow-xl border ${
+                    isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className={`p-3 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
                     <h4 className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       Show Columns
@@ -417,8 +437,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                     {Object.entries(visibleColumns).map(([key, col]) => (
                       <label
                         key={key}
-                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer hover:bg-opacity-10 ${
-                          isDarkMode ? 'hover:bg-white' : 'hover:bg-gray-100'
+                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer ${
+                          isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
                         }`}
                       >
                         <input
@@ -530,7 +550,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[1200px]">
           <thead className={isDarkMode ? 'bg-slate-800' : 'bg-gray-50'}>
             <tr>
               {visibleColumns.status.visible && (

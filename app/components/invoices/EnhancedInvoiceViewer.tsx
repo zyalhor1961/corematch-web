@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { XCircle, Eye, RefreshCw, Download, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {

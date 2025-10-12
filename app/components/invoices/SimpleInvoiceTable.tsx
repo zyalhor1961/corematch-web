@@ -263,7 +263,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         alert(`Document fixed successfully!\n\nInvoice: ${data.mapped.invoiceNumber}\nVendor: ${data.mapped.vendorName}\nAmount: ${data.mapped.totalAmount} ${data.mapped.currencyCode}`);
         await loadInvoices();
       } else {
-        alert(`Failed to fix document: ${data.error}`);
+        console.error('Remap error details:', data);
+        alert(`Failed to fix document:\n${data.error}\n\nDetails: ${data.details || 'No additional details'}\nCode: ${data.code || 'Unknown'}`);
       }
     } catch (error) {
       console.error('Error remapping document:', error);

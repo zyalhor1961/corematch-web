@@ -162,36 +162,46 @@ export async function POST(
     }
 
     // Update document with remapped data
-    const { error: updateError } = await supabase
+    const updateData = {
+      status: 'completed',
+      total_amount: totalAmount,
+      tax_amount: taxAmount,
+      net_amount: netAmount,
+      currency_code: currencyCode || 'EUR',
+      document_date: documentDate,
+      due_date: dueDate,
+      vendor_name: vendorName,
+      vendor_vat: vendorVat,
+      invoice_number: invoiceNumber,
+      customer_name: customerName,
+      processed_at: new Date().toISOString(),
+      processing_notes: `Remapped at ${new Date().toISOString()} - ${fields.length} fields processed`
+    };
+
+    console.log('Updating document with data:', updateData);
+
+    const { data: updatedDoc, error: updateError } = await supabase
       .from('idp_documents')
-      .update({
-        status: 'completed',
-        total_amount: totalAmount,
-        tax_amount: taxAmount,
-        net_amount: netAmount,
-        currency_code: currencyCode || 'EUR',
-        document_date: documentDate,
-        due_date: dueDate,
-        vendor_name: vendorName,
-        vendor_vat: vendorVat,
-        invoice_number: invoiceNumber,
-        customer_name: customerName,
-        processed_at: new Date().toISOString(),
-        processing_notes: JSON.stringify({
-          remapped: true,
-          remapped_at: new Date().toISOString(),
-          fields_processed: fields.length
-        })
-      })
-      .eq('id', documentId);
+      .update(updateData)
+      .eq('id', documentId)
+      .select()
+      .single();
 
     if (updateError) {
       console.error('Error updating document:', updateError);
       return NextResponse.json(
-        { success: false, error: 'Failed to update document' },
+        {
+          success: false,
+          error: 'Failed to update document',
+          details: updateError.message,
+          hint: updateError.hint,
+          code: updateError.code
+        },
         { status: 500 }
       );
     }
+
+    console.log('Document updated successfully:', updatedDoc);
 
     return NextResponse.json({
       success: true,

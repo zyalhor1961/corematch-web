@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
     // ============================================
     // STEP 2: DETECT AND SPLIT INVOICES
     // ============================================
-    console.log('✂️  Step 2: Detecting invoice boundaries and splitting PDF...');
+    console.log('✂️  Step 2: Splitting PDF into 2-page chunks (1 invoice per chunk)...');
 
-    const splitInvoices = await detectAndSplitInvoices(buffer, urlData.signedUrl);
+    const splitInvoices = await detectAndSplitInvoices(buffer);
 
     console.log(`✅ Step 2 complete: Split into ${splitInvoices.length} invoice(s)`);
 

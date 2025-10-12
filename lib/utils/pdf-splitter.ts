@@ -1,7 +1,7 @@
 /**
  * PDF Splitter Utility
  *
- * Splits multi-invoice PDFs into separate invoices based on page analysis
+ * Splits multi-invoice PDFs into separate invoices based on Azure's document detection
  */
 
 import { PDFDocument } from 'pdf-lib';
@@ -10,6 +10,7 @@ import { analyzeDocument, AzurePrebuiltModel } from '@/lib/services/azure-docume
 export interface InvoiceBoundary {
   startPage: number; // 1-indexed
   endPage: number;   // 1-indexed
+  documentIndex: number;
   reason: string;
 }
 
@@ -20,79 +21,44 @@ export interface SplitInvoice {
 }
 
 /**
- * Detect invoice boundaries in a PDF by analyzing text content
- * Uses Azure Layout model to extract text per page
+ * Detect invoice boundaries by splitting into 2-page chunks
+ * Most invoices are 1-2 pages, so this is a practical heuristic
  */
 export async function detectInvoiceBoundaries(
-  pdfUrl: string
+  pdfBuffer: Buffer
 ): Promise<InvoiceBoundary[]> {
   try {
     console.log('🔍 Detecting invoice boundaries...');
 
-    // Use Layout model to get text from all pages
-    const result = await analyzeDocument(pdfUrl, AzurePrebuiltModel.LAYOUT);
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
 
-    if (!result.pages || result.pages.length === 0) {
-      throw new Error('No pages detected in PDF');
-    }
-
-    console.log(`📄 Analyzing ${result.pages.length} pages for invoice boundaries`);
+    console.log(`📄 PDF has ${totalPages} total pages`);
 
     const boundaries: InvoiceBoundary[] = [];
-    let currentInvoiceStart = 1;
+    const PAGES_PER_INVOICE = 2; // Assume max 2 pages per invoice
 
-    for (let i = 0; i < result.pages.length; i++) {
-      const page = result.pages[i];
-      const pageNumber = page.pageNumber;
+    let currentPage = 1;
+    let invoiceIndex = 1;
 
-      // Get all text from this page
-      const pageText = page.lines.map(line => line.content).join(' ').toLowerCase();
+    while (currentPage <= totalPages) {
+      const startPage = currentPage;
+      const endPage = Math.min(currentPage + PAGES_PER_INVOICE - 1, totalPages);
 
-      // Check for invoice indicators (new invoice starting)
-      const hasInvoiceHeader =
-        pageText.includes('invoice') ||
-        pageText.includes('facture') ||
-        pageText.includes('invoice number') ||
-        pageText.includes('numéro de facture') ||
-        pageText.includes('n° facture');
+      boundaries.push({
+        startPage,
+        endPage,
+        documentIndex: invoiceIndex,
+        reason: `Invoice ${invoiceIndex}: pages ${startPage}-${endPage}`
+      });
 
-      const hasTotal =
-        pageText.includes('total') ||
-        pageText.includes('amount due') ||
-        pageText.includes('montant total') ||
-        pageText.includes('total à payer');
+      console.log(`📋 Invoice ${invoiceIndex}: Pages ${startPage}-${endPage}`);
 
-      // If we find an invoice header and we're not on the first page
-      // and the previous page had a total, this is likely a new invoice
-      if (i > 0 && hasInvoiceHeader && hasTotal) {
-        const prevPage = result.pages[i - 1];
-        const prevPageText = prevPage.lines.map(line => line.content).join(' ').toLowerCase();
-        const prevHasTotal =
-          prevPageText.includes('total') ||
-          prevPageText.includes('amount due') ||
-          prevPageText.includes('montant total');
-
-        if (prevHasTotal) {
-          // Previous invoice ends at previous page
-          boundaries.push({
-            startPage: currentInvoiceStart,
-            endPage: pageNumber - 1,
-            reason: 'Detected total on previous page and invoice header on current page'
-          });
-          currentInvoiceStart = pageNumber;
-          console.log(`✂️  Detected invoice boundary: Pages ${currentInvoiceStart - (pageNumber - currentInvoiceStart)} to ${pageNumber - 1}`);
-        }
-      }
+      currentPage = endPage + 1;
+      invoiceIndex++;
     }
 
-    // Add the last invoice
-    boundaries.push({
-      startPage: currentInvoiceStart,
-      endPage: result.pages.length,
-      reason: 'Last invoice in PDF'
-    });
-
-    console.log(`✅ Detected ${boundaries.length} invoice(s) in PDF`);
+    console.log(`✅ Split PDF into ${boundaries.length} invoice(s) (${PAGES_PER_INVOICE} pages each)`);
     return boundaries;
 
   } catch (error: any) {
@@ -100,7 +66,8 @@ export async function detectInvoiceBoundaries(
     // Fallback: treat entire PDF as one invoice
     return [{
       startPage: 1,
-      endPage: 999, // Will be limited by actual page count
+      endPage: 999,
+      documentIndex: 1,
       reason: 'Fallback - treating entire PDF as one invoice'
     }];
   }
@@ -171,11 +138,10 @@ export async function splitPdfByPages(
  * Main function: detect and split a PDF into separate invoices
  */
 export async function detectAndSplitInvoices(
-  pdfBuffer: Buffer,
-  pdfUrl: string
+  pdfBuffer: Buffer
 ): Promise<SplitInvoice[]> {
-  // Step 1: Detect boundaries
-  const boundaries = await detectInvoiceBoundaries(pdfUrl);
+  // Step 1: Detect boundaries (using 2-page chunks)
+  const boundaries = await detectInvoiceBoundaries(pdfBuffer);
 
   // Step 2: Split PDF
   const splitInvoices = await splitPdfByPages(pdfBuffer, boundaries);

@@ -46,8 +46,12 @@ export async function POST(request: NextRequest) {
     // Extract fields
     const file = formData.get('file') as File | null;
     const orgId = formData.get('orgId') as string | null;
-    const userId = formData.get('userId') as string | null;
+    const userIdRaw = formData.get('userId') as string | null;
     const documentType = (formData.get('documentType') as string) || 'general';
+
+    // Validate userId is a proper UUID or set to null
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const userId = userIdRaw && uuidRegex.test(userIdRaw) ? userIdRaw : null;
 
     if (!file || !orgId) {
       return NextResponse.json(

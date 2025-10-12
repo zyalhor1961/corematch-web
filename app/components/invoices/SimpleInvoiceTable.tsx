@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle, Info, Wrench } from 'lucide-react';
 import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
+import { createClient } from '@/lib/supabase/client';
 
 interface SimpleInvoice {
   id: string;
@@ -39,7 +40,8 @@ const AVAILABLE_COLUMNS = {
   amount: { label: 'Amount', visible: true },
   charges: { label: '+ Charges', visible: true },
   totalWithCharges: { label: 'Total with Charges', visible: true },
-  controls: { label: 'Controls', visible: true }
+  controls: { label: 'Controls', visible: true },
+  actions: { label: 'Actions', visible: true }
 };
 
 export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, isDarkMode = false }) => {
@@ -249,6 +251,28 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     } catch (error) {
       console.error('Error deleting document:', error);
       alert('Error deleting document');
+    }
+  };
+
+  // Delete all documents
+  const deleteAllDocuments = async () => {
+    if (!confirm(`Delete ALL ${invoices.length} documents? This action cannot be undone!`)) {
+      return;
+    }
+
+    try {
+      // Delete all documents one by one
+      for (const invoice of invoices) {
+        await fetch(`/api/idp/documents?id=${invoice.id}`, {
+          method: 'DELETE'
+        });
+      }
+
+      await loadInvoices();
+      alert('All documents deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting all documents:', error);
+      alert('Error deleting documents');
     }
   };
 
@@ -498,6 +522,20 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
 
+            <button
+              onClick={deleteAllDocuments}
+              disabled={invoices.length === 0}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                isDarkMode
+                  ? 'bg-red-600 hover:bg-red-500 text-white'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              } disabled:opacity-50`}
+              title="Delete All Documents (for testing)"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete All
+            </button>
+
             <input
               ref={fileInputRef}
               type="file"
@@ -599,6 +637,11 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               {visibleColumns.controls.visible && (
                 <th className={`px-6 py-3 text-left text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   Controls
+                </th>
+              )}
+              {visibleColumns.actions.visible && (
+                <th className={`px-6 py-3 text-center text-xs font-bold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Actions
                 </th>
               )}
             </tr>
@@ -757,6 +800,19 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   {visibleColumns.controls.visible && (
                     <td className="px-6 py-4">
                       {getVatBadge(invoice.vat_control_status)}
+                    </td>
+                  )}
+
+                  {/* Actions */}
+                  {visibleColumns.actions.visible && (
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={(e) => deleteDocument(invoice.id, e)}
+                        className={`p-2 rounded transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   )}
                 </tr>

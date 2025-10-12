@@ -5,7 +5,9 @@
   "framework": "nextjs",
   "functions": {
     "app/api/invoices/process/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "memory": 3008,
+      "maxRequestBodySize": "50mb"
     },
     "app/api/idp/upload/route.ts": {
       "maxDuration": 60

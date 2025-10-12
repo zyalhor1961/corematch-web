@@ -267,6 +267,9 @@ export async function POST(request: NextRequest) {
     // Check if fields have Doc1_, Doc2_ prefixes (indicating multiple invoices)
     const hasMultipleInvoices = result.fields.some(f => /^Doc\d+_/.test(f.name));
 
+    // Store extracted data for response (will be from first invoice if multiple)
+    let extractedData: any = null;
+
     if (hasMultipleInvoices) {
       console.log('🔍 Multiple invoices detected in PDF! Splitting...');
 
@@ -346,6 +349,11 @@ export async function POST(request: NextRequest) {
         // Extract data from this invoice's fields
         const extracted = extractFieldData(docFields);
 
+        // Store first invoice's data for response
+        if (isFirstDoc) {
+          extractedData = extracted;
+        }
+
         // Update document with extracted data
         await supabase
           .from('idp_documents')
@@ -407,6 +415,7 @@ export async function POST(request: NextRequest) {
       console.log('📄 Single invoice detected, processing normally');
 
       const extracted = extractFieldData(result.fields);
+      extractedData = extracted;
 
       // Update document with extracted data
       const { error: updateError } = await supabase
@@ -487,13 +496,13 @@ export async function POST(request: NextRequest) {
         keyValuePairs: result.keyValuePairs,
         analyzedAt: new Date().toISOString(),
         extracted: {
-          totalAmount,
-          taxAmount,
-          netAmount,
-          currencyCode,
-          documentDate,
-          vendorName,
-          invoiceNumber
+          totalAmount: extractedData?.totalAmount,
+          taxAmount: extractedData?.taxAmount,
+          netAmount: extractedData?.netAmount,
+          currencyCode: extractedData?.currencyCode,
+          documentDate: extractedData?.documentDate,
+          vendorName: extractedData?.vendorName,
+          invoiceNumber: extractedData?.invoiceNumber
         }
       }
     });

@@ -96,14 +96,33 @@ async function parseMultipartForm(request: NextRequest): Promise<{
  * Upload a document and save to database, then trigger Azure analysis
  */
 export async function POST(request: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
     console.log('📤 Upload request received');
     console.log('Content-Type:', request.headers.get('content-type'));
+
+    // Check environment variables
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      console.error('❌ NEXT_PUBLIC_SUPABASE_URL is missing');
+      return NextResponse.json(
+        { error: 'Server configuration error: SUPABASE_URL not set' },
+        { status: 500 }
+      );
+    }
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('❌ SUPABASE_SERVICE_ROLE_KEY is missing');
+      return NextResponse.json(
+        { error: 'Server configuration error: SERVICE_ROLE_KEY not set' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    console.log('✅ Supabase client created');
 
     // Parse multipart form data
     const { fields, files } = await parseMultipartForm(request);

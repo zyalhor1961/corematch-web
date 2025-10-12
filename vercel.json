@@ -4,6 +4,9 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
+    "app/api/invoices/process/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/idp/upload/route.ts": {
       "maxDuration": 60
     },

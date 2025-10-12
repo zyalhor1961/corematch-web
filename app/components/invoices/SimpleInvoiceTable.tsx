@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw } from 'lucide-react';
+import { EnhancedInvoiceViewer } from './EnhancedInvoiceViewer';
 
 interface SimpleInvoice {
   id: string;
@@ -32,7 +33,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -163,13 +164,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
   };
 
   // Open PDF viewer
-  const viewPdf = async (storagePath: string) => {
+  const viewPdf = async (documentId: string, storagePath: string) => {
     try {
       const response = await fetch(`/api/idp/documents/view-pdf?path=${encodeURIComponent(storagePath)}`);
       const data = await response.json();
       if (data.url) {
         setPdfUrl(data.url);
-        setSelectedPdf(storagePath);
+        setSelectedDocumentId(documentId);
       }
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -178,7 +179,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
 
   // Close PDF viewer
   const closePdfViewer = () => {
-    setSelectedPdf(null);
+    setSelectedDocumentId(null);
     setPdfUrl(null);
   };
 
@@ -301,7 +302,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               invoices.map((invoice) => (
                 <tr
                   key={invoice.id}
-                  onClick={() => invoice.storage_path && viewPdf(invoice.storage_path)}
+                  onClick={() => invoice.storage_path && viewPdf(invoice.id, invoice.storage_path)}
                   className={`${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'} transition-colors cursor-pointer`}
                 >
                   {/* Status */}
@@ -418,37 +419,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         </div>
       </div>
 
-      {/* PDF Viewer Modal */}
-      {selectedPdf && pdfUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
-          onClick={closePdfViewer}
-        >
-          <div
-            className="relative w-[90vw] h-[90vh] bg-white rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Invoice PDF</h3>
-              <button
-                onClick={closePdfViewer}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <XCircle className="w-6 h-6 text-gray-600" />
-              </button>
-            </div>
-
-            {/* PDF Viewer */}
-            <div className="w-full h-[calc(100%-4rem)] overflow-auto">
-              <iframe
-                src={pdfUrl}
-                className="w-full h-full"
-                title="Invoice PDF"
-              />
-            </div>
-          </div>
-        </div>
+      {/* Enhanced PDF Viewer Modal */}
+      {selectedDocumentId && pdfUrl && (
+        <EnhancedInvoiceViewer
+          documentId={selectedDocumentId}
+          pdfUrl={pdfUrl}
+          onClose={closePdfViewer}
+        />
       )}
     </div>
   );

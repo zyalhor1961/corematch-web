@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Create project with authenticated user as creator
-    const { data: project, error } = await supabaseAdmin
+    const { data: project, error: dbError } = await supabaseAdmin
       .from('projects')
       .insert({
         org_id: orgId,
@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) {
-      console.error('Error creating project:', error);
+    if (dbError) {
+      console.error('Error creating project:', dbError);
       return NextResponse.json(
         { error: 'Failed to create project' },
         { status: 500 }

@@ -171,9 +171,7 @@ export async function secureApiRoute(
           orgId = searchParams.get(orgIdParam) || undefined;
           break;
         case 'body':
-          const body = await request.json();
-          orgId = body[orgIdParam];
-          break;
+          throw new Error('secureApiRoute no longer supports orgIdSource="body". Use verifyAuth + verifyAuthAndOrgAccess instead.');
         case 'params':
           // This would need to be handled by the calling route
           // as we don't have access to dynamic params here
@@ -220,6 +218,27 @@ export async function secureApiRoute(
     user,
     orgId
   };
+}
+
+/**
+ * Vérifie l'authentification et l'accès organisationnel sans consommer le corps de la requête
+ */
+export async function verifyAuthAndOrgAccess(
+  user: AuthUser,
+  orgId: string,
+  options: { allowMasterAdmin?: boolean } = {}
+): Promise<boolean> {
+  const { allowMasterAdmin = true } = options;
+
+  if (!orgId) {
+    return false;
+  }
+
+  if (allowMasterAdmin && user.isMasterAdmin) {
+    return true;
+  }
+
+  return verifyOrgAccess(user.id, orgId, allowMasterAdmin && user.isMasterAdmin);
 }
 
 /**

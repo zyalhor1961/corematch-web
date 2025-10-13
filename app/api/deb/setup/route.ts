@@ -1,8 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/middleware';
 
+/**
+ * POST /api/deb/setup
+ *
+ * SECURITY: ADMIN ONLY - Sets up DEB system infrastructure
+ * This endpoint executes privileged database operations and should
+ * ONLY be accessible to master administrators.
+ */
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY FIX: Verify authentication and require MASTER ADMIN
+    const { user, error: authError } = await verifyAuth(request);
+
+    if (!user || authError) {
+      console.error('❌ Authentication failed:', authError);
+      return NextResponse.json(
+        { error: 'Authentication required', details: authError },
+        { status: 401 }
+      );
+    }
+
+    // CRITICAL: Only master admin can execute setup operations
+    if (!user.isMasterAdmin) {
+      console.error('❌ Access denied: Not a master admin:', user.email);
+      return NextResponse.json(
+        {
+          error: 'Access denied: Master administrator privileges required',
+          code: 'ADMIN_REQUIRED'
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log('✅ Master admin verified:', user.email);
     console.log('🚀 Setting up DEB system...');
 
     // 1. Create deb-docs bucket if it doesn't exist

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { z } from 'zod';
-import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
+import { secureApiRoute, logSecurityEvent, verifyAuth, verifyAuthAndOrgAccess } from '@/lib/auth/middleware';
 
 const createProjectSchema = z.object({
   orgId: z.string().uuid(),
@@ -14,30 +14,35 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Security check with organization access verification
-    const securityResult = await secureApiRoute(request, {
-      requireOrgAccess: true,
-      orgIdSource: 'body',
-      orgIdParam: 'orgId'
-    });
+    const { user, error } = await verifyAuth(request);
 
-    if (!securityResult.success) {
-      return securityResult.response!;
+    if (!user || error) {
+      return NextResponse.json(
+        { error: error ?? 'Authentication required' },
+        { status: 401 }
+      );
     }
 
-    const { user, orgId } = securityResult;
-
     const body = await request.json();
-    const { name, description, job_title, requirements } = createProjectSchema.parse(body);
+    const { orgId, name, description, job_title, requirements } = createProjectSchema.parse(body);
 
-    console.log('Creating project for user:', user!.id, 'orgId:', orgId);
+    const hasAccess = await verifyAuthAndOrgAccess(user, orgId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this organization' },
+        { status: 403 }
+      );
+    }
+
+    console.log('Creating project for user:', user.id, 'orgId:', orgId);
 
     // Log security event for project creation
     logSecurityEvent({
       type: 'SUSPICIOUS_ACTIVITY',
-      userId: user!.id,
-      email: user!.email,
-      orgId: orgId!,
+      userId: user.id,
+      email: user.email,
+      orgId,
       route: '/api/cv/projects [POST]',
       details: `Project creation: ${name}`
     });
@@ -46,12 +51,12 @@ export async function POST(request: NextRequest) {
     const { data: project, error } = await supabaseAdmin
       .from('projects')
       .insert({
-        org_id: orgId!,
+        org_id: orgId,
         name,
         description,
         job_title,
         requirements,
-        created_by: user!.id,
+        created_by: user.id,
       })
       .select()
       .single();

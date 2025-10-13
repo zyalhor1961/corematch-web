@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { detectAndSplitInvoices } from '@/lib/utils/pdf-splitter';
+import { verifyAuth, verifyAuthAndOrgAccess } from '@/lib/auth/middleware';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for full processing
@@ -20,10 +21,60 @@ export const maxDuration = 300; // 5 minutes for full processing
  * 5. Return all processed invoices
  */
 export async function POST(request: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const { user, error } = await verifyAuth(request);
+
+  if (!user || error) {
+    return NextResponse.json(
+      { error: error ?? 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
+  const formData = await request.formData();
+  const file = formData.get('file') as File | null;
+  const orgId = formData.get('orgId') as string | null;
+
+  if (!orgId) {
+    return NextResponse.json(
+      { error: 'Organization ID is required' },
+      { status: 400 }
+    );
+  }
+
+  if (!file) {
+    return NextResponse.json(
+      { error: 'File is required' },
+      { status: 400 }
+    );
+  }
+
+  const hasAccess = await verifyAuthAndOrgAccess(user, orgId);
+
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Access denied to this organization' },
+      { status: 403 }
+    );
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) {
+    return NextResponse.json(
+      { error: 'Server configuration error: SUPABASE_URL not set' },
+      { status: 500 }
+    );
+  }
+
+  if (!serviceRoleKey) {
+    return NextResponse.json(
+      { error: 'Server configuration error: SERVICE_ROLE_KEY not set' },
+      { status: 500 }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const processedInvoices: any[] = [];
 
@@ -33,16 +84,6 @@ export async function POST(request: NextRequest) {
     // ============================================
     // STEP 1: UPLOAD ORIGINAL PDF & GET SIGNED URL
     // ============================================
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const orgId = formData.get('orgId') as string;
-
-    if (!file || !orgId) {
-      return NextResponse.json(
-        { error: 'File and orgId are required' },
-        { status: 400 }
-      );
-    }
 
     console.log('📄 Step 1: Uploading original PDF:', file.name);
 

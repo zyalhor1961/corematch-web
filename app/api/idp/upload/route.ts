@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth, verifyAuthAndOrgAccess } from '@/lib/auth/middleware';
 
 // Use Node.js runtime
 export const runtime = 'nodejs';
@@ -15,8 +16,20 @@ export async function POST(request: NextRequest) {
     console.log('📤 Upload request received');
     console.log('Content-Type:', request.headers.get('content-type'));
 
+    const { user, error } = await verifyAuth(request);
+
+    if (!user || error) {
+      return NextResponse.json(
+        { error: error ?? 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // Check environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) {
       console.error('❌ NEXT_PUBLIC_SUPABASE_URL is missing');
       return NextResponse.json(
         { error: 'Server configuration error: SUPABASE_URL not set' },
@@ -24,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!serviceRoleKey) {
       console.error('❌ SUPABASE_SERVICE_ROLE_KEY is missing');
       return NextResponse.json(
         { error: 'Server configuration error: SERVICE_ROLE_KEY not set' },
@@ -33,8 +46,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      supabaseUrl,
+      serviceRoleKey
     );
 
     console.log('✅ Supabase client created');
@@ -49,13 +62,29 @@ export async function POST(request: NextRequest) {
     const userIdRaw = formData.get('userId') as string | null;
     const documentType = (formData.get('documentType') as string) || 'general';
 
+    if (!orgId) {
+      return NextResponse.json(
+        { error: 'Organization ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const hasAccess = await verifyAuthAndOrgAccess(user, orgId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this organization' },
+        { status: 403 }
+      );
+    }
+
     // Validate userId is a proper UUID or set to null
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const userId = userIdRaw && uuidRegex.test(userIdRaw) ? userIdRaw : null;
 
-    if (!file || !orgId) {
+    if (!file) {
       return NextResponse.json(
-        { error: 'File and orgId are required' },
+        { error: 'File is required' },
         { status: 400 }
       );
     }

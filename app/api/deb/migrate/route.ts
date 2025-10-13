@@ -1,8 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/middleware';
 
+/**
+ * POST /api/deb/migrate
+ *
+ * SECURITY: ADMIN ONLY - Migrates DEB database schema
+ * This endpoint executes privileged database operations and should
+ * ONLY be accessible to master administrators.
+ */
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY FIX: Verify authentication and require MASTER ADMIN
+    const { user, error: authError } = await verifyAuth(request);
+
+    if (!user || authError) {
+      console.error('❌ Authentication failed:', authError);
+      return NextResponse.json(
+        { error: 'Authentication required', details: authError },
+        { status: 401 }
+      );
+    }
+
+    // CRITICAL: Only master admin can execute migrations
+    if (!user.isMasterAdmin) {
+      console.error('❌ Access denied: Not a master admin:', user.email);
+      return NextResponse.json(
+        {
+          error: 'Access denied: Master administrator privileges required',
+          code: 'ADMIN_REQUIRED'
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log('✅ Master admin verified:', user.email);
     console.log('🚀 Migrating DEB documents schema...');
 
     // Create a new table for DEB documents with the correct structure

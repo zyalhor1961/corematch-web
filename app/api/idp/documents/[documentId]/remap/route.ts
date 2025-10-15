@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { analyzeDocument, detectBestModel, AzurePrebuiltModel } from '@/lib/services/azure-document-intelligence';
 
 export const runtime = 'nodejs';
 
@@ -76,6 +77,9 @@ export async function POST(
       .select('*')
       .eq('document_id', documentId);
 
+    // Use a mutable reference for downstream processing
+    let remapFields = fields || [];
+
     if (fieldsError || !fields) {
       return NextResponse.json(
         { success: false, error: 'Failed to load extracted fields' },
@@ -83,11 +87,136 @@ export async function POST(
       );
     }
 
-    if (fields.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'No extracted fields found for this document' },
-        { status: 404 }
-      );
+    if (remapFields.length === 0) {
+      // Attempt an automatic analyze pass to populate fields, if possible
+      console.log('[remap] No extracted fields found. Attempting auto-analyze...');
+
+      // Load document to get storage info
+      const { data: doc, error: docError } = await supabase
+        .from('idp_documents')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+      if (!doc || docError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No extracted fields found for this document',
+            details: 'Document not found or inaccessible',
+            code: docError?.code || 'DOC_NOT_FOUND'
+          },
+          { status: 404 }
+        );
+      }
+
+      if (!doc.storage_bucket || !doc.storage_path || !doc.org_id) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No extracted fields found for this document',
+            details: 'Document missing storage info; cannot auto-analyze',
+            code: 'MISSING_STORAGE_INFO'
+          },
+          { status: 400 }
+        );
+      }
+
+      // Create a signed URL for the stored file
+      const { data: signed, error: signedErr } = await supabase
+        .storage
+        .from(doc.storage_bucket)
+        .createSignedUrl(doc.storage_path, 3600);
+
+      if (signedErr || !signed?.signedUrl) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No extracted fields found for this document',
+            details: 'Failed to create signed URL for auto-analyze',
+            code: signedErr?.code || 'SIGNED_URL_FAILED'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Directly invoke Azure analysis to populate fields (no internal HTTP)
+      try {
+        let selectedModel = AzurePrebuiltModel.GENERAL_DOCUMENT;
+        const filename = (doc.filename || doc.original_filename || '').toString();
+        if (filename) {
+          selectedModel = detectBestModel(filename);
+        }
+
+        const result = await analyzeDocument(signed.signedUrl, selectedModel);
+
+        // Update document basic analysis metadata
+        await supabase
+          .from('idp_documents')
+          .update({
+            status: 'processing',
+            azure_model_id: selectedModel,
+            azure_analyzed_at: new Date().toISOString(),
+            overall_confidence: result.confidence,
+            field_count: result.fields.length,
+            page_count: result.pages.length
+          })
+          .eq('id', documentId);
+
+        // Persist extracted fields
+        const fieldsToInsert = result.fields.map((field: any) => ({
+          document_id: documentId,
+          field_name: field.name,
+          field_type: field.type,
+          value_text: field.value?.toString() || null,
+          value_number: typeof field.value === 'number' ? field.value : (parseFloat(field.value) || null),
+          confidence: field.confidence,
+          page_number: field.pageNumber || 1,
+          bounding_box: field.boundingBox ? { polygon: field.boundingBox } : null,
+          extraction_method: 'azure'
+        }));
+
+        if (fieldsToInsert.length > 0) {
+          const { error: fieldsInsertError } = await supabase
+            .from('idp_extracted_fields')
+            .insert(fieldsToInsert);
+          if (fieldsInsertError) {
+            console.error('[remap] Error saving extracted fields:', fieldsInsertError);
+          }
+        }
+
+        // Re-fetch fields after analysis attempt
+        const { data: fieldsAfter } = await supabase
+          .from('idp_extracted_fields')
+          .select('*')
+          .eq('document_id', documentId);
+
+        if (!fieldsAfter || fieldsAfter.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'No extracted fields found for this document',
+              details: 'Auto-analyze succeeded but returned no fields',
+              code: 'NO_FIELDS_AFTER_ANALYZE'
+            },
+            { status: 404 }
+          );
+        }
+
+        // Swap to the newly extracted fields and continue remap flow
+        console.log(`[remap] Auto-analyze produced ${fieldsAfter.length} fields; continuing remap`);
+        remapFields = fieldsAfter;
+      } catch (e: any) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No extracted fields found for this document',
+            details: `Auto-analyze exception: ${e?.message || 'unknown'}`,
+            code: 'AUTO_ANALYZE_EXCEPTION'
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Re-map fields using multilingual logic
@@ -102,7 +231,7 @@ export async function POST(
     let invoiceNumber: string | null = null;
     let customerName: string | null = null;
 
-    for (const field of fields) {
+    for (const field of remapFields) {
       const fieldName = field.field_name.toLowerCase();
       const fieldValue = field.value_text || '';
 
@@ -230,7 +359,7 @@ export async function POST(
       invoice_number: invoiceNumber,
       customer_name: customerName,
       processed_at: new Date().toISOString(),
-      processing_notes: `Remapped at ${new Date().toISOString()} - ${fields.length} fields processed`
+      processing_notes: `Remapped at ${new Date().toISOString()} - ${remapFields.length} fields processed`
     };
 
     console.log('Updating document with data:', updateData);
@@ -267,7 +396,7 @@ export async function POST(
         totalAmount,
         currencyCode,
         documentDate,
-        fieldsProcessed: fields.length
+        fieldsProcessed: remapFields.length
       }
     });
   } catch (error: any) {

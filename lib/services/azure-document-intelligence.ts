@@ -24,8 +24,8 @@ let documentAnalysisClient: DocumentAnalysisClient | null = null;
  */
 function getClient(): DocumentAnalysisClient {
   if (!documentAnalysisClient) {
-    const endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
-    const key = process.env.AZURE_FORM_RECOGNIZER_KEY;
+    const endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT || process.env.AZURE_DOCINTEL_ENDPOINT;
+    const key = process.env.AZURE_FORM_RECOGNIZER_KEY || process.env.AZURE_DOCINTEL_KEY;
 
     if (!endpoint || !key) {
       throw new Error('Azure Document Intelligence credentials not configured');
@@ -160,6 +160,59 @@ export async function analyzeDocument(
               boundingBox: boundingRegion?.polygon || [],
               pageNumber: boundingRegion?.pageNumber || 1
             });
+
+            // Flatten invoice line items if present (prebuilt invoice)
+            if (fieldName.toLowerCase() === 'items') {
+              try {
+                const arr: any[] = Array.isArray((field as any).values)
+                  ? (field as any).values
+                  : (Array.isArray((field as any).value) ? (field as any).value : []);
+
+                for (let i = 0; i < arr.length; i++) {
+                  const item = arr[i];
+                  const itemFields = (item && (item as any).properties) || (item && (item as any).value) || item || {};
+                  const idx = i + 1;
+
+                  const pick = (key: string) => {
+                    const f = itemFields[key] || itemFields[key?.toLowerCase?.()] || itemFields[key?.toUpperCase?.()];
+                    if (!f) return null;
+                    const v = (f.value ?? f.content ?? f);
+                    return typeof v === 'object' ? (v.amount ?? v.content ?? v.toString()) : v;
+                  };
+
+                  const desc = pick('Description');
+                  const qty = pick('Quantity');
+                  const unitPrice = pick('UnitPrice');
+                  const amount = pick('Amount');
+                  const sku = pick('ProductCode') ?? pick('SKU') ?? pick('Product');
+                  const unit = pick('Unit') ?? pick('MeasureUnit') ?? pick('UOM');
+
+                  const pushField = (n: string, v: any) => {
+                    if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return;
+                    fields.push({
+                      name: `${docPrefix}item_${idx}_${n}`,
+                      value: v,
+                      confidence: (item?.confidence ?? (field as any).confidence ?? 0) as number,
+                      type: typeof v === 'number' ? 'number' : 'string',
+                      boundingBox: [],
+                      pageNumber: boundingRegion?.pageNumber || 1
+                    });
+                  };
+
+                  pushField('description', typeof desc === 'string' ? desc.trim() : desc);
+                  const qtyNum = typeof qty === 'number' ? qty : parseFloat((qty ?? '').toString().replace(',', '.'));
+                  if (!isNaN(qtyNum)) pushField('quantity', qtyNum);
+                  const upNum = typeof unitPrice === 'number' ? unitPrice : parseFloat((unitPrice ?? '').toString().replace(',', '.'));
+                  if (!isNaN(upNum)) pushField('unit_price', upNum);
+                  const amtNum = typeof amount === 'number' ? amount : parseFloat((amount ?? '').toString().replace(',', '.'));
+                  if (!isNaN(amtNum)) pushField('amount', amtNum);
+                  if (sku) pushField('sku', sku);
+                  if (unit) pushField('unit', unit);
+                }
+              } catch (e) {
+                console.warn('Failed to flatten invoice items (url):', e);
+              }
+            }
           }
         }
       }
@@ -302,6 +355,59 @@ export async function analyzeDocumentFromBuffer(
               boundingBox: boundingRegion?.polygon || [],
               pageNumber: boundingRegion?.pageNumber || 1
             });
+
+            // Flatten invoice line items if present (prebuilt invoice)
+            if (fieldName.toLowerCase() === 'items') {
+              try {
+                const arr: any[] = Array.isArray((field as any).values)
+                  ? (field as any).values
+                  : (Array.isArray((field as any).value) ? (field as any).value : []);
+
+                for (let i = 0; i < arr.length; i++) {
+                  const item = arr[i];
+                  const itemFields = (item && (item as any).properties) || (item && (item as any).value) || item || {};
+                  const idx = i + 1;
+
+                  const pick = (key: string) => {
+                    const f = itemFields[key] || itemFields[key?.toLowerCase?.()] || itemFields[key?.toUpperCase?.()];
+                    if (!f) return null;
+                    const v = (f.value ?? f.content ?? f);
+                    return typeof v === 'object' ? (v.amount ?? v.content ?? v.toString()) : v;
+                  };
+
+                  const desc = pick('Description');
+                  const qty = pick('Quantity');
+                  const unitPrice = pick('UnitPrice');
+                  const amount = pick('Amount');
+                  const sku = pick('ProductCode') ?? pick('SKU') ?? pick('Product');
+                  const unit = pick('Unit') ?? pick('MeasureUnit') ?? pick('UOM');
+
+                  const pushField = (n: string, v: any) => {
+                    if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return;
+                    fields.push({
+                      name: `${docPrefix}item_${idx}_${n}`,
+                      value: v,
+                      confidence: (item?.confidence ?? (field as any).confidence ?? 0) as number,
+                      type: typeof v === 'number' ? 'number' : 'string',
+                      boundingBox: [],
+                      pageNumber: boundingRegion?.pageNumber || 1
+                    });
+                  };
+
+                  pushField('description', typeof desc === 'string' ? desc.trim() : desc);
+                  const qtyNum = typeof qty === 'number' ? qty : parseFloat((qty ?? '').toString().replace(',', '.'));
+                  if (!isNaN(qtyNum)) pushField('quantity', qtyNum);
+                  const upNum = typeof unitPrice === 'number' ? unitPrice : parseFloat((unitPrice ?? '').toString().replace(',', '.'));
+                  if (!isNaN(upNum)) pushField('unit_price', upNum);
+                  const amtNum = typeof amount === 'number' ? amount : parseFloat((amount ?? '').toString().replace(',', '.'));
+                  if (!isNaN(amtNum)) pushField('amount', amtNum);
+                  if (sku) pushField('sku', sku);
+                  if (unit) pushField('unit', unit);
+                }
+              } catch (e) {
+                console.warn('Failed to flatten invoice items (buffer):', e);
+              }
+            }
           }
         }
       }

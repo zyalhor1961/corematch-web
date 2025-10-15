@@ -8,6 +8,15 @@
       "maxDuration": 300,
       "memory": 3008
     },
+    "app/api/idp/documents/[documentId]/export/summary/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/idp/documents/[documentId]/export/detailed/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/idp/documents/[documentId]/reanalyze/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/idp/upload/route.ts": {
       "maxDuration": 60
     },

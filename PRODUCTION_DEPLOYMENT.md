@@ -15,11 +15,11 @@ Your complete DEB (Déclaration d'Échanges de Biens) processing system is now *
 **Git Commit**: `a6314a5`
 **Branch**: `main`
 **Repository**: https://github.com/zyalhor1961/corematch-web.git
-**Deployment Platform**: Netlify
+**Deployment Platform**: Vercel
 **Build Time**: 1m 4.8s
 **Deploy URL**: https://corematch.fr
 
-**Unique Deploy URL**: https://68eb60732bc0b3198d2f1915--astonishing-longma-92ccb3.netlify.app
+**Latest Vercel Deploy**: https://corematch-peg3md3a3-corematchs-projects.vercel.app
 
 ---
 
@@ -163,14 +163,11 @@ curl https://corematch.fr/api/deb/reference/stats?orgId=YOUR_ORG_ID \
 
 ## 🔍 Monitoring Production
 
-### Check Build Logs
-https://app.netlify.com/projects/astonishing-longma-92ccb3/deploys/68eb60732bc0b3198d2f1915
+### Vercel Dashboard
+https://vercel.com/corematchs-projects/corematch-web
 
-### Function Logs
-https://app.netlify.com/projects/astonishing-longma-92ccb3/logs/functions
-
-### Edge Function Logs
-https://app.netlify.com/projects/astonishing-longma-92ccb3/logs/edge-functions
+### Latest Deployment (inspect)
+https://vercel.com/corematchs-projects/corematch-web/3o3iRvRdkW6D6pJDLkdpn9z3f9tY
 
 ### Supabase Dashboard
 https://supabase.com/dashboard/project/glexllbywdvlxpbanjmn
@@ -274,7 +271,7 @@ const response = await fetch('/api/deb/documents/doc-123/vat-control', {
 
 ### Issue: API endpoints return 500 error
 **Check**:
-- Environment variables are set in Netlify
+- Environment variables are managed in Vercel
 - Supabase connection is working
 - Function logs for specific errors
 
@@ -301,8 +298,7 @@ const response = await fetch('/api/deb/documents/doc-123/vat-control', {
 ## 📞 Support Resources
 
 ### Logs & Monitoring
-- **Netlify Build Logs**: https://app.netlify.com/projects/astonishing-longma-92ccb3/deploys
-- **Netlify Function Logs**: https://app.netlify.com/projects/astonishing-longma-92ccb3/logs/functions
+- Manage deployments in Vercel: https://vercel.com/corematchs-projects/corematch-web/deployments
 - **Supabase Logs**: https://supabase.com/dashboard/project/glexllbywdvlxpbanjmn/logs
 
 ### Database Access

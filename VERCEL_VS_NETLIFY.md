@@ -1,4 +1,6 @@
-# Vercel vs Netlify Configuration - CoreMatch
+# Vercel Deployment (Netlify Deprecated) - CoreMatch
+
+> Netlify is no longer used. CoreMatch deploys exclusively on Vercel. Any Netlify steps below are for historical reference and should not be followed.
 
 ## 🎯 Current Status
 

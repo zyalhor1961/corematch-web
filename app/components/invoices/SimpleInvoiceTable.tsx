@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, AlertCircle, XCircle, Clock, DollarSign, Package, RefreshCw, Download, Settings, Trash2, AlertTriangle, Info, Wrench } from 'lucide-react';
@@ -155,7 +155,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
       }
 
       const result = await response.json();
-      console.log('✅ Invoice processed:', result);
+      console.log('âœ… Invoice processed:', result);
 
       // Reload invoices
       await loadInvoices();
@@ -185,7 +185,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'processing':
       case 'queued':
-        return <Clock className="w-5 h-5 text-blue-500 animate-spin" />;
+        return <Clock className="w-5 h-5 text-brand animate-spin" />;
       case 'uploaded':
       case 'archived':
       default:
@@ -327,6 +327,31 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
     }
   };
 
+  // Re-run Azure analysis and remap
+  const reanalyzeDocument = async (documentId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    if (!confirm('Re-run analysis for this document? This will refresh extracted fields.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/idp/documents/${documentId}/reanalyze`, { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        alert(`Re-analysis complete!\n\nInvoice: ${data.data?.extracted?.invoiceNumber || ''}\nVendor: ${data.data?.extracted?.vendorName || ''}\nAmount: ${data.data?.extracted?.totalAmount || ''} ${data.data?.extracted?.currencyCode || ''}`);
+        await loadInvoices();
+      } else {
+        const errorMsg = `Re-analysis failed:\n${data.error}\n\nDetails: ${data.details || 'No additional details'}\nCode: ${data.code || 'Unknown'}`;
+        setErrorMessage(errorMsg);
+        setShowErrorModal(true);
+      }
+    } catch (error: any) {
+      setErrorMessage(`Re-analysis error:\n${error.message || 'Unknown error'}`);
+      setShowErrorModal(true);
+    }
+  };
+
   // Copy error to clipboard
   const copyErrorToClipboard = () => {
     if (errorMessage) {
@@ -428,10 +453,10 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
         <div className="flex items-center justify-between">
           <div>
             <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              📊 Invoice Processing
+              ðŸ“Š Invoice Processing
             </h2>
-            <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-              Simple automatic workflow: Upload → Analyze → Control → Distribute Charges
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-muted' : 'text-muted'}`}>
+              Simple automatic workflow: Upload â†’ Analyze â†’ Control â†’ Distribute Charges
             </p>
           </div>
 
@@ -569,7 +594,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
 
         {uploadError && (
           <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-sm">
-            ❌ {uploadError}
+            âŒ {uploadError}
           </div>
         )}
 
@@ -582,7 +607,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               <p className="text-xs mt-1">
                 {invoices.filter(inv => inv.status === 'processing').length} document(s) are stuck in processing status.
                 Click the <span className="inline-flex items-center px-1 py-0.5 bg-green-200 rounded"><Wrench className="w-3 h-3 mr-0.5" />green wrench</span> to fix them automatically,
-                or the <span className="inline-flex items-center px-1 py-0.5 bg-blue-200 rounded"><Info className="w-3 h-3 mr-0.5" />blue info</span> for details.
+                or the <span className="inline-flex items-center px-1 py-0.5 bg-brand/20 rounded"><Info className="w-3 h-3 mr-0.5" />info</span> for details.
               </p>
             </div>
           </div>
@@ -650,15 +675,15 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
             {isLoading ? (
               <tr>
                 <td colSpan={Object.values(visibleColumns).filter(col => col.visible).length} className="px-6 py-12 text-center">
-                  <Clock className={`w-8 h-8 mx-auto mb-2 animate-spin ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                  <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>Loading invoices...</p>
+                  <Clock className={`w-8 h-8 mx-auto mb-2 animate-spin ${isDarkMode ? 'text-muted' : 'text-gray-400'}`} />
+                  <p className={isDarkMode ? 'text-muted' : 'text-muted'}>Loading invoices...</p>
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
                 <td colSpan={Object.values(visibleColumns).filter(col => col.visible).length} className="px-6 py-12 text-center">
                   <FileText className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-slate-600' : 'text-gray-300'}`} />
-                  <p className={`font-semibold ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                  <p className={`font-semibold ${isDarkMode ? 'text-muted' : 'text-muted'}`}>
                     No invoices yet
                   </p>
                   <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>
@@ -700,7 +725,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                             </button>
                             <button
                               onClick={(e) => showDebugInfo(invoice.id, e)}
-                              className="p-1 hover:bg-blue-100 rounded transition-colors"
+                              className="p-1 hover:bg-surface rounded transition-colors"
                               title="Show debug info"
                             >
                               <Info className="w-4 h-4 text-blue-500" />
@@ -725,7 +750,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                         <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                           {invoice.invoice_number || 'Processing...'}
                         </p>
-                        <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        <p className={`text-xs ${isDarkMode ? 'text-muted' : 'text-gray-500'}`}>
                           {invoice.filename}
                         </p>
                       </div>
@@ -744,7 +769,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   {/* Items Description */}
                   {visibleColumns.items.visible && (
                     <td className="px-6 py-4">
-                      <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-600'} truncate max-w-[200px]`} title={invoice.item_descriptions}>
+                      <p className={`text-xs ${isDarkMode ? 'text-muted' : 'text-muted'} truncate max-w-[200px]`} title={invoice.item_descriptions}>
                         {invoice.item_descriptions || '-'}
                       </p>
                     </td>
@@ -807,6 +832,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   {visibleColumns.actions.visible && (
                     <td className="px-6 py-4 text-center">
                       <button
+                        onClick={(e) => reanalyzeDocument(invoice.id, e)}
+                        className={`mr-2 p-2 rounded transition-colors ${isDarkMode ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-100 text-blue-600'}`}
+                        title="Re-run analysis"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={(e) => deleteDocument(invoice.id, e)}
                         className={`p-2 rounded transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
                         title="Delete"
@@ -825,25 +857,25 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
       {/* Footer */}
       <div className={`px-6 py-4 border-t ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-gray-50'}`}>
         <div className="flex items-center justify-between">
-          <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+          <p className={`text-sm ${isDarkMode ? 'text-muted' : 'text-muted'}`}>
             Total: <span className="font-semibold">{invoices.length}</span> invoices
           </p>
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              <span className={isDarkMode ? 'text-muted' : 'text-muted'}>
                 {invoices.filter(i => ['processed', 'validated', 'approved', 'exported'].includes(i.status)).length} Completed
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-500" />
-              <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              <span className={isDarkMode ? 'text-muted' : 'text-muted'}>
                 {invoices.filter(i => i.status === 'processing').length} Processing
               </span>
             </div>
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-red-500" />
-              <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              <span className={isDarkMode ? 'text-muted' : 'text-muted'}>
                 {invoices.filter(i => i.status === 'failed').length} Failed
               </span>
             </div>
@@ -858,7 +890,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           onClick={() => setShowErrorModal(false)}
         >
           <div
-            className="relative w-[600px] bg-white rounded-lg shadow-2xl"
+            className="relative w-[600px] bg-card rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -886,13 +918,13 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={copyErrorToClipboard}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:opacity-90 transition-colors font-medium"
                 >
                   Copy to Clipboard
                 </button>
                 <button
                   onClick={() => setShowErrorModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  className="px-4 py-2 bg-surface text-foreground border border-border rounded-lg hover:opacity-90 transition-colors font-medium"
                 >
                   Close
                 </button>
@@ -909,16 +941,16 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
           onClick={() => setShowDebugModal(false)}
         >
           <div
-            className="relative w-[90vw] max-w-4xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col"
+            className="relative w-[90vw] max-w-4xl h-[90vh] bg-card rounded-lg shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-800 rounded-t-lg">
+            <div className="p-4 border-b border-border bg-surface rounded-t-lg">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-white">Debug Information</h3>
                 <button
                   onClick={() => setShowDebugModal(false)}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-surface rounded-lg transition-colors"
                 >
                   <XCircle className="w-6 h-6 text-white" />
                 </button>
@@ -931,29 +963,29 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               <div className="mb-6">
                 <h4 className="text-md font-bold text-slate-900 mb-3">Diagnostics</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Status</div>
                     <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.status}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Time Since Upload</div>
                     <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.time_since_upload}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Extracted Fields</div>
                     <div className="text-sm font-semibold text-slate-900">{debugInfo.document.extracted_fields_count}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Has Invoice Number</div>
-                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_invoice_number ? '✅ Yes' : '❌ No'}</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_invoice_number ? 'âœ… Yes' : 'âŒ No'}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Has Vendor</div>
-                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_vendor_name ? '✅ Yes' : '❌ No'}</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_vendor_name ? 'âœ… Yes' : 'âŒ No'}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200">
+                  <div className="p-3 bg-surface rounded border border-border">
                     <div className="text-xs text-slate-600">Has Amount</div>
-                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_total_amount ? '✅ Yes' : '❌ No'}</div>
+                    <div className="text-sm font-semibold text-slate-900">{debugInfo.diagnostics.has_total_amount ? 'âœ… Yes' : 'âŒ No'}</div>
                   </div>
                 </div>
               </div>
@@ -974,7 +1006,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   <h4 className="text-md font-bold text-slate-900 mb-3">Sample Extracted Fields</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-100">
+                      <thead className="bg-surface">
                         <tr>
                           <th className="px-3 py-2 text-left text-xs font-bold text-slate-700">Field Name</th>
                           <th className="px-3 py-2 text-left text-xs font-bold text-slate-700">Value</th>
@@ -983,7 +1015,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {debugInfo.sample_fields.map((field: any, index: number) => (
-                          <tr key={index} className="hover:bg-slate-50">
+                          <tr key={index} className="hover:bg-surface">
                             <td className="px-3 py-2 text-slate-900">{field.field_name}</td>
                             <td className="px-3 py-2 text-slate-900">{field.value_text}</td>
                             <td className="px-3 py-2 text-slate-900">{(field.confidence * 100).toFixed(1)}%</td>
@@ -1001,7 +1033,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
                   <h4 className="text-md font-bold text-slate-900 mb-3">Audit Log</h4>
                   <div className="space-y-2">
                     {debugInfo.audit_log.map((log: any, index: number) => (
-                      <div key={index} className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                      <div key={index} className="p-3 bg-surface rounded border border-border text-sm">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-slate-900">{log.action}</span>
                           <span className="text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</span>
@@ -1020,7 +1052,7 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
               {/* Raw Document Data */}
               <div className="mb-6">
                 <h4 className="text-md font-bold text-slate-900 mb-3">Raw Document Data</h4>
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded overflow-x-auto">
+                <div className="p-4 bg-surface border border-border rounded overflow-x-auto">
                   <pre className="text-xs text-slate-900 whitespace-pre-wrap font-mono">
                     {JSON.stringify(debugInfo.document, null, 2)}
                   </pre>

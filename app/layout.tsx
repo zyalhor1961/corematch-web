@@ -33,14 +33,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="dark">
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                const theme = localStorage.getItem('theme') || 'light';
-                document.documentElement.className = theme;
+                const theme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.classList.add(theme);
               })();
             `,
           }}

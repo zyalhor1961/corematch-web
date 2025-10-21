@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
-// @ts-ignore - pdf-parse doesn't have proper TS definitions
-import * as pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,6 +13,9 @@ async function extractTextFromPDF(pdfBuffer: ArrayBuffer): Promise<string> {
   try {
     // Convert ArrayBuffer to Buffer for pdf-parse
     const buffer = Buffer.from(pdfBuffer);
+
+    // Use dynamic require for pdf-parse (CommonJS module)
+    const pdfParse = require('pdf-parse');
 
     // Extract text using pdf-parse
     const data = await pdfParse(buffer);

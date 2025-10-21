@@ -492,10 +492,10 @@ export default function CVScreeningPage() {
                   <table className="w-full" style={{tableLayout: 'fixed'}}>
                     <thead className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.project}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.project}%`}}>
                           <button
                             onClick={() => handleSort('name')}
-                            className="flex items-center space-x-2 hover:text-blue-600"
+                            className="flex items-center space-x-2 hover:text-blue-600 dark:hover:text-blue-400"
                           >
                             <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">PROJET</span>
@@ -513,7 +513,7 @@ export default function CVScreeningPage() {
                             <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
                           </div>
                         </th>
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.jobTitle}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.jobTitle}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Target className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">POSTE</span>
@@ -527,7 +527,7 @@ export default function CVScreeningPage() {
                           </div>
                         </th>
                         {isMasterAdmin && (
-                          <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.org}%`}}>
+                          <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.org}%`}}>
                             <div className="flex items-center space-x-1 sm:space-x-2">
                               <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                               <span className="hidden sm:inline">ORGANISATION</span>
@@ -541,10 +541,10 @@ export default function CVScreeningPage() {
                             </div>
                           </th>
                         )}
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.candidates}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.candidates}%`}}>
                           <button
                             onClick={() => handleSort('candidates')}
-                            className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600"
+                            className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600 dark:hover:text-blue-400"
                           >
                             <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">CANDIDATS</span>
@@ -562,7 +562,7 @@ export default function CVScreeningPage() {
                             <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
                           </div>
                         </th>
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.analysis}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.analysis}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ANALYSE IA</span>
@@ -575,7 +575,7 @@ export default function CVScreeningPage() {
                             <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
                           </div>
                         </th>
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.shortlist}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.shortlist}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">SHORTLIST</span>
@@ -588,10 +588,10 @@ export default function CVScreeningPage() {
                             <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
                           </div>
                         </th>
-                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.date}%`}}>
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.date}%`}}>
                           <button
                             onClick={() => handleSort('date')}
-                            className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600"
+                            className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600 dark:hover:text-blue-400"
                           >
                             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">DATE</span>
@@ -609,7 +609,7 @@ export default function CVScreeningPage() {
                             <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
                           </div>
                         </th>
-                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.actions}%`}}>
+                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider text-gray-800 dark:text-gray-200" style={{width: `${columnWidths.actions}%`}}>
                           <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                             <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ACTIONS</span>

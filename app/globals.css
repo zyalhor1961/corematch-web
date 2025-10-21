@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4 dark mode variant configuration */
+@variant dark (&:where(.dark, .dark *));
+
 /*
 COMMENTED OUT - These CSS variables were causing conflicts with Tailwind dark mode
 The theme is now fully managed by Tailwind classes and inline styles
@@ -158,16 +161,7 @@ button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
   width: 100%;
 }
 
-/* Tailwind v4 dark: class compatibility overrides
-   Ensure that dark: classes do NOT apply when html does not have .dark
-   This neutralizes always-on .dark\:* rules generated as literal classes. */
-html:not(.dark) [class*="dark\\:bg-"] { background: unset !important; background-color: unset !important; }
-html:not(.dark) [class*="dark\\:\!bg-"] { background: unset !important; background-color: unset !important; }
-html:not(.dark) [class*="dark\\:text-"] { color: unset !important; }
-html:not(.dark) [class*="dark\\:border-"] { border-color: unset !important; }
-html:not(.dark) [class*="dark\\:divide-"] { border-color: unset !important; }
-html:not(.dark) [class*="dark\\:shadow-"] { box-shadow: unset !important; }
-html:not(.dark) [class*="dark\\:hover"] { /* neutralize dark:hover variants in light */ }
+/* Dark mode is now properly handled by @variant dark directive above */
 
 /* Legacy color variable aliases -> Tailwind v4 palette
    Keeps older CSS snippets working without forcing black */

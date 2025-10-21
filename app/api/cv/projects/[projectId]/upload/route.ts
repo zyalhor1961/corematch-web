@@ -90,6 +90,25 @@ export async function POST(
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
 
+    // ===== SECURITY: Limit number of files to prevent DoS attacks =====
+    const MAX_FILES_PER_UPLOAD = 50; // Maximum 50 files at once
+    if (files.length > MAX_FILES_PER_UPLOAD) {
+      logSecurityEvent({
+        type: 'SUSPICIOUS_ACTIVITY',
+        userId: user!.id,
+        email: user!.email,
+        orgId: projectAccess.orgId,
+        route: `/api/cv/projects/${projectId}/upload [POST]`,
+        details: `Attempted to upload ${files.length} files (max ${MAX_FILES_PER_UPLOAD}) - BLOCKED`
+      });
+
+      throw new AppError(
+        ErrorType.VALIDATION_ERROR,
+        `Too many files. Maximum ${MAX_FILES_PER_UPLOAD} files allowed per upload`,
+        'files'
+      );
+    }
+
     // Log file upload attempt
     logSecurityEvent({
       type: 'SUSPICIOUS_ACTIVITY',

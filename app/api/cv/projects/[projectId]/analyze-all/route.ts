@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
-import pdfParse from 'pdf-parse';
+// @ts-ignore - pdf-parse doesn't have proper TS definitions
+import * as pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

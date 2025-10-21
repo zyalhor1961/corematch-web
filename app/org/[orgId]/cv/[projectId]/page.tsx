@@ -58,6 +58,8 @@ export default function ProjectCandidatesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
@@ -252,6 +254,66 @@ export default function ProjectCandidatesPage() {
     }
   };
 
+  const handleAnalyzeAll = async () => {
+    const pendingCount = candidates.filter(c => c.status === 'pending').length;
+
+    if (pendingCount === 0) {
+      setError("Aucun CV en attente d'analyse. Tous les CVs ont déjà été analysés.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    if (!confirm(`Voulez-vous analyser ${pendingCount} CV(s) en attente avec l'IA ? Cela peut prendre quelques minutes.`)) {
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+    setAnalyzeSuccess(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Vous devez être connecté pour analyser les CVs.");
+      }
+
+      const response = await fetch(`/api/cv/projects/${projectId}/analyze-all`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "L'analyse a échoué.");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        const { analyzed, failed, shortlisted } = data.data;
+        setAnalyzeSuccess(
+          `Analyse terminée ! ${analyzed} CV(s) analysé(s), ${shortlisted} shortlisté(s)` +
+          (failed > 0 ? `, ${failed} échec(s)` : '')
+        );
+
+        // Reload candidates list to show new analysis results
+        await loadCandidates();
+
+        // Clear success message after 8 seconds
+        setTimeout(() => setAnalyzeSuccess(null), 8000);
+      } else {
+        throw new Error(data.error || "Une erreur est survenue.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Error analyzing CVs:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -310,9 +372,21 @@ export default function ProjectCandidatesPage() {
                 </>
               )}
             </Button>
-            <Button>
-              <Brain className="w-4 h-4 mr-2" />
-              Analyser tout
+            <Button
+              onClick={handleAnalyzeAll}
+              disabled={isAnalyzing || candidates.filter(c => c.status === 'pending').length === 0}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Analyse en cours...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4 mr-2" />
+                  Analyser tout
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -336,6 +410,18 @@ export default function ProjectCandidatesPage() {
               <span>{uploadSuccess}</span>
             </div>
             <button onClick={() => setUploadSuccess(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-green-900/50' : 'hover:bg-green-100'}`}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {analyzeSuccess && (
+          <div className={`border rounded-md p-4 flex items-center justify-between ${isDarkMode ? 'bg-blue-900/20 border-blue-500/30 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+            <div className="flex items-center">
+              <CheckCircle className="w-5 h-5 mr-3" />
+              <span>{analyzeSuccess}</span>
+            </div>
+            <button onClick={() => setAnalyzeSuccess(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-blue-900/50' : 'hover:bg-blue-100'}`}>
               <X className="w-4 h-4" />
             </button>
           </div>

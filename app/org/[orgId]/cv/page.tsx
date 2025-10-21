@@ -759,6 +759,13 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
         })
       ]);
 
+      // Check for errors before parsing JSON
+      if (!descResponse.ok || !reqResponse.ok) {
+        const descError = !descResponse.ok ? await descResponse.text() : null;
+        const reqError = !reqResponse.ok ? await reqResponse.text() : null;
+        throw new Error(descError || reqError || 'Erreur lors de la génération IA');
+      }
+
       const [descData, reqData] = await Promise.all([
         descResponse.json(),
         reqResponse.json()
@@ -824,7 +831,19 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        const errorText = await response.text();
+        let errorMessage = 'Erreur lors de la génération IA';
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If not JSON, use the text directly or a default message
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

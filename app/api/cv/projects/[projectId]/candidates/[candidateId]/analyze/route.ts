@@ -140,12 +140,25 @@ export async function POST(
 
     // Prepare prompt for GPT-4
     const project = candidate.project;
+
+    // If description/requirements are empty, generate context from job_title
+    let contextPrompt = '';
+    if (!project.description && !project.requirements && project.job_title) {
+      contextPrompt = `\n\n⚠️ IMPORTANT: Aucune description détaillée fournie pour ce poste.
+Tu dois DÉDUIRE les exigences typiques d'un poste de "${project.job_title}" :
+- Quelles compétences sont INDISPENSABLES pour ce métier ?
+- Quelle expérience est normalement attendue ?
+- Quelles formations/certifications sont requises ?
+
+SOIS STRICT : si le candidat n'a PAS ces compétences de base pour "${project.job_title}", le score doit être très bas (0-30).`;
+    }
+
     const prompt = `Tu es un expert en recrutement IMPITOYABLE. Analyse ce CV par rapport au poste suivant comme un vrai recruteur professionnel :
 
 **POSTE À POURVOIR:**
 - Titre: ${project.job_title || 'Non spécifié'}
 - Description: ${project.description || 'Non spécifiée'}
-- Exigences: ${project.requirements || 'Non spécifiées'}
+- Exigences: ${project.requirements || 'Non spécifiées'}${contextPrompt}
 
 **CV DU CANDIDAT:**
 ${cvText}

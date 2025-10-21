@@ -409,7 +409,7 @@ export default function CVScreeningPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1200px]">
+                  <table className="w-full min-w-[900px]">
                     <thead className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/4">
@@ -475,7 +475,7 @@ export default function CVScreeningPage() {
                             {sortBy === 'date' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
                           </button>
                         </th>
-                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-64">
+                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-40">
                           <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                             <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ACTIONS</span>
@@ -495,21 +495,23 @@ export default function CVScreeningPage() {
                         return (
                           <tr key={project.id} className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-200 dark:border-gray-700">
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
-                              <div className="flex items-center space-x-2 sm:space-x-3">
-                                <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${candidateCount > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                <div>
-                                  <div className="font-semibold text-sm sm:text-lg text-gray-900 dark:text-white">
-                                    {project.name}
-                                  </div>
-                                  {project.description && (
-                                    <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 max-w-[10rem] sm:max-w-sm overflow-hidden break-words">
-                                      {project.description && project.description.length > 100 
-                                        ? `${project.description.substring(0, 100)}...` 
-                                        : project.description}
+                              <Link href={`/org/${orgId}/cv/${project.id}`} className="block hover:bg-gray-50 dark:hover:bg-gray-700/30 -mx-3 sm:-mx-6 px-3 sm:px-6 py-1 transition-colors cursor-pointer">
+                                <div className="flex items-center space-x-2 sm:space-x-3">
+                                  <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${candidateCount > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                  <div>
+                                    <div className="font-semibold text-sm sm:text-lg text-blue-600 dark:text-blue-400 hover:underline">
+                                      {project.name}
                                     </div>
-                                  )}
+                                    {project.description && (
+                                      <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 max-w-[10rem] sm:max-w-sm overflow-hidden break-words">
+                                        {project.description && project.description.length > 100
+                                          ? `${project.description.substring(0, 100)}...`
+                                          : project.description}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
+                              </Link>
                             </td>
                             
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
@@ -603,15 +605,8 @@ export default function CVScreeningPage() {
                               </div>
                             </td>
 
-                            <td className="px-3 sm:px-6 py-3 sm:py-4 w-64">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 w-40">
                               <div className="flex items-center justify-end space-x-2 flex-nowrap">
-                                <Link
-                                  href={`/org/${orgId}/cv/${project.id}`}
-                                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors whitespace-nowrap flex-shrink-0"
-                                >
-                                  <Eye className="w-4 h-4 mr-1.5" />
-                                  <span>Voir</span>
-                                </Link>
                                 <button
                                   onClick={() => setShowEditModal(project)}
                                   className="inline-flex items-center px-3 py-2 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors whitespace-nowrap flex-shrink-0"

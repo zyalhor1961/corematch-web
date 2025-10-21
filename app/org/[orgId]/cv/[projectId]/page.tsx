@@ -68,6 +68,8 @@ export default function ProjectCandidatesPage() {
     timeEstimate: string;
     pendingCount: number;
   } | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
@@ -312,6 +314,11 @@ export default function ProjectCandidatesPage() {
     setShowConfirmModal(true);
   };
 
+  const handleViewCandidate = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setShowDetailsModal(true);
+  };
+
   const proceedWithAnalysis = async () => {
     setShowConfirmModal(false);
     setIsAnalyzing(true);
@@ -471,6 +478,146 @@ export default function ProjectCandidatesPage() {
             <button onClick={() => setAnalyzeSuccess(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-blue-900/50' : 'hover:bg-blue-100'}`}>
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {/* Modal de détails du candidat */}
+        {showDetailsModal && selectedCandidate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`relative w-full max-w-2xl rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200 ${
+              isDarkMode
+                ? 'bg-gray-800 border-gray-700'
+                : 'bg-white border-gray-200'
+            }`}>
+              {/* Header */}
+              <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                      selectedCandidate.shortlisted ? 'bg-yellow-100 dark:bg-yellow-900/30' : 'bg-gray-100 dark:bg-gray-700'
+                    }`}>
+                      {selectedCandidate.shortlisted ? (
+                        <Star className="w-8 h-8 text-yellow-600" />
+                      ) : (
+                        <User className="w-8 h-8 text-gray-500" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {selectedCandidate.name}
+                      </h3>
+                      {selectedCandidate.email && (
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {selectedCandidate.email}
+                        </p>
+                      )}
+                      {selectedCandidate.phone && (
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {selectedCandidate.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDetailsModal(false)}
+                    className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenu */}
+              <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                {/* Statut et Score */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <p className={`text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Statut</p>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(selectedCandidate.status)}`}>
+                      {selectedCandidate.status === 'analyzed' && 'Analysé'}
+                      {selectedCandidate.status === 'processing' && 'En cours'}
+                      {selectedCandidate.status === 'pending' && 'En attente'}
+                      {selectedCandidate.status === 'rejected' && 'Rejeté'}
+                    </span>
+                  </div>
+                  <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <p className={`text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Score IA</p>
+                    {selectedCandidate.score !== null && selectedCandidate.score !== undefined ? (
+                      <span className={`text-3xl font-bold ${getScoreColor(selectedCandidate.score)}`}>
+                        {selectedCandidate.score}%
+                      </span>
+                    ) : (
+                      <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        Pas encore analysé
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* CV File */}
+                <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <p className={`text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Fichier CV</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <FileText className={`w-5 h-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {selectedCandidate.cv_filename}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(selectedCandidate.cv_url, '_blank')}
+                      disabled={!selectedCandidate.cv_url}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Télécharger
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Explication de l'analyse */}
+                {selectedCandidate.explanation && (
+                  <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <p className={`text-sm mb-2 font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Analyse IA
+                    </p>
+                    <p className={`text-sm whitespace-pre-wrap ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {selectedCandidate.explanation}
+                    </p>
+                  </div>
+                )}
+
+                {/* Si pas d'analyse */}
+                {!selectedCandidate.explanation && selectedCandidate.status === 'pending' && (
+                  <div className={`p-4 rounded-lg border-2 border-dashed ${
+                    isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-300 bg-gray-50'
+                  }`}>
+                    <div className="text-center py-4">
+                      <Brain className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Ce CV n'a pas encore été analysé par l'IA.
+                      </p>
+                      <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        Cliquez sur "Analyser tout" pour lancer l'analyse.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className={`p-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <Button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="w-full"
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -691,6 +838,7 @@ export default function ProjectCandidatesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <button
+                            onClick={() => handleViewCandidate(candidate)}
                             className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
                             title="Voir les détails"
                           >

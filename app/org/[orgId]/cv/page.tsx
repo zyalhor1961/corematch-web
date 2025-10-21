@@ -276,7 +276,7 @@ export default function CVScreeningPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div className="min-h-screen !bg-gray-50 dark:!bg-gray-900 transition-colors duration-200">
       <div className="space-y-6 p-4 md:p-6">
         {/* Header moderne avec métriques rapides */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 md:p-6 text-white">

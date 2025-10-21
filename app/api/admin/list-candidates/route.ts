@@ -32,9 +32,32 @@ export async function GET(request: NextRequest) {
 
     console.log(`Found ${candidates?.length || 0} candidates for project ${projectId}`);
 
+    // Transform candidates to match frontend interface
+    const transformedCandidates = (candidates || []).map(candidate => ({
+      ...candidate,
+      // Combine first_name and last_name into name
+      name: [candidate.first_name, candidate.last_name]
+        .filter(Boolean)
+        .join(' ') || 'Nom non renseigné',
+      // Extract cv_filename from notes if not directly available
+      cv_filename: candidate.cv_filename ||
+        (() => {
+          const match = candidate.notes?.match(/CV file: ([^\|]+)/);
+          return match ? match[1].trim() : 'CV non disponible';
+        })(),
+      // Ensure other expected fields exist
+      email: candidate.email || '',
+      phone: candidate.phone || '',
+      cv_url: candidate.cv_url || '',
+      score: candidate.score || null,
+      explanation: candidate.explanation || '',
+      shortlisted: candidate.shortlisted || false,
+      status: candidate.status || 'pending',
+    }));
+
     return NextResponse.json({
       success: true,
-      data: candidates || [],
+      data: transformedCandidates,
     });
 
   } catch (error) {

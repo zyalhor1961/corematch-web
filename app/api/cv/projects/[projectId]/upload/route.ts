@@ -215,15 +215,23 @@ export async function POST(
 
         const uploadPath = uploadData.path;
 
-        // Create candidate record with only available columns
+        // Extract candidate name from filename (remove extension)
+        const candidateName = file.name.replace(/\.[^/.]+$/, "");
+        // Try to split into first and last name if there's a space or underscore
+        const nameParts = candidateName.split(/[\s_-]+/);
+        const firstName = nameParts[0] || candidateName;
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+        // Create candidate record
         const { data: candidate, error: candidateError } = await supabaseAdmin
           .from('candidates')
           .insert({
             project_id: projectId,
             org_id: project.org_id,
-            first_name: file.name.replace(/\.[^/.]+$/, ""), // Use filename as name temporarily
+            first_name: firstName,
+            last_name: lastName || null,
             status: 'pending',
-            notes: `CV file: ${file.name} | Path: ${uploadPath}`,
+            notes: `CV file: ${file.name} | Path: ${uploadPath} | Original file: ${file.name}`,
           })
           .select()
           .single();

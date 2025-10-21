@@ -105,21 +105,34 @@ export async function POST(
         // Extract text from PDF using proper extraction
         const rawText = await extractTextFromPDF(pdfUrl);
         cvText = cleanPDFText(rawText);
-        
+
         // Parse CV structure
         cvStructure = parseCV(cvText);
-        
-        console.log(`Extracted ${cvText.length} characters from PDF`);
+
+        console.log(`✅ PDF extraction successful: ${cvText.length} characters`);
+        console.log('First 500 chars:', cvText.substring(0, 500));
       } catch (pdfError) {
-        console.error('PDF extraction failed, using fallback:', pdfError);
-        // Fallback to basic info
+        console.error('❌ PDF extraction failed:', pdfError);
+        console.error('PDF URL:', pdfUrl);
+        console.error('File name:', fileName);
+
+        // Fallback - Tell AI we cannot read the PDF
         cvText = `
-        Document: ${fileName}
-        Type: CV/Resume
-        
-        [Erreur extraction PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}]
-        
-        IMPORTANT: Ce CV doit être analysé strictement par rapport au poste demandé.
+⚠️ ERREUR TECHNIQUE: Impossible d'extraire le texte du PDF "${fileName}"
+
+RAISON: ${pdfError instanceof Error ? pdfError.message : 'Erreur inconnue'}
+
+INSTRUCTION POUR L'IA:
+Comme le contenu du CV n'est PAS ACCESSIBLE, tu dois répondre :
+{
+  "score": 50,
+  "strengths": ["Nom du fichier: ${fileName}"],
+  "weaknesses": ["Impossible d'analyser - erreur technique d'extraction PDF"],
+  "recommendation": "À considérer",
+  "summary": "⚠️ ERREUR TECHNIQUE: Le PDF n'a pas pu être lu. Veuillez contacter le support technique pour résoudre ce problème d'extraction. Le fichier pourrait être une image scannée sans texte extractible, ou corrompu."
+}
+
+Ne donne PAS un score de 0 - dis simplement qu'il y a un problème technique.
         `;
       }
       

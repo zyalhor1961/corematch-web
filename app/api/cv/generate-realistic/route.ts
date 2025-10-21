@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import jsPDF from 'jspdf';
 
+// Configure route for longer execution time
+export const maxDuration = 60; // 60 seconds for Pro plan
+export const dynamic = 'force-dynamic';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -219,7 +223,7 @@ async function generateCVWithOpenAI(jobTitle: string, variation: number): Promis
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo", // Using faster model to avoid timeouts
       messages: [
         {
           role: "system",
@@ -259,7 +263,7 @@ export async function POST(request: NextRequest) {
     if (prompt && type) {
       try {
         const completion = await openai.chat.completions.create({
-          model: "gpt-4",
+          model: "gpt-3.5-turbo", // Using faster model to avoid timeouts
           messages: [
             {
               role: "system",
@@ -271,7 +275,7 @@ export async function POST(request: NextRequest) {
             }
           ],
           temperature: 0.7,
-          max_tokens: 1000
+          max_tokens: 800 // Reduced to speed up generation
         });
 
         const content = completion.choices[0]?.message?.content;

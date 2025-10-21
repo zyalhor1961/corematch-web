@@ -2,10 +2,23 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+type ThemeMode = 'light' | 'dark';
+
 interface ThemeContextType {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
 }
+
+const THEME_STORAGE_KEY = 'theme';
+
+const applyThemeMode = (mode: ThemeMode) => {
+  const root = document.documentElement;
+
+  root.classList.toggle('dark', mode === 'dark');
+  root.style.colorScheme = mode;
+
+  localStorage.setItem(THEME_STORAGE_KEY, mode);
+};
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -18,35 +31,55 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // Load theme from localStorage on mount, default to dark if not set
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-      setIsDarkMode(false);
-      document.documentElement.classList.remove('dark');
-    } else {
-      // Default to dark mode
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-      if (!savedTheme) {
-        localStorage.setItem('theme', 'dark');
+    const getPreferredTheme = (): ThemeMode => {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
+      if (stored === 'light' || stored === 'dark') {
+        return stored;
       }
-    }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    };
+
+    const preferredTheme = getPreferredTheme();
+    setIsDarkMode(preferredTheme === 'dark');
+    applyThemeMode(preferredTheme);
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = (event: MediaQueryListEvent) => {
+      if (localStorage.getItem(THEME_STORAGE_KEY)) {
+        return;
+      }
+      const newMode: ThemeMode = event.matches ? 'dark' : 'light';
+      setIsDarkMode(newMode === 'dark');
+      applyThemeMode(newMode);
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY || !event.newValue) {
+        return;
+      }
+      const newMode: ThemeMode = event.newValue === 'dark' ? 'dark' : 'light';
+      setIsDarkMode(newMode === 'dark');
+      applyThemeMode(newMode);
+    };
+
+    mediaQuery.addEventListener('change', handleMediaChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const toggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    setIsDarkMode((prev) => {
+      const newMode: ThemeMode = prev ? 'light' : 'dark';
+      applyThemeMode(newMode);
+      return !prev;
+    });
   };
 
   return (

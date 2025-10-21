@@ -63,7 +63,14 @@ export default function CVScreeningPage() {
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<{ action: () => void; title: string; message: string; } | null>(null);
 
-  const [viewMode, setViewMode] = useState<'gallery' | 'list' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'gallery' | 'list' | 'table'>(() => {
+    // Restore view mode from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cv_viewMode');
+      return (saved as 'gallery' | 'list' | 'table') || 'table';
+    }
+    return 'table';
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'candidates'>('date');
@@ -118,6 +125,13 @@ export default function CVScreeningPage() {
     }
   }, [orgId, loadProjects]);
 
+  // Save view mode to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cv_viewMode', viewMode);
+    }
+  }, [viewMode]);
+
   const handleDeleteProject = (projectId: string) => {
     setShowConfirmModal({
       action: async () => {
@@ -137,6 +151,46 @@ export default function CVScreeningPage() {
       title: "Supprimer le projet",
       message: "Êtes-vous sûr de vouloir supprimer ce projet et tous les candidats associés ? Cette action est irréversible."
     });
+  };
+
+  const handleExport = () => {
+    try {
+      // Prepare CSV data
+      const headers = ['Projet', 'Poste', 'Candidats', 'Analysés', 'Shortlistés', 'Taux de complétion', 'Date de création'];
+      const csvRows = [headers.join(',')];
+
+      projects.forEach(project => {
+        const candidateCount = project.candidate_count || 0;
+        const analyzedCount = project.analyzed_count || 0;
+        const shortlistedCount = project.shortlisted_count || 0;
+        const completionRate = candidateCount > 0 ? Math.round((analyzedCount / candidateCount) * 100) : 0;
+
+        const row = [
+          `"${project.name.replace(/"/g, '""')}"`,
+          `"${(project.job_title || '-').replace(/"/g, '""')}"`,
+          candidateCount,
+          analyzedCount,
+          shortlistedCount,
+          `${completionRate}%`,
+          new Date(project.created_at).toLocaleDateString('fr-FR')
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      // Create and download CSV file
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `projets_cv_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      setError('Erreur lors de l\'export: ' + err.message);
+    }
   };
 
   // ... Other functions refactored to use the confirmation modal or setError
@@ -257,7 +311,7 @@ export default function CVScreeningPage() {
 
               {/* Actions rapides */}
               <div className="flex space-x-2">
-                <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Export</span>
                   <span className="sm:hidden">Export</span>
@@ -355,7 +409,7 @@ export default function CVScreeningPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1000px] table-fixed">
+                  <table className="w-full min-w-[1200px]">
                     <thead className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/4">
@@ -410,9 +464,9 @@ export default function CVScreeningPage() {
                             <span className="sm:hidden">⭐</span>
                           </div>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
-                          <button 
-                            onClick={() => setSortBy('date')} 
+                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-28">
+                          <button
+                            onClick={() => setSortBy('date')}
                             className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600"
                           >
                             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -421,7 +475,7 @@ export default function CVScreeningPage() {
                             {sortBy === 'date' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
                           </button>
                         </th>
-                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
+                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-64">
                           <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                             <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ACTIONS</span>
@@ -537,10 +591,10 @@ export default function CVScreeningPage() {
                               </div>
                             </td>
 
-                            <td className="px-3 sm:px-6 py-3 sm:py-4">
-                              <div className="flex items-center space-x-1">
-                                <Calendar className="w-3 h-3 text-gray-500 dark:text-gray-400 hidden sm:inline" />
-                                <span className="text-xs sm:text-base text-gray-500 dark:text-gray-400">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 w-28">
+                              <div className="flex items-center space-x-1 whitespace-nowrap">
+                                <Calendar className="w-3 h-3 text-gray-500 dark:text-gray-400 hidden sm:inline flex-shrink-0" />
+                                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                   {new Date(project.created_at).toLocaleDateString('fr-FR', {
                                     day: 'numeric',
                                     month: 'short'
@@ -549,28 +603,28 @@ export default function CVScreeningPage() {
                               </div>
                             </td>
 
-                            <td className="px-3 sm:px-6 py-3 sm:py-4">
-                              <div className="flex items-center justify-end space-x-1 sm:space-x-2">
-                                <Link 
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 w-64">
+                              <div className="flex items-center justify-end space-x-1 sm:space-x-2 flex-nowrap">
+                                <Link
                                   href={`/org/${orgId}/cv/${project.id}`}
-                                  className="inline-flex items-center px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-base font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                  className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors whitespace-nowrap flex-shrink-0"
                                 >
-                                  <Eye className="w-3 h-3 sm:w-5 sm:h-5 sm:mr-2" />
+                                  <Eye className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                                   <span className="hidden sm:inline">Voir</span>
                                 </Link>
-                                <button 
+                                <button
                                   onClick={() => setShowEditModal(project)}
-                                  className="inline-flex items-center px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-base font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                  className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors whitespace-nowrap flex-shrink-0"
                                 >
-                                  <Edit className="w-3 h-3 sm:w-5 sm:h-5 sm:mr-2" />
-                                  <span className="hidden sm:inline">Modifier</span>
+                                  <Edit className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                                  <span className="hidden sm:inline">Modif</span>
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => handleDeleteProject(project.id)}
-                                  className="inline-flex items-center px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-base font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                  className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors whitespace-nowrap flex-shrink-0"
                                 >
-                                  <Trash2 className="w-3 h-3 sm:w-5 sm:h-5 sm:mr-2" />
-                                  <span className="hidden sm:inline">Suppr.</span>
+                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                                  <span className="hidden sm:inline">Suppr</span>
                                 </button>
                               </div>
                             </td>

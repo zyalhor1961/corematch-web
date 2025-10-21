@@ -74,7 +74,21 @@ export default function CVScreeningPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'candidates'>('date');
-  
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Column widths management (using percentages for responsive design)
+  const [columnWidths, setColumnWidths] = useState({
+    project: 22,      // 22%
+    jobTitle: 13,     // 13%
+    org: 13,          // 13%
+    candidates: 10,   // 10%
+    analysis: 14,     // 14%
+    shortlist: 10,    // 10%
+    date: 8,          // 8%
+    actions: 10       // 10%
+  });
+  const [resizing, setResizing] = useState<{column: string, startX: number, startWidth: number, tableWidth: number} | null>(null);
+
   const orgId = params?.orgId as string;
 
   // Check if current user is master admin
@@ -131,6 +145,64 @@ export default function CVScreeningPage() {
       localStorage.setItem('cv_viewMode', viewMode);
     }
   }, [viewMode]);
+
+  // Handle column resizing with percentage-based widths
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizing) return;
+
+      const diff = e.clientX - resizing.startX;
+      const percentageDiff = (diff / resizing.tableWidth) * 100;
+      const newWidth = Math.max(5, resizing.startWidth + percentageDiff); // Min 5%
+
+      setColumnWidths(prev => ({
+        ...prev,
+        [resizing.column]: newWidth
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setResizing(null);
+    };
+
+    if (resizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [resizing]);
+
+  const startResize = (column: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const tableElement = (e.target as HTMLElement).closest('table');
+    const tableWidth = tableElement?.offsetWidth || 1000;
+
+    setResizing({
+      column,
+      startX: e.clientX,
+      startWidth: columnWidths[column as keyof typeof columnWidths],
+      tableWidth
+    });
+  };
+
+  const handleSort = (column: 'date' | 'name' | 'candidates') => {
+    if (sortBy === column) {
+      // Toggle direction if clicking on the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, set to default descending
+      setSortBy(column);
+      setSortDirection('desc');
+    }
+  };
 
   const handleDeleteProject = (projectId: string) => {
     setShowConfirmModal({
@@ -351,14 +423,22 @@ export default function CVScreeningPage() {
             return matchesSearch && matchesFilter;
           });
 
-          // Tri intelligent
+          // Tri intelligent avec direction
           filteredProjects.sort((a, b) => {
+            let comparison = 0;
             switch(sortBy) {
-              case 'name': return a.name.localeCompare(b.name);
-              case 'candidates': return (b.candidate_count || 0) - (a.candidate_count || 0);
-              case 'date': 
-              default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              case 'name':
+                comparison = a.name.localeCompare(b.name);
+                break;
+              case 'candidates':
+                comparison = (a.candidate_count || 0) - (b.candidate_count || 0);
+                break;
+              case 'date':
+              default:
+                comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                break;
             }
+            return sortDirection === 'asc' ? comparison : -comparison;
           });
 
           if (filteredProjects.length === 0 && !isLoading) {
@@ -409,73 +489,127 @@ export default function CVScreeningPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px]">
+                  <table className="w-full" style={{tableLayout: 'fixed'}}>
                     <thead className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/4">
-                          <button 
-                            onClick={() => setSortBy('name')} 
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.project}%`}}>
+                          <button
+                            onClick={() => handleSort('name')}
                             className="flex items-center space-x-2 hover:text-blue-600"
                           >
                             <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">PROJET</span>
                             <span className="sm:hidden">PROJ</span>
-                            {sortBy === 'name' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
+                            {sortBy === 'name' && (
+                              sortDirection === 'asc'
+                                ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+                                : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                            )}
                           </button>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 group"
+                            onMouseDown={(e) => startResize('project', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/6">
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.jobTitle}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Target className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">POSTE</span>
                             <span className="sm:hidden">POS</span>
                           </div>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                            onMouseDown={(e) => startResize('jobTitle', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
                         {isMasterAdmin && (
-                          <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-1/6">
+                          <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.org}%`}}>
                             <div className="flex items-center space-x-1 sm:space-x-2">
                               <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                               <span className="hidden sm:inline">ORGANISATION</span>
                               <span className="sm:hidden">ORG</span>
                             </div>
+                            <div
+                              className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                              onMouseDown={(e) => startResize('org', e)}
+                            >
+                              <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                            </div>
                           </th>
                         )}
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
-                          <button 
-                            onClick={() => setSortBy('candidates')} 
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.candidates}%`}}>
+                          <button
+                            onClick={() => handleSort('candidates')}
                             className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600"
                           >
                             <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">CANDIDATS</span>
                             <span className="sm:hidden">CAND</span>
-                            {sortBy === 'candidates' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
+                            {sortBy === 'candidates' && (
+                              sortDirection === 'asc'
+                                ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+                                : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                            )}
                           </button>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                            onMouseDown={(e) => startResize('candidates', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.analysis}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ANALYSE IA</span>
                             <span className="sm:hidden">IA</span>
                           </div>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                            onMouseDown={(e) => startResize('analysis', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider">
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.shortlist}%`}}>
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">SHORTLIST</span>
                             <span className="sm:hidden">⭐</span>
                           </div>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                            onMouseDown={(e) => startResize('shortlist', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-28">
+                        <th className="relative text-left px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.date}%`}}>
                           <button
-                            onClick={() => setSortBy('date')}
+                            onClick={() => handleSort('date')}
                             className="flex items-center space-x-1 sm:space-x-2 hover:text-blue-600"
                           >
                             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">DATE</span>
                             <span className="sm:hidden">📅</span>
-                            {sortBy === 'date' && <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />}
+                            {sortBy === 'date' && (
+                              sortDirection === 'asc'
+                                ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+                                : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                            )}
                           </button>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
+                            onMouseDown={(e) => startResize('date', e)}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 -ml-2" />
+                          </div>
                         </th>
-                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider w-40">
+                        <th className="text-right px-3 sm:px-6 py-3 sm:py-4 font-semibold text-sm sm:text-base tracking-wider" style={{width: `${columnWidths.actions}%`}}>
                           <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                             <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ACTIONS</span>
@@ -605,21 +739,21 @@ export default function CVScreeningPage() {
                               </div>
                             </td>
 
-                            <td className="px-3 sm:px-6 py-3 sm:py-4 w-40">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center justify-end space-x-2 flex-nowrap">
                                 <button
                                   onClick={() => setShowEditModal(project)}
-                                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors whitespace-nowrap flex-shrink-0"
+                                  className="inline-flex items-center justify-center p-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex-shrink-0"
+                                  title="Modifier"
                                 >
-                                  <Edit className="w-4 h-4 mr-1.5" />
-                                  <span>Modif</span>
+                                  <Edit className="w-5 h-5" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteProject(project.id)}
-                                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors whitespace-nowrap flex-shrink-0"
+                                  className="inline-flex items-center justify-center p-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0"
+                                  title="Supprimer"
                                 >
-                                  <Trash2 className="w-4 h-4 mr-1.5" />
-                                  <span>Suppr</span>
+                                  <Trash2 className="w-5 h-5" />
                                 </button>
                               </div>
                             </td>
@@ -1289,55 +1423,150 @@ function EditProjectModal({ project, onClose, onSuccess }: { project: Project; o
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Modifier le projet</h3>
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom du projet *</label>
-            <input 
-              type="text" 
-              required 
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
-              value={formData.name} 
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
-            />
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 overflow-y-auto backdrop-blur-sm p-2 sm:p-4 pt-4 sm:pt-8">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] overflow-hidden border border-gray-200 dark:border-gray-700">
+        {/* Header avec gradient */}
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 sm:p-8 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 pr-4">
+              <h2 className="text-2xl sm:text-3xl font-bold">Modifier le projet</h2>
+              <p className="text-green-100 text-base sm:text-lg mt-1">
+                Mettez à jour les informations de votre projet
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre du poste</label>
-            <input 
-              type="text" 
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
-              value={formData.job_title} 
-              onChange={(e) => setFormData({ ...formData, job_title: e.target.value })} 
-            />
+        </div>
+
+        {error && (
+          <div className="mx-6 sm:mx-8 mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-lg">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
+              <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea 
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
-              rows={3}
-              value={formData.description} 
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exigences</label>
-            <textarea 
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
-              rows={3}
-              value={formData.requirements} 
-              onChange={(e) => setFormData({ ...formData, requirements: e.target.value })} 
-            />
-          </div>
-          <div className="flex space-x-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Annuler</Button>
-            <Button type="submit" disabled={isLoading || !formData.name} className="flex-1">
-              {isLoading ? 'Modification...' : 'Modifier'}
-            </Button>
-          </div>
-        </form>
+        )}
+
+        {/* Form content with scroll */}
+        <div className="p-6 sm:p-8 overflow-y-auto max-h-[calc(95vh-200px)]">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Column 1: Basic Info */}
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    📁 Nom du projet *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-green-500 focus:outline-none dark:bg-gray-700 transition-colors text-base"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Nom du projet"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    🎯 Titre du poste
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-green-500 focus:outline-none dark:bg-gray-700 transition-colors text-base"
+                    value={formData.job_title}
+                    onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+                    placeholder="ex: Développeur Full Stack Senior"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    📋 Description du poste
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-green-500 focus:outline-none dark:bg-gray-700 transition-colors text-base resize-y min-h-[200px]"
+                    rows={10}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Décrivez le poste en détail..."
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formData.description.length} caractères
+                  </p>
+                </div>
+              </div>
+
+              {/* Column 2: Requirements */}
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    ✅ Exigences & Compétences requises
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-green-500 focus:outline-none dark:bg-gray-700 transition-colors text-base resize-y min-h-[200px]"
+                    rows={10}
+                    value={formData.requirements}
+                    onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
+                    placeholder="Listez les exigences et compétences recherchées..."
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formData.requirements.length} caractères
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-700 dark:text-blue-300">
+                      <p className="font-semibold mb-1">Conseil IA</p>
+                      <p className="text-xs">
+                        Plus votre description et vos exigences sont détaillées et précises,
+                        plus l'analyse IA des candidatures sera pertinente et exacte.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="w-full sm:w-auto px-6 py-3 text-base"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading || !formData.name}
+                  className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 px-6 py-3 text-base"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      <span>Modification...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      <span>Enregistrer les modifications</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -32,27 +32,51 @@ export async function GET(request: NextRequest) {
 
     console.log(`Found ${candidates?.length || 0} candidates for project ${projectId}`);
 
-    // Transform candidates to match frontend interface
-    const transformedCandidates = (candidates || []).map(candidate => ({
-      ...candidate,
-      // Combine first_name and last_name into name
-      name: [candidate.first_name, candidate.last_name]
-        .filter(Boolean)
-        .join(' ') || 'Nom non renseigné',
+    // Transform candidates to match frontend interface with signed URLs
+    const transformedCandidates = await Promise.all((candidates || []).map(async (candidate) => {
       // Extract cv_filename from notes if not directly available
-      cv_filename: candidate.cv_filename ||
+      const cv_filename = candidate.cv_filename ||
         (() => {
           const match = candidate.notes?.match(/CV file: ([^\|]+)/);
           return match ? match[1].trim() : 'CV non disponible';
-        })(),
-      // Ensure other expected fields exist
-      email: candidate.email || '',
-      phone: candidate.phone || '',
-      cv_url: candidate.cv_url || '',
-      score: candidate.score || null,
-      explanation: candidate.explanation || '',
-      shortlisted: candidate.shortlisted || false,
-      status: candidate.status || 'pending',
+        })();
+
+      // Extract CV path from notes and generate signed URL
+      let cv_url = candidate.cv_url || '';
+      const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
+
+      if (pathMatch) {
+        const cvPath = pathMatch[1].trim();
+        try {
+          // Generate signed URL valid for 1 hour
+          const { data: signedUrlData } = await supabaseAdmin.storage
+            .from('cv')
+            .createSignedUrl(cvPath, 3600); // 3600 seconds = 1 hour
+
+          if (signedUrlData?.signedUrl) {
+            cv_url = signedUrlData.signedUrl;
+          }
+        } catch (urlError) {
+          console.error(`Error generating signed URL for candidate ${candidate.id}:`, urlError);
+        }
+      }
+
+      return {
+        ...candidate,
+        // Combine first_name and last_name into name
+        name: [candidate.first_name, candidate.last_name]
+          .filter(Boolean)
+          .join(' ') || 'Nom non renseigné',
+        cv_filename,
+        cv_url,
+        // Ensure other expected fields exist
+        email: candidate.email || '',
+        phone: candidate.phone || '',
+        score: candidate.score || null,
+        explanation: candidate.explanation || '',
+        shortlisted: candidate.shortlisted || false,
+        status: candidate.status || 'pending',
+      };
     }));
 
     return NextResponse.json({

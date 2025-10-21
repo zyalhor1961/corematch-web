@@ -1,19 +1,23 @@
 @import "tailwindcss";
 
-/* Design tokens: prestige, coherent light/dark themes */
+/*
+COMMENTED OUT - These CSS variables were causing conflicts with Tailwind dark mode
+The theme is now fully managed by Tailwind classes and inline styles
+*/
+
+/*
 :root {
-  /* Light (default) */
-  --background: #f7f8fb; /* off‑white with subtle blue */
-  --foreground: #0f172a; /* slate-900 */
-  --muted: #64748b;      /* slate-500 */
-  --card: #ffffff;       /* pure surface */
+  --background: #f7f8fb;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --card: #ffffff;
   --card-foreground: #0f172a;
-  --surface: #fafafc;    /* section backgrounds */
-  --border: #e5e7eb;     /* gray-200 */
-  --ring: #1f3a8a;       /* indigo-800 */
-  --brand: #1f3a8a;      /* deep royal/indigo */
+  --surface: #fafafc;
+  --border: #e5e7eb;
+  --ring: #1f3a8a;
+  --brand: #1f3a8a;
   --brand-foreground: #ffffff;
-  --accent: #d4af37;     /* premium gold */
+  --accent: #d4af37;
   --accent-foreground: #0f172a;
   --success: #16a34a;
   --warning: #f59e0b;
@@ -21,26 +25,46 @@
 }
 
 .dark {
-  /* Dark */
-  --background: #0b0f1a; /* deep navy/charcoal */
-  --foreground: #e5e7eb; /* gray-200 */
-  --muted: #94a3b8;      /* slate-300 */
-  --card: #0f1724;       /* slightly elevated surface */
+  --background: #0b0f1a;
+  --foreground: #e5e7eb;
+  --muted: #94a3b8;
+  --card: #0f1724;
   --card-foreground: #e5e7eb;
   --surface: #0c1220;
-  --border: #1e293b;     /* slate-800 */
-  --ring: #3a5bdc;       /* royal blue */
-  --brand: #3a5bdc;      /* royal blue */
+  --border: #1e293b;
+  --ring: #3a5bdc;
+  --brand: #3a5bdc;
   --brand-foreground: #ffffff;
-  --accent: #d4af37;     /* gold accent still */
+  --accent: #d4af37;
   --accent-foreground: #0b0f1a;
   --success: #22c55e;
   --warning: #fbbf24;
   --destructive: #f87171;
 }
+*/
 
+/* Simplified CSS variables for components that still need them */
+:root {
+  --brand: #1f3a8a;
+  --brand-foreground: #ffffff;
+  --accent: #d4af37;
+  --ring: #1f3a8a;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --destructive: #ef4444;
+}
+
+.dark {
+  --brand: #3a5bdc;
+  --ring: #3a5bdc;
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --destructive: #f87171;
+}
+
+/* Temporarily commented to prevent conflicts with Tailwind dark mode classes */
+/*
 @theme inline {
-  /* Colors mapped to Tailwind tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -57,6 +81,13 @@
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
 
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+*/
+
+@theme inline {
+  /* Keep only fonts to avoid color conflicts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -126,3 +157,43 @@ button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
   height: 100%;
   width: 100%;
 }
+
+/* Tailwind v4 dark: class compatibility overrides
+   Ensure that dark: classes do NOT apply when html does not have .dark
+   This neutralizes always-on .dark\:* rules generated as literal classes. */
+html:not(.dark) [class*="dark\\:bg-"] { background: unset !important; background-color: unset !important; }
+html:not(.dark) [class*="dark\\:\!bg-"] { background: unset !important; background-color: unset !important; }
+html:not(.dark) [class*="dark\\:text-"] { color: unset !important; }
+html:not(.dark) [class*="dark\\:border-"] { border-color: unset !important; }
+html:not(.dark) [class*="dark\\:divide-"] { border-color: unset !important; }
+html:not(.dark) [class*="dark\\:shadow-"] { box-shadow: unset !important; }
+html:not(.dark) [class*="dark\\:hover"] { /* neutralize dark:hover variants in light */ }
+
+/* Legacy color variable aliases -> Tailwind v4 palette
+   Keeps older CSS snippets working without forcing black */
+:root {
+  --color-background-50: var(--color-gray-50);
+  --color-background-100: var(--color-gray-100);
+  --color-background-200: var(--color-gray-200);
+}
+html.dark {
+  --color-background-50: var(--color-slate-900);
+  --color-background-100: var(--color-slate-800);
+  --color-background-200: var(--color-slate-700);
+}
+
+/* Themed scrollbar (light/dark) */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-button { display: none; }
+
+:root {
+  --scrollbar-track: var(--color-background-100);
+  --scrollbar-thumb: var(--color-gray-500);
+}
+html.dark {
+  --scrollbar-track: var(--color-background-100);
+  --scrollbar-thumb: var(--color-slate-600);
+}
+
+*::-webkit-scrollbar-track { background-color: var(--scrollbar-track); border-radius: 0 0 1rem 1rem; }
+*::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 1rem; }

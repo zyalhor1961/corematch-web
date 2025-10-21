@@ -53,7 +53,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased !bg-gray-50 dark:!bg-gray-900 text-gray-900 dark:text-gray-100`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased !bg-gray-50 dark:!bg-gray-900 !text-slate-900 dark:!text-slate-100`}
       >
         <ThemeProvider>
           <ErrorBoundary>

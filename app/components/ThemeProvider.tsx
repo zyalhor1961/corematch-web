@@ -26,12 +26,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedTheme === 'light') {
       setIsDarkMode(false);
       document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
     } else {
       // Default to dark mode
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
       if (!savedTheme) {
         localStorage.setItem('theme', 'dark');
       }
@@ -41,14 +39,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    
+
     if (newMode) {
       document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
       localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
       localStorage.setItem('theme', 'light');
     }
   };

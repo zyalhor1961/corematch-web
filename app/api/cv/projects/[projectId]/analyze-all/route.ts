@@ -141,12 +141,32 @@ Réponds en JSON avec cette structure:
           };
         }
 
+        // Prepare detailed explanation
+        const explanation = `**Score:** ${analysis.score}/100
+
+**Recommandation:** ${analysis.recommendation}
+
+**Points forts:**
+${analysis.strengths.map((s: string) => `• ${s}`).join('\n')}
+
+**Points à améliorer:**
+${analysis.weaknesses.map((w: string) => `• ${w}`).join('\n')}
+
+**Résumé:**
+${analysis.summary}
+
+**Shortlist:** ${analysis.shortlist ? 'OUI' : 'NON'}
+${analysis.shortlist_reason}`;
+
         // Update candidate with analysis results
         const { error: updateError } = await supabaseAdmin
           .from('candidates')
           .update({
             status: 'analyzed',
-            notes: `${candidate.notes}\n\n--- ANALYSE IA ---\nScore: ${analysis.score}/100\nRecommandation: ${analysis.recommendation}\nRésumé: ${analysis.summary}\nShortlist: ${analysis.shortlist ? 'OUI' : 'NON'}\nJustification: ${analysis.shortlist_reason}`
+            score: analysis.score,
+            explanation: explanation,
+            shortlisted: analysis.shortlist,
+            notes: `${candidate.notes}\n\n--- ANALYSE IA ---\n${explanation}`
           })
           .eq('id', candidate.id);
 

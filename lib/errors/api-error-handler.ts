@@ -150,36 +150,130 @@ export class ValidationHelper {
       allowedExtensions = ['.pdf', '.doc', '.docx']
     } = options;
 
-    // Vérifier la taille
-    if (file.size > maxSizeBytes) {
-      throw new AppError(
-        ErrorType.FILE_TOO_LARGE,
-        `File size ${file.size} bytes exceeds maximum ${maxSizeBytes} bytes`
-      );
-    }
+    // ===== SECURITY CHECK 1: Validate file name =====
+    // Reject files with suspicious characters or patterns
+    const fileName = file.name;
 
-    // Vérifier le type MIME
-    if (!allowedTypes.includes(file.type)) {
+    // Check for null bytes (common attack vector)
+    if (fileName.includes('\0')) {
       throw new AppError(
         ErrorType.FILE_INVALID_TYPE,
-        `File type ${file.type} not in allowed types: ${allowedTypes.join(', ')}`
+        'File name contains null bytes (security violation)'
       );
     }
 
-    // Vérifier l'extension
-    const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    if (!allowedExtensions.includes(extension)) {
+    // Check for path traversal attempts
+    if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
       throw new AppError(
         ErrorType.FILE_INVALID_TYPE,
-        `File extension ${extension} not in allowed extensions: ${allowedExtensions.join(', ')}`
+        'File name contains path traversal characters (security violation)'
       );
     }
 
-    // Vérifier que le fichier n'est pas vide
+    // Check for suspicious extensions that could be double-extensions
+    // e.g., "malware.exe.pdf" or "virus.js.doc"
+    const suspiciousExtensions = ['.exe', '.bat', '.cmd', '.com', '.scr', '.vbs', '.js', '.jar', '.app', '.sh', '.ps1', '.msi', '.dll'];
+    for (const ext of suspiciousExtensions) {
+      if (fileName.toLowerCase().includes(ext)) {
+        throw new AppError(
+          ErrorType.FILE_INVALID_TYPE,
+          `File name contains suspicious extension ${ext} (security violation)`
+        );
+      }
+    }
+
+    // Check filename length (prevent buffer overflow attacks)
+    if (fileName.length > 255) {
+      throw new AppError(
+        ErrorType.VALIDATION_ERROR,
+        'File name too long (max 255 characters)'
+      );
+    }
+
+    // Check for hidden files or system files
+    if (fileName.startsWith('.') || fileName.startsWith('~')) {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        'Hidden or system files are not allowed'
+      );
+    }
+
+    // ===== SECURITY CHECK 2: Validate file size =====
+    // Reject empty files
     if (file.size === 0) {
       throw new AppError(
         ErrorType.FILE_CORRUPTED,
         'File is empty'
+      );
+    }
+
+    // Reject files that are too large
+    if (file.size > maxSizeBytes) {
+      throw new AppError(
+        ErrorType.FILE_TOO_LARGE,
+        `File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum ${(maxSizeBytes / 1024 / 1024).toFixed(2)}MB`
+      );
+    }
+
+    // Reject suspiciously small files (could be malformed)
+    if (file.size < 100) { // Less than 100 bytes is suspicious for a CV
+      throw new AppError(
+        ErrorType.FILE_CORRUPTED,
+        'File is too small to be a valid document (potential security issue)'
+      );
+    }
+
+    // ===== SECURITY CHECK 3: Validate MIME type =====
+    // Reject files without a MIME type
+    if (!file.type || file.type === '') {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        'File has no MIME type (security violation)'
+      );
+    }
+
+    // Verify MIME type is in allowed list
+    if (!allowedTypes.includes(file.type)) {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        `File type ${file.type} is not allowed. Only PDF, DOC, and DOCX files are accepted`
+      );
+    }
+
+    // ===== SECURITY CHECK 4: Validate file extension =====
+    const lastDotIndex = fileName.lastIndexOf('.');
+
+    // File must have an extension
+    if (lastDotIndex === -1) {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        'File has no extension'
+      );
+    }
+
+    const extension = fileName.toLowerCase().substring(lastDotIndex);
+
+    // Extension must be in allowed list
+    if (!allowedExtensions.includes(extension)) {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        `File extension ${extension} is not allowed. Only .pdf, .doc, and .docx files are accepted`
+      );
+    }
+
+    // ===== SECURITY CHECK 5: Cross-validate MIME type and extension =====
+    // Ensure MIME type matches the file extension
+    const mimeExtensionMap: { [key: string]: string[] } = {
+      'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+    };
+
+    const expectedExtensions = mimeExtensionMap[file.type];
+    if (expectedExtensions && !expectedExtensions.includes(extension)) {
+      throw new AppError(
+        ErrorType.FILE_INVALID_TYPE,
+        `File extension ${extension} does not match MIME type ${file.type} (potential file spoofing)`
       );
     }
   }

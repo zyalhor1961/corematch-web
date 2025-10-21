@@ -1,10 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure pdfjs worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+/**
+ * Extract text from PDF buffer
+ */
+async function extractTextFromPDF(pdfBuffer: ArrayBuffer): Promise<string> {
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
+    const pdf = await loadingTask.promise;
+
+    let fullText = '';
+
+    // Extract text from all pages
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n\n';
+    }
+
+    return fullText.trim();
+  } catch (error) {
+    console.error('Error extracting PDF text:', error);
+    throw new Error('Impossible d\'extraire le texte du PDF');
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -65,16 +96,51 @@ export async function POST(
           .update({ status: 'processing' })
           .eq('id', candidate.id);
 
-        // Simulate CV text extraction (demo)
-        const cvText = `CV Analysis for ${candidate.first_name || 'Candidat'}
-        
-        File: ${candidate.notes?.match(/CV file: ([^|]+)/)?.[1] || 'CV.pdf'}
-        Upload Date: ${candidate.created_at}
-        
-        [Demo: Texte du CV extrait ici en production]`;
+        // Extract CV file path from notes
+        const pathMatch = candidate.notes?.match(/Path: ([^|]+)/);
+        const cvPath = pathMatch ? pathMatch[1].trim() : null;
+
+        let cvText = '';
+
+        if (cvPath) {
+          try {
+            // Download PDF from Supabase Storage
+            const { data: pdfData, error: downloadError } = await supabaseAdmin.storage
+              .from('cv')
+              .download(cvPath);
+
+            if (downloadError || !pdfData) {
+              console.error('Error downloading PDF:', downloadError);
+              throw new Error('Impossible de télécharger le CV');
+            }
+
+            // Convert blob to ArrayBuffer
+            const arrayBuffer = await pdfData.arrayBuffer();
+
+            // Extract text from PDF
+            cvText = await extractTextFromPDF(arrayBuffer);
+
+            console.log(`Texte extrait du CV: ${cvText.substring(0, 200)}...`);
+          } catch (extractError) {
+            console.error('Error extracting CV text:', extractError);
+            cvText = `Erreur lors de l'extraction du texte du CV.
+
+Nom: ${candidate.first_name || ''} ${candidate.last_name || ''}
+Email: ${candidate.email || 'Non renseigné'}
+Téléphone: ${candidate.phone || 'Non renseigné'}`;
+          }
+        } else {
+          cvText = `Informations du candidat:
+
+Nom: ${candidate.first_name || ''} ${candidate.last_name || ''}
+Email: ${candidate.email || 'Non renseigné'}
+Téléphone: ${candidate.phone || 'Non renseigné'}
+
+Note: Le fichier CV n'a pas pu être localisé pour extraction automatique.`;
+        }
 
         // Prepare prompt for GPT-4
-        const prompt = `Tu es un expert en recrutement. Analyse ce CV par rapport au poste suivant:
+        const prompt = `Tu es un expert en recrutement. Analyse RIGOUREUSEMENT ce CV par rapport au poste suivant.
 
 **POSTE À POURVOIR:**
 - Titre: ${project.job_title || 'Non spécifié'}
@@ -84,12 +150,33 @@ export async function POST(
 **CV DU CANDIDAT:**
 ${cvText}
 
-**INSTRUCTIONS:**
-1. Donne un score de 0 à 100 basé sur l'adéquation du profil au poste
-2. Liste 3-5 points forts du candidat
-3. Liste 2-3 points d'amélioration ou manques
-4. Donne une recommandation finale (Recommandé / À considérer / Non recommandé)
-5. Indique si ce candidat devrait être en shortlist (true/false) avec justification
+**INSTRUCTIONS STRICTES:**
+1. **Score de 0 à 100** - Sois RÉALISTE et STRICT:
+   - 90-100: Correspond PARFAITEMENT (compétences exactes + expérience pertinente)
+   - 70-89: Bon profil (la plupart des compétences + expérience similaire)
+   - 50-69: Profil moyen (quelques compétences + expérience partielle)
+   - 30-49: Profil faible (peu de compétences + expérience non pertinente)
+   - 0-29: Profil inadapté (aucune compétence requise)
+
+2. **Vérifie l'adéquation RÉELLE:**
+   - Les compétences du CV correspondent-elles aux exigences du poste ?
+   - L'expérience est-elle pertinente pour ce poste spécifique ?
+   - Le niveau d'expérience est-il adapté ?
+
+3. **Sois HONNÊTE:**
+   - Si le CV ne correspond PAS au poste, donne un score BAS (20-40)
+   - Ne sois pas trop généreux avec les scores
+   - Liste les VRAIS points forts (basés sur le CV réel)
+   - Liste les VRAIS manques par rapport au poste
+
+4. **Recommandation:**
+   - "Recommandé" SEULEMENT si score >= 75 ET bon fit
+   - "À considérer" si score 50-74
+   - "Non recommandé" si score < 50
+
+5. **Shortlist:**
+   - true SEULEMENT si score >= 75 ET recommandé
+   - false sinon
 
 Réponds en JSON avec cette structure:
 {
@@ -97,9 +184,9 @@ Réponds en JSON avec cette structure:
   "strengths": ["point fort 1", "point fort 2", ...],
   "weaknesses": ["point faible 1", "point faible 2", ...],
   "recommendation": "Recommandé|À considérer|Non recommandé",
-  "summary": "Résumé en 2-3 phrases de l'évaluation",
+  "summary": "Résumé HONNÊTE en 2-3 phrases de l'évaluation",
   "shortlist": boolean,
-  "shortlist_reason": "Justification pour shortlist ou non"
+  "shortlist_reason": "Justification RÉALISTE pour shortlist ou non"
 }`;
 
         console.log(`Analyse IA pour candidat ${candidate.id}...`);
@@ -110,15 +197,15 @@ Réponds en JSON avec cette structure:
           messages: [
             {
               role: 'system',
-              content: 'Tu es un expert en recrutement. Réponds uniquement en JSON valide.'
+              content: 'Tu es un expert en recrutement STRICT et HONNÊTE. Tu analyses les CVs de manière RIGOUREUSE. Si un CV ne correspond pas au poste, tu donnes un score BAS. Tu ne fais PAS de complaisance. Réponds UNIQUEMENT en JSON valide, sans markdown.'
             },
             {
               role: 'user',
               content: prompt
             }
           ],
-          temperature: parseFloat(process.env.CM_TEMPERATURE || '0.7'),
-          max_tokens: 1500,
+          temperature: parseFloat(process.env.CM_TEMPERATURE || '0.3'),
+          max_tokens: 2000,
         });
 
         const analysisText = completion.choices[0].message.content;

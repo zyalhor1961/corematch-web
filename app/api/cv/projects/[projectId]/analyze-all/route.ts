@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure pdfjs worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import pdfParse from 'pdf-parse';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,22 +12,13 @@ const openai = new OpenAI({
  */
 async function extractTextFromPDF(pdfBuffer: ArrayBuffer): Promise<string> {
   try {
-    const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
-    const pdf = await loadingTask.promise;
+    // Convert ArrayBuffer to Buffer for pdf-parse
+    const buffer = Buffer.from(pdfBuffer);
 
-    let fullText = '';
+    // Extract text using pdf-parse
+    const data = await pdfParse(buffer);
 
-    // Extract text from all pages
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      fullText += pageText + '\n\n';
-    }
-
-    return fullText.trim();
+    return data.text.trim();
   } catch (error) {
     console.error('Error extracting PDF text:', error);
     throw new Error('Impossible d\'extraire le texte du PDF');

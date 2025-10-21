@@ -98,9 +98,18 @@ export async function POST(
           500
         );
       }
+      // SECURITY: Validate filePath to prevent path traversal
+      if (!filePath || filePath.includes('..') || filePath.includes('//')) {
+        throw new AppError(
+          ErrorCode.VALIDATION_ERROR,
+          'Invalid file path detected',
+          400
+        );
+      }
+
       const pdfUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
-      console.log('Processing PDF:', fileName);
-      
+      console.log(`[CV Analysis] Processing candidate: ${candidateId}`);
+
       try {
         // Extract text from PDF using proper extraction
         const rawText = await extractTextFromPDF(pdfUrl);
@@ -109,30 +118,31 @@ export async function POST(
         // Parse CV structure
         cvStructure = parseCV(cvText);
 
-        console.log(`✅ PDF extraction successful: ${cvText.length} characters`);
-        console.log('First 500 chars:', cvText.substring(0, 500));
+        // SECURITY: Only log metadata, never actual CV content (PII)
+        console.log(`✅ PDF extraction successful: ${cvText.length} characters extracted`);
       } catch (pdfError) {
-        console.error('❌ PDF extraction failed:', pdfError);
-        console.error('PDF URL:', pdfUrl);
-        console.error('File name:', fileName);
+        // SECURITY: Sanitize error messages - don't expose internal details
+        const sanitizedError = pdfError instanceof Error
+          ? pdfError.message.substring(0, 100)
+          : 'Unknown error';
 
-        // Fallback - Tell AI we cannot read the PDF
+        console.error(`❌ PDF extraction failed for candidate ${candidateId}: ${sanitizedError}`);
+
+        // SECURITY: Don't expose technical error details to AI or logs
+        // Fallback with minimal information
         cvText = `
-⚠️ ERREUR TECHNIQUE: Impossible d'extraire le texte du PDF "${fileName}"
-
-RAISON: ${pdfError instanceof Error ? pdfError.message : 'Erreur inconnue'}
+⚠️ ERREUR TECHNIQUE: Impossible d'extraire le texte du CV.
 
 INSTRUCTION POUR L'IA:
-Comme le contenu du CV n'est PAS ACCESSIBLE, tu dois répondre :
+Le contenu du CV n'est PAS ACCESSIBLE en raison d'une erreur technique.
+Tu dois répondre :
 {
   "score": 50,
-  "strengths": ["Nom du fichier: ${fileName}"],
-  "weaknesses": ["Impossible d'analyser - erreur technique d'extraction PDF"],
+  "strengths": [],
+  "weaknesses": ["Erreur technique - analyse impossible"],
   "recommendation": "À considérer",
-  "summary": "⚠️ ERREUR TECHNIQUE: Le PDF n'a pas pu être lu. Veuillez contacter le support technique pour résoudre ce problème d'extraction. Le fichier pourrait être une image scannée sans texte extractible, ou corrompu."
+  "summary": "⚠️ Erreur technique lors de la lecture du CV. Veuillez réessayer ou contacter le support si le problème persiste."
 }
-
-Ne donne PAS un score de 0 - dis simplement qu'il y a un problème technique.
         `;
       }
       

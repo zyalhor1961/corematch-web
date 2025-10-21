@@ -1,42 +1,52 @@
-// Dynamic import to avoid build issues with pdf-parse
-let pdfParse: any = null;
-
 /**
- * Extract text from PDF buffer or URL
+ * Extract text from PDF buffer or URL using pdfjs-dist (more reliable in serverless)
  */
 export async function extractTextFromPDF(source: Buffer | string): Promise<string> {
   try {
-    // Dynamically import pdf-parse to avoid build issues
-    if (!pdfParse) {
-      pdfParse = (await import('pdf-parse')).default;
-    }
-    
-    let pdfBuffer: Buffer;
-    
+    // Dynamically import pdfjs-dist to avoid build issues
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+    let pdfData: Uint8Array;
+
     // If source is a URL, fetch the PDF
     if (typeof source === 'string' && source.startsWith('http')) {
       const response = await fetch(source);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch PDF: ${response.statusText}`);
       }
-      
+
       const arrayBuffer = await response.arrayBuffer();
-      pdfBuffer = Buffer.from(arrayBuffer);
+      pdfData = new Uint8Array(arrayBuffer);
     } else if (Buffer.isBuffer(source)) {
-      pdfBuffer = source;
+      pdfData = new Uint8Array(source);
     } else {
       throw new Error('Invalid source: must be a Buffer or URL string');
     }
-    
-    // Parse the PDF
-    const data = await pdfParse(pdfBuffer);
-    
-    // Return extracted text
-    return data.text || '';
+
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+    const pdf = await loadingTask.promise;
+
+    // Extract text from all pages
+    let fullText = '';
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      // Combine text items from the page
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+
+      fullText += pageText + '\n';
+    }
+
+    return fullText.trim();
   } catch (error) {
     console.error('PDF extraction error:', error);
-    
+
     // Return empty string or throw based on requirements
     throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

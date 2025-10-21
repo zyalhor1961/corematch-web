@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
-import { 
+import {
   ArrowLeft,
-  Upload, 
-  Users, 
+  Upload,
+  Users,
   Brain,
   Star,
   FileText,
@@ -20,7 +20,8 @@ import {
   X,
   CheckCircle,
   Clock,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
 
 interface Candidate {
@@ -55,6 +56,9 @@ export default function ProjectCandidatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
   const projectId = params?.projectId as string;
@@ -184,6 +188,70 @@ export default function ProjectCandidatesPage() {
     }
   };
 
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError(null);
+    setUploadSuccess(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Vous devez être connecté pour télécharger des CVs.");
+      }
+
+      const formData = new FormData();
+      Array.from(files).forEach(file => {
+        formData.append('files', file);
+      });
+
+      const response = await fetch(`/api/cv/projects/${projectId}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Le téléchargement a échoué.");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        const summary = data.data.summary;
+        setUploadSuccess(
+          `${summary.uploaded} CV(s) téléchargé(s) avec succès` +
+          (summary.failed > 0 ? ` (${summary.failed} échec(s))` : '')
+        );
+
+        // Reload candidates list
+        await loadCandidates();
+
+        // Clear success message after 5 seconds
+        setTimeout(() => setUploadSuccess(null), 5000);
+      } else {
+        throw new Error(data.message || "Une erreur est survenue.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Error uploading CVs:', err);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -217,9 +285,30 @@ export default function ProjectCandidatesPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button variant="outline">
-              <Upload className="w-4 h-4 mr-2" />
-              Télécharger CVs
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              onClick={handleUploadClick}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Téléchargement...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Télécharger CVs
+                </>
+              )}
             </Button>
             <Button>
               <Brain className="w-4 h-4 mr-2" />
@@ -235,6 +324,18 @@ export default function ProjectCandidatesPage() {
               <span>{error}</span>
             </div>
             <button onClick={() => setError(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-red-900/50' : 'hover:bg-red-100'}`}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {uploadSuccess && (
+          <div className={`border rounded-md p-4 flex items-center justify-between ${isDarkMode ? 'bg-green-900/20 border-green-500/30 text-green-300' : 'bg-green-50 border-green-200 text-green-800'}`}>
+            <div className="flex items-center">
+              <CheckCircle className="w-5 h-5 mr-3" />
+              <span>{uploadSuccess}</span>
+            </div>
+            <button onClick={() => setUploadSuccess(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-green-900/50' : 'hover:bg-green-100'}`}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -292,9 +393,18 @@ export default function ProjectCandidatesPage() {
             <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
             <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Aucun candidat</h3>
             <p className="mb-6 text-gray-600 dark:text-gray-400">Téléchargez des CVs pour commencer l'analyse.</p>
-            <Button>
-              <Upload className="w-4 h-4 mr-2" />
-              Télécharger CVs
+            <Button onClick={handleUploadClick} disabled={isUploading}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Téléchargement...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Télécharger CVs
+                </>
+              )}
             </Button>
           </div>
         ) : (

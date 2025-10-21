@@ -60,6 +60,14 @@ export default function ProjectCandidatesPage() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalData, setConfirmModalData] = useState<{
+    emoji: string;
+    title: string;
+    description: string;
+    timeEstimate: string;
+    pendingCount: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
@@ -254,7 +262,7 @@ export default function ProjectCandidatesPage() {
     }
   };
 
-  const handleAnalyzeAll = async () => {
+  const handleAnalyzeAll = () => {
     const pendingCount = candidates.filter(c => c.status === 'pending').length;
 
     if (pendingCount === 0) {
@@ -264,21 +272,48 @@ export default function ProjectCandidatesPage() {
     }
 
     // Messages créatifs selon le nombre de CVs
-    let confirmMessage = '';
+    let modalData;
     if (pendingCount === 1) {
-      confirmMessage = `🚀 Prêt à découvrir le potentiel de ce candidat ?\n\nL'IA va analyser en profondeur ce CV et vous donner son avis d'expert.\n\nC'est parti ?`;
+      modalData = {
+        emoji: '🚀',
+        title: 'Prêt à découvrir le potentiel de ce candidat ?',
+        description: "L'IA va analyser en profondeur ce CV et vous donner son avis d'expert.",
+        timeEstimate: '~30 secondes',
+        pendingCount
+      };
     } else if (pendingCount <= 5) {
-      confirmMessage = `🎯 ${pendingCount} CVs à analyser !\n\nNotre IA va passer au crible chaque profil pour identifier les meilleurs talents.\n\nTemps estimé : ${pendingCount * 30} secondes\n\nOn lance l'analyse ?`;
+      modalData = {
+        emoji: '🎯',
+        title: `${pendingCount} CVs à analyser !`,
+        description: "Notre IA va passer au crible chaque profil pour identifier les meilleurs talents.",
+        timeEstimate: `~${pendingCount * 30} secondes`,
+        pendingCount
+      };
     } else if (pendingCount <= 10) {
-      confirmMessage = `🔥 Wow ! ${pendingCount} candidats attendent d'être analysés !\n\nL'IA va travailler dur pour scorer et classer tous ces profils. Préparez-vous à découvrir des pépites !\n\nTemps estimé : ~${Math.ceil(pendingCount * 30 / 60)} minute${Math.ceil(pendingCount * 30 / 60) > 1 ? 's' : ''}\n\nC'est parti pour l'aventure ?`;
+      const minutes = Math.ceil(pendingCount * 30 / 60);
+      modalData = {
+        emoji: '🔥',
+        title: `Wow ! ${pendingCount} candidats attendent d'être analysés !`,
+        description: "L'IA va travailler dur pour scorer et classer tous ces profils. Préparez-vous à découvrir des pépites !",
+        timeEstimate: `~${minutes} minute${minutes > 1 ? 's' : ''}`,
+        pendingCount
+      };
     } else {
-      confirmMessage = `💎 Analyse massive en vue : ${pendingCount} CVs !\n\nNotre IA va déployer toute sa puissance pour analyser cette montagne de talents. Installez-vous confortablement, ça va chauffer !\n\nTemps estimé : ~${Math.ceil(pendingCount * 30 / 60)} minutes\n\nPrêt à découvrir vos futures stars ?`;
+      modalData = {
+        emoji: '💎',
+        title: `Analyse massive en vue : ${pendingCount} CVs !`,
+        description: "Notre IA va déployer toute sa puissance pour analyser cette montagne de talents. Installez-vous confortablement, ça va chauffer !",
+        timeEstimate: `~${Math.ceil(pendingCount * 30 / 60)} minutes`,
+        pendingCount
+      };
     }
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    setConfirmModalData(modalData);
+    setShowConfirmModal(true);
+  };
 
+  const proceedWithAnalysis = async () => {
+    setShowConfirmModal(false);
     setIsAnalyzing(true);
     setError(null);
     setAnalyzeSuccess(null);
@@ -436,6 +471,85 @@ export default function ProjectCandidatesPage() {
             <button onClick={() => setAnalyzeSuccess(null)} className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-blue-900/50' : 'hover:bg-blue-100'}`}>
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {/* Modal de confirmation d'analyse */}
+        {showConfirmModal && confirmModalData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`relative w-full max-w-md rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200 ${
+              isDarkMode
+                ? 'bg-gray-800 border-gray-700'
+                : 'bg-white border-gray-200'
+            }`}>
+              {/* Header avec emoji */}
+              <div className={`p-6 pb-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-start space-x-4">
+                  <div className="text-5xl">{confirmModalData.emoji}</div>
+                  <div className="flex-1">
+                    <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {confirmModalData.title}
+                    </h3>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {confirmModalData.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Détails */}
+              <div className="p-6 space-y-4">
+                <div className={`flex items-center justify-between p-4 rounded-lg ${
+                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <Clock className={`w-5 h-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                      Temps estimé
+                    </span>
+                  </div>
+                  <span className={`font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    {confirmModalData.timeEstimate}
+                  </span>
+                </div>
+
+                <div className={`flex items-center justify-between p-4 rounded-lg ${
+                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <FileText className={`w-5 h-5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                    <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                      CVs à analyser
+                    </span>
+                  </div>
+                  <span className={`font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                    {confirmModalData.pendingCount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className={`p-6 pt-0 flex space-x-3`}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={proceedWithAnalysis}
+                  className={`flex-1 ${
+                    isDarkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <Brain className="w-4 h-4 mr-2" />
+                  Lancer l&apos;analyse
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -258,12 +258,24 @@ export default function ProjectCandidatesPage() {
     const pendingCount = candidates.filter(c => c.status === 'pending').length;
 
     if (pendingCount === 0) {
-      setError("Aucun CV en attente d'analyse. Tous les CVs ont déjà été analysés.");
+      setError("✨ Aucun CV en attente d'analyse. Tous les CVs ont déjà été analysés !");
       setTimeout(() => setError(null), 3000);
       return;
     }
 
-    if (!confirm(`Voulez-vous analyser ${pendingCount} CV(s) en attente avec l'IA ? Cela peut prendre quelques minutes.`)) {
+    // Messages créatifs selon le nombre de CVs
+    let confirmMessage = '';
+    if (pendingCount === 1) {
+      confirmMessage = `🚀 Prêt à découvrir le potentiel de ce candidat ?\n\nL'IA va analyser en profondeur ce CV et vous donner son avis d'expert.\n\nC'est parti ?`;
+    } else if (pendingCount <= 5) {
+      confirmMessage = `🎯 ${pendingCount} CVs à analyser !\n\nNotre IA va passer au crible chaque profil pour identifier les meilleurs talents.\n\nTemps estimé : ${pendingCount * 30} secondes\n\nOn lance l'analyse ?`;
+    } else if (pendingCount <= 10) {
+      confirmMessage = `🔥 Wow ! ${pendingCount} candidats attendent d'être analysés !\n\nL'IA va travailler dur pour scorer et classer tous ces profils. Préparez-vous à découvrir des pépites !\n\nTemps estimé : ~${Math.ceil(pendingCount * 30 / 60)} minute${Math.ceil(pendingCount * 30 / 60) > 1 ? 's' : ''}\n\nC'est parti pour l'aventure ?`;
+    } else {
+      confirmMessage = `💎 Analyse massive en vue : ${pendingCount} CVs !\n\nNotre IA va déployer toute sa puissance pour analyser cette montagne de talents. Installez-vous confortablement, ça va chauffer !\n\nTemps estimé : ~${Math.ceil(pendingCount * 30 / 60)} minutes\n\nPrêt à découvrir vos futures stars ?`;
+    }
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 

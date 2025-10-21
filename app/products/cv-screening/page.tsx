@@ -6,7 +6,7 @@ import { Check, Users, Zap, Target, ArrowRight } from 'lucide-react';
 
 export default function CVScreeningProductPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 dark:from-slate-900 dark:via-blue-900 dark:to-slate-900">
       <Header />
       
       {/* Hero Section */}
@@ -34,12 +34,12 @@ export default function CVScreeningProductPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-16">
             <div className="inline-block px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-full border border-blue-500/20 mb-6">
-              <span className="text-blue-300 text-sm font-medium">🚀 AI-Powered Recruitment</span>
+              <span className="text-blue-600 dark:text-blue-300 text-sm font-medium">🚀 AI-Powered Recruitment</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-cyan-100 to-blue-100 bg-clip-text text-transparent mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-cyan-700 to-blue-700 dark:from-white dark:via-cyan-100 dark:to-blue-100 bg-clip-text text-transparent mb-4">
               Comment ça marche ?
             </h2>
-            <p className="text-xl text-gray-300">
+            <p className="text-xl text-gray-700 dark:text-gray-300">
               3 étapes pour transformer vos recrutements avec l&apos;IA
             </p>
           </div>
@@ -49,10 +49,10 @@ export default function CVScreeningProductPage() {
               <div className="bg-gradient-to-br from-blue-500/20 to-cyan-600/20 p-4 rounded-2xl w-16 h-16 mx-auto mb-4 flex items-center justify-center border border-blue-500/30 group-hover:border-blue-400/50 transition-all duration-300">
                 <Users className="h-8 w-8 text-blue-400 group-hover:text-blue-300 transition-colors duration-300" />
               </div>
-              <h3 className="text-xl font-semibold bg-gradient-to-r from-blue-100 to-cyan-100 bg-clip-text text-transparent mb-2">
+              <h3 className="text-xl font-semibold bg-gradient-to-r from-blue-700 to-cyan-700 dark:from-blue-100 dark:to-cyan-100 bg-clip-text text-transparent mb-2">
                 1. Uploadez les CV
               </h3>
-              <p className="text-gray-300">
+              <p className="text-gray-700 dark:text-gray-300">
                 Déposez 5 à 200 CV PDF dans votre projet. Compatible avec tous les formats de CV.
               </p>
             </div>
@@ -61,10 +61,10 @@ export default function CVScreeningProductPage() {
               <div className="bg-gradient-to-br from-emerald-500/20 to-green-600/20 p-4 rounded-2xl w-16 h-16 mx-auto mb-4 flex items-center justify-center border border-emerald-500/30 group-hover:border-emerald-400/50 transition-all duration-300">
                 <Zap className="h-8 w-8 text-emerald-400 group-hover:text-emerald-300 transition-colors duration-300" />
               </div>
-              <h3 className="text-xl font-semibold bg-gradient-to-r from-emerald-100 to-green-100 bg-clip-text text-transparent mb-2">
+              <h3 className="text-xl font-semibold bg-gradient-to-r from-emerald-700 to-green-700 dark:from-emerald-100 dark:to-green-100 bg-clip-text text-transparent mb-2">
                 2. IA analyse et score
               </h3>
-              <p className="text-gray-300">
+              <p className="text-gray-700 dark:text-gray-300">
                 Notre IA GPT-4 analyse chaque CV et attribue un score de 0 à 100 avec explication détaillée.
               </p>
             </div>
@@ -73,10 +73,10 @@ export default function CVScreeningProductPage() {
               <div className="bg-gradient-to-br from-purple-500/20 to-pink-600/20 p-4 rounded-2xl w-16 h-16 mx-auto mb-4 flex items-center justify-center border border-purple-500/30 group-hover:border-purple-400/50 transition-all duration-300">
                 <Target className="h-8 w-8 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" />
               </div>
-              <h3 className="text-xl font-semibold bg-gradient-to-r from-purple-100 to-pink-100 bg-clip-text text-transparent mb-2">
+              <h3 className="text-xl font-semibold bg-gradient-to-r from-purple-700 to-pink-700 dark:from-purple-100 dark:to-pink-100 bg-clip-text text-transparent mb-2">
                 3. Shortlistez et exportez
               </h3>
-              <p className="text-gray-300">
+              <p className="text-gray-700 dark:text-gray-300">
                 Sélectionnez les meilleurs profils et exportez votre shortlist en CSV pour votre équipe.
               </p>
             </div>
@@ -86,40 +86,40 @@ export default function CVScreeningProductPage() {
 
       {/* Features Details */}
       <section className="py-24 relative">
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/50"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-100 via-transparent to-slate-100/50 dark:from-slate-900 dark:via-transparent dark:to-slate-900/50"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-center">
             <div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-cyan-100 bg-clip-text text-transparent mb-6">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-blue-700 to-cyan-700 dark:from-white dark:via-blue-100 dark:to-cyan-100 bg-clip-text text-transparent mb-6">
                 Fonctionnalités avancées
               </h2>
               <ul className="space-y-4">
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-cyan-100">Scoring intelligent</h3>
-                    <p className="text-gray-300">Algorithme adaptatif qui s&apos;ajuste selon vos critères de poste</p>
+                    <h3 className="font-semibold text-cyan-700 dark:text-cyan-100">Scoring intelligent</h3>
+                    <p className="text-gray-700 dark:text-gray-300">Algorithme adaptatif qui s&apos;ajuste selon vos critères de poste</p>
                   </div>
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-cyan-100">Extraction de données</h3>
-                    <p className="text-gray-300">Nom, email, téléphone et compétences détectés automatiquement</p>
+                    <h3 className="font-semibold text-cyan-700 dark:text-cyan-100">Extraction de données</h3>
+                    <p className="text-gray-700 dark:text-gray-300">Nom, email, téléphone et compétences détectés automatiquement</p>
                   </div>
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-cyan-100">Gestion de projets</h3>
-                    <p className="text-gray-300">Organisez vos recrutements par poste et suivez l&apos;avancement</p>
+                    <h3 className="font-semibold text-cyan-700 dark:text-cyan-100">Gestion de projets</h3>
+                    <p className="text-gray-700 dark:text-gray-300">Organisez vos recrutements par poste et suivez l&apos;avancement</p>
                   </div>
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-emerald-400 mr-3 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-cyan-100">Collaboration équipe</h3>
-                    <p className="text-gray-300">Partagez vos analyses avec votre équipe RH et les managers</p>
+                    <h3 className="font-semibold text-cyan-700 dark:text-cyan-100">Collaboration équipe</h3>
+                    <p className="text-gray-700 dark:text-gray-300">Partagez vos analyses avec votre équipe RH et les managers</p>
                   </div>
                 </li>
               </ul>

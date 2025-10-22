@@ -99,19 +99,19 @@ export interface EvaluationResult {
   evidence_global: Evidence[];
 }
 
-// Poids par défaut
+// Poids par défaut (ajustés pour être plus équilibrés)
 const DEFAULT_WEIGHTS: Weights = {
-  w_exp: 0.5,
-  w_skills: 0.3,
-  w_nice: 0.2,
-  p_adjacent: 0.5
+  w_exp: 0.6,      // 60% expérience (prioritaire)
+  w_skills: 0.25,  // 25% compétences (moins pénalisant si extraction imparfaite)
+  w_nice: 0.15,    // 15% nice-to-have
+  p_adjacent: 0.6  // Expériences adjacentes valorisées à 60%
 };
 
-// Seuils par défaut
+// Seuils par défaut (plus réalistes)
 const DEFAULT_THRESHOLDS: Thresholds = {
-  years_full_score: 3,
-  shortlist_min: 75,
-  consider_min: 60
+  years_full_score: 2,  // 100% à partir de 2 ans (au lieu de 3)
+  shortlist_min: 65,    // SHORTLIST à partir de 65% (au lieu de 75%)
+  consider_min: 50      // CONSIDER à partir de 50% (au lieu de 60%)
 };
 
 /**
@@ -240,23 +240,79 @@ ${JSON.stringify(cvJson, null, 2)}`;
  */
 export function createDefaultJobSpec(project: any): JobSpec {
   const title = project.job_title || project.name || 'Poste non spécifié';
+  const titleLower = title.toLowerCase();
+  const requirementsLower = (project.requirements || '').toLowerCase();
+  const descriptionLower = (project.description || '').toLowerCase();
+
+  // Détection automatique du domaine FLE
+  const isFLE = titleLower.includes('fle') ||
+                titleLower.includes('français langue') ||
+                titleLower.includes('formateur') ||
+                requirementsLower.includes('fle') ||
+                descriptionLower.includes('fle');
+
+  // Règles de pertinence adaptées au domaine
+  let relevanceRules: RelevanceRules;
+  let skillsMap: Record<string, string[]> = {};
+
+  if (isFLE) {
+    // Règles spécifiques pour FLE
+    relevanceRules = {
+      direct: [
+        'formateur fle', 'formatrice fle', 'enseignant fle', 'enseignante fle',
+        'professeur fle', 'professeure de français', 'assistant fle', 'assistante fle',
+        'lecteur fle', 'lectrice fle', 'alliance française', 'ifra', 'crept',
+        'université', 'français langue étrangère', 'fle', 'didactique du fle',
+        'enseignement du français'
+      ],
+      adjacent: [
+        'interprète', 'traducteur', 'traductrice', 'médiateur social',
+        'médiatrice sociale', 'assistant éducation', 'assistante éducation',
+        'tuteur', 'tutorat', 'alphabétisation', 'médiateur culturel',
+        'formateur', 'formatrice', 'enseignant', 'enseignante', 'professeur'
+      ],
+      peripheral: [
+        'éducation', 'formation', 'enseignement', 'pédagogie',
+        'école', 'collège', 'lycée', 'animation'
+      ]
+    };
+
+    // Synonymes de compétences FLE
+    skillsMap = {
+      'conception de cours': ['ingénierie pédagogique', 'séquences pédagogiques', 'préparer des séances', 'outils pédagogiques', 'fiches pédagogiques'],
+      'évaluation': ['évaluer les apprenants', 'examens', 'barèmes', 'cecrl', 'delf', 'dalf', 'tcf'],
+      'gestion de classe': ['animer des cours', 'animation de groupe', 'formation adultes', 'public migrant', 'collège', 'lycée'],
+      'didactique': ['méthodologie', 'approche communicative', 'approche actionnelle', 'pédagogie'],
+      'français': ['fle', 'langue française', 'grammaire', 'phonétique', 'linguistique']
+    };
+  } else {
+    // Règles génériques
+    relevanceRules = {
+      direct: extractKeywordsFromText(title),
+      adjacent: [],
+      peripheral: []
+    };
+  }
 
   return {
     title,
     must_have: [
       {
         id: 'M1',
-        desc: project.requirements || 'Expérience pertinente dans le domaine',
-        severity: 'standard'
+        desc: isFLE
+          ? 'Au moins 24 mois cumulés d\'enseignement FLE en établissement scolaire, université ou centre agréé'
+          : (project.requirements || 'Expérience pertinente dans le domaine'),
+        severity: 'standard' // 'critical' force REJECT
       }
     ],
-    skills_required: extractSkillsFromText(project.requirements || ''),
-    nice_to_have: extractSkillsFromText(project.description || ''),
-    relevance_rules: {
-      direct: extractKeywordsFromText(title),
-      adjacent: [],
-      peripheral: []
-    },
+    skills_required: isFLE
+      ? ['conception de cours', 'évaluation', 'gestion de classe', 'didactique', 'cecrl']
+      : extractSkillsFromText(project.requirements || ''),
+    nice_to_have: isFLE
+      ? ['delf', 'dalf', 'tcf', 'tice', 'numérique', 'interculturel']
+      : extractSkillsFromText(project.description || ''),
+    relevance_rules: relevanceRules,
+    skills_map: Object.keys(skillsMap).length > 0 ? skillsMap : undefined,
     weights: DEFAULT_WEIGHTS,
     thresholds: DEFAULT_THRESHOLDS,
     analysis_date: new Date().toISOString().split('T')[0]

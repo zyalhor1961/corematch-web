@@ -34,7 +34,7 @@ Génère une liste structurée d'exigences et compétences en français, format�
 Sois précis et réaliste selon le niveau du poste. Utilise des bullet points (•) pour chaque exigence.`;
 
     const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',

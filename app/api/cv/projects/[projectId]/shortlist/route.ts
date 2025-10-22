@@ -115,7 +115,7 @@ Réponds en JSON avec cette structure:
     
     // Call OpenAI for shortlist analysis
     const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',

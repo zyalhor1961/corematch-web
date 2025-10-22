@@ -143,7 +143,7 @@ ${useDeterministicAnalysis ? '- Si on te demande pourquoi une expérience est AD
 
     // Call OpenAI
     const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',

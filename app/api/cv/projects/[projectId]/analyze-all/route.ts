@@ -60,7 +60,7 @@ async function analyzeCandidateDeterministic(
 
   // Call OpenAI with deterministic settings
   const completion = await openai.chat.completions.create({
-    model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+    model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
     messages: [
       {
         role: 'system',
@@ -141,7 +141,7 @@ Réponds en JSON:
   console.log(`[Legacy] Analyzing ${candidate.first_name} ${candidate.last_name}`);
 
   const completion = await openai.chat.completions.create({
-    model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+    model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
     messages: [
       {
         role: 'system',
@@ -195,6 +195,10 @@ export async function POST(
       );
     }
 
+    // Get custom JobSpec from request body if provided
+    const body = await request.json().catch(() => ({}));
+    const customJobSpec = body.customJobSpec as JobSpec | undefined;
+
     // Get all pending candidates
     const { data: candidates, error: candidatesError } = await supabaseAdmin
       .from('candidates')
@@ -228,16 +232,21 @@ export async function POST(
     }
 
     const project = candidates[0].project;
-    const useDeterministicAnalysis = !!project.job_spec_config;
+
+    // Use custom JobSpec if provided, otherwise use project's JobSpec or default
+    const jobSpec = customJobSpec ||
+                   (project.job_spec_config as JobSpec | null) ||
+                   createDefaultJobSpec(project);
+
+    const useDeterministicAnalysis = !!customJobSpec || !!project.job_spec_config;
 
     console.log(`\n========== BATCH ANALYSIS ==========`);
     console.log(`Project: ${project.name}`);
     console.log(`Candidates: ${candidates.length}`);
     console.log(`Mode: ${useDeterministicAnalysis ? '🎯 DÉTERMINISTE' : '🔄 LEGACY'}`);
-
-    const jobSpec = useDeterministicAnalysis
-      ? project.job_spec_config as JobSpec
-      : createDefaultJobSpec(project);
+    if (customJobSpec) {
+      console.log(`🔧 Using CUSTOM JobSpec for this analysis`);
+    }
 
     let analyzed = 0;
     let failed = 0;

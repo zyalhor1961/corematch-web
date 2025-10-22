@@ -1,0 +1,223 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "meets_all_must_have",
+    "fails",
+    "relevance_summary",
+    "subscores",
+    "overall_score_0_to_100",
+    "recommendation",
+    "strengths",
+    "improvements"
+  ],
+  "properties": {
+    "meets_all_must_have": {
+      "type": "boolean"
+    },
+    "fails": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "reason", "evidence"],
+        "properties": {
+          "rule_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["quote", "field_path"],
+              "properties": {
+                "quote": {
+                  "type": "string"
+                },
+                "field_path": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "relevance_summary": {
+      "type": "object",
+      "required": [
+        "months_direct",
+        "months_adjacent",
+        "months_peripheral",
+        "months_non_pertinent",
+        "by_experience"
+      ],
+      "properties": {
+        "months_direct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months_adjacent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months_peripheral": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months_non_pertinent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_experience": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "titre", "relevance", "reason", "evidence"],
+            "properties": {
+              "index": {
+                "type": "integer"
+              },
+              "titre": {
+                "type": "string"
+              },
+              "employeur": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "relevance": {
+                "type": "string",
+                "enum": ["DIRECTE", "ADJACENTE", "PERIPHERIQUE", "NON_PERTINENTE"]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["quote", "field_path"],
+                  "properties": {
+                    "quote": {
+                      "type": "string"
+                    },
+                    "field_path": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subscores": {
+      "type": "object",
+      "required": [
+        "experience_years_relevant",
+        "skills_match_0_to_100",
+        "nice_to_have_0_to_100"
+      ],
+      "properties": {
+        "experience_years_relevant": {
+          "type": "number",
+          "minimum": 0
+        },
+        "skills_match_0_to_100": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "nice_to_have_0_to_100": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "overall_score_0_to_100": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": ["SHORTLIST", "CONSIDER", "REJECT"]
+    },
+    "strengths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point", "evidence"],
+        "properties": {
+          "point": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["quote", "field_path"],
+              "properties": {
+                "quote": {
+                  "type": "string"
+                },
+                "field_path": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "improvements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point", "why", "suggested_action"],
+        "properties": {
+          "point": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "suggested_action": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence_global": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["quote", "field_path"],
+        "properties": {
+          "quote": {
+            "type": "string"
+          },
+          "field_path": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

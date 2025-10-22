@@ -80,6 +80,11 @@ export async function POST(
     // Process each candidate
     for (const candidate of candidates) {
       try {
+        console.log(`\n========== BATCH ANALYSE CV ==========`);
+        console.log(`Candidate ID: ${candidate.id}`);
+        console.log(`Candidate Name: ${candidate.first_name} ${candidate.last_name}`);
+        console.log(`Notes brutes: ${candidate.notes}`);
+
         // Update status to processing
         await supabaseAdmin
           .from('candidates')
@@ -89,6 +94,8 @@ export async function POST(
         // Extract CV file path from notes
         const pathMatch = candidate.notes?.match(/Path: ([^|]+)/);
         const cvPath = pathMatch ? pathMatch[1].trim() : null;
+
+        console.log(`Extracted cvPath: ${cvPath}`);
 
         let cvText = '';
 
@@ -110,7 +117,9 @@ export async function POST(
             // Extract text from PDF
             cvText = await extractTextFromPDF(arrayBuffer);
 
-            console.log(`Texte extrait du CV: ${cvText.substring(0, 200)}...`);
+            console.log(`✅ PDF extraction successful for ${candidate.id}: ${cvText.length} characters`);
+            console.log(`[DEBUG] First 200 chars: ${cvText.substring(0, 200)}...`);
+            console.log(`[DEBUG] Last 100 chars: ...${cvText.substring(cvText.length - 100)}`);
           } catch (extractError) {
             console.error('Error extracting CV text:', extractError);
             cvText = `Erreur lors de l'extraction du texte du CV.
@@ -179,8 +188,11 @@ Réponds en JSON avec cette structure:
   "shortlist_reason": "Justification RÉALISTE pour shortlist ou non"
 }`;
 
-        console.log(`Analyse IA pour candidat ${candidate.id}...`);
-        
+        console.log(`\n========== ENVOI VERS OPENAI (BATCH) ==========`);
+        console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidate.id})`);
+        console.log(`CV Text Length: ${cvText.length} characters`);
+        console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o-mini'}`);
+
         // Call OpenAI GPT-4
         const completion = await openai.chat.completions.create({
           model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
@@ -199,7 +211,12 @@ Réponds en JSON avec cette structure:
         });
 
         const analysisText = completion.choices[0].message.content;
-        
+
+        console.log(`\n========== RÉPONSE OPENAI (BATCH) ==========`);
+        console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidate.id})`);
+        console.log(`Response:`, analysisText);
+        console.log(`=====================================\n`);
+
         // Parse JSON response
         let analysis;
         try {

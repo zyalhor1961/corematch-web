@@ -89,7 +89,7 @@ async function analyzeCandidateDeterministic(
   });
 
   const analysisText = completion.choices[0].message.content || '{}';
-  const evaluation = parseEvaluationResult(analysisText, cvJson); // Pass cvJson for diploma detection
+  const evaluation = parseEvaluationResult(analysisText, cvJson, jobSpec); // Pass cvJson for diploma detection and jobSpec for conditional rule enforcement
   const legacyFormat = convertToLegacyFormat(evaluation);
 
   return {

@@ -43,25 +43,49 @@ export async function POST(
 
     console.log(`[JobSpec Generate] Starting auto-generation for project: ${project.name}`);
 
+    // Validate project has sufficient info
+    if (!project.job_title && !project.name) {
+      return NextResponse.json(
+        { error: 'Project must have a job_title or name for generation' },
+        { status: 400 }
+      );
+    }
+
     // Generate JobSpec via OpenAI
-    const jobSpec = await generateJobSpec({
-      job_title: project.job_title || project.name,
-      description: project.description,
-      requirements: project.requirements
-    });
+    try {
+      const jobSpec = await generateJobSpec({
+        job_title: project.job_title || project.name,
+        description: project.description,
+        requirements: project.requirements
+      });
 
-    console.log('[JobSpec Generate] Generation successful');
+      console.log('[JobSpec Generate] Generation successful');
 
-    return NextResponse.json({
-      success: true,
-      message: 'JobSpec généré automatiquement avec succès',
-      data: { jobSpec }
-    });
+      return NextResponse.json({
+        success: true,
+        message: 'JobSpec généré automatiquement avec succès',
+        data: { jobSpec }
+      });
+    } catch (genError) {
+      console.error('[JobSpec Generate] Generation failed:', genError);
+      const errorMessage = genError instanceof Error ? genError.message : 'Unknown error';
+      return NextResponse.json(
+        {
+          error: 'Échec de la génération automatique',
+          details: errorMessage
+        },
+        { status: 500 }
+      );
+    }
 
   } catch (error) {
-    console.error('Generate job spec error:', error);
+    console.error('[JobSpec Generate] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Erreur lors de la génération automatique du JobSpec' },
+      {
+        error: 'Erreur lors de la génération automatique du JobSpec',
+        details: errorMessage
+      },
       { status: 500 }
     );
   }

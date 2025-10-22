@@ -88,7 +88,14 @@ export async function POST(
     const filePath = pathMatch?.[1]?.trim();
     const fileNameMatch = candidate.notes?.match(/CV file: ([^|\n]+)/);
     const fileName = fileNameMatch?.[1]?.trim() || 'CV.pdf';
-    
+
+    console.log(`\n========== DEBUG ANALYSE CV ==========`);
+    console.log(`Candidate ID: ${candidateId}`);
+    console.log(`Candidate Name: ${candidate.first_name} ${candidate.last_name}`);
+    console.log(`Notes brutes: ${candidate.notes}`);
+    console.log(`Extracted filePath: ${filePath}`);
+    console.log(`Extracted fileName: ${fileName}`);
+
     if (filePath) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!supabaseUrl) {
@@ -109,6 +116,7 @@ export async function POST(
 
       const pdfUrl = `${supabaseUrl}/storage/v1/object/public/cv/${filePath}`;
       console.log(`[CV Analysis] Processing candidate: ${candidateId}`);
+      console.log(`[CV Analysis] PDF URL: ${pdfUrl}`);
 
       try {
         // Extract text from PDF using proper extraction
@@ -120,6 +128,8 @@ export async function POST(
 
         // SECURITY: Only log metadata, never actual CV content (PII)
         console.log(`✅ PDF extraction successful: ${cvText.length} characters extracted`);
+        console.log(`[DEBUG] First 200 chars of CV text: ${cvText.substring(0, 200)}...`);
+        console.log(`[DEBUG] Last 100 chars of CV text: ...${cvText.substring(cvText.length - 100)}`);
       } catch (pdfError) {
         // SECURITY: Sanitize error messages - don't expose internal details
         const sanitizedError = pdfError instanceof Error
@@ -217,8 +227,12 @@ Réponds en JSON:
   "summary": "Analyse BRUTALEMENT honnête d'un vrai recruteur"
 }`;
 
-    console.log('Envoi vers OpenAI pour analyse...');
-    
+    console.log(`\n========== ENVOI VERS OPENAI ==========`);
+    console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidateId})`);
+    console.log(`CV Text Length: ${cvText.length} characters`);
+    console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o-mini'}`);
+    console.log(`Temperature: ${parseFloat(process.env.CM_TEMPERATURE || '0.7')}`);
+
     // Call OpenAI GPT-4
     const completion = await openai.chat.completions.create({
       model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
@@ -237,7 +251,10 @@ Réponds en JSON:
     });
 
     const analysisText = completion.choices[0].message.content;
-    console.log('Réponse OpenAI:', analysisText);
+    console.log(`\n========== RÉPONSE OPENAI ==========`);
+    console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidateId})`);
+    console.log(`Response:`, analysisText);
+    console.log(`=====================================\n`);
 
     // Parse JSON response (handle ```json wrapper)
     let analysis;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
+import { supabase } from '@/lib/supabase/client';
 import {
   X,
   Play,
@@ -49,7 +50,18 @@ export default function AnalysisConfigModal({
     setError(null);
 
     try {
-      const response = await fetch(`/api/cv/projects/${projectId}/job-spec`);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Vous devez être connecté');
+      }
+
+      const response = await fetch(`/api/cv/projects/${projectId}/job-spec`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (!response.ok) {
         throw new Error('Erreur lors du chargement de la configuration');
       }
@@ -69,8 +81,17 @@ export default function AnalysisConfigModal({
     setError(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Vous devez être connecté');
+      }
+
       const response = await fetch(`/api/cv/projects/${projectId}/job-spec/generate`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {

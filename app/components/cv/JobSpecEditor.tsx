@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
+import { supabase } from '@/lib/supabase/client';
 import {
   Settings,
   Plus,
@@ -158,9 +159,15 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
     setError(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Vous devez être connecté');
+      }
+
       const response = await fetch(`/api/cv/projects/${projectId}/job-spec/generate`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -191,9 +198,15 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
     setSaveSuccess(false);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Vous devez être connecté');
+      }
+
       const response = await fetch(`/api/cv/projects/${projectId}/job-spec`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ jobSpec })

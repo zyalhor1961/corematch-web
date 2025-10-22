@@ -1,0 +1,93 @@
+{
+  "identite": {
+    "nom": "Dupont",
+    "prenom": "Jean",
+    "email": "jean.dupont@example.com",
+    "telephone": "+33 6 12 34 56 78",
+    "linkedin": "linkedin.com/in/jeandupont"
+  },
+  "experiences": [
+    {
+      "titre": "Développeur Full Stack Senior",
+      "employeur": "TechCorp",
+      "ville_pays": "Paris, France",
+      "debut_iso": "2019-03",
+      "fin_iso": null,
+      "en_cours": true,
+      "missions": [
+        "Développement d'applications web avec React et Node.js",
+        "Architecture microservices avec Docker et Kubernetes",
+        "Mise en place de CI/CD avec GitHub Actions",
+        "Mentorat de 3 développeurs juniors",
+        "Migration de PostgreSQL vers architecture distribuée"
+      ]
+    },
+    {
+      "titre": "Développeur JavaScript",
+      "employeur": "WebAgency",
+      "ville_pays": "Lyon, France",
+      "debut_iso": "2016-06",
+      "fin_iso": "2019-02",
+      "en_cours": false,
+      "missions": [
+        "Développement frontend avec React et Redux",
+        "Création d'APIs REST avec Express.js",
+        "Intégration de systèmes de paiement Stripe",
+        "Optimisation des performances web"
+      ]
+    },
+    {
+      "titre": "Développeur Web Junior",
+      "employeur": "StartupXYZ",
+      "ville_pays": "Bordeaux, France",
+      "debut_iso": "2014-09",
+      "fin_iso": "2016-05",
+      "en_cours": false,
+      "missions": [
+        "Développement de sites web avec HTML/CSS/JavaScript",
+        "Maintenance de CMS WordPress",
+        "Support technique client"
+      ]
+    }
+  ],
+  "formations": [
+    {
+      "intitule": "Master Informatique",
+      "niveau": "Bac+5",
+      "etablissement": "Université Paris-Saclay",
+      "obtention_iso": "2014"
+    },
+    {
+      "intitule": "Licence Informatique",
+      "niveau": "Bac+3",
+      "etablissement": "Université de Bordeaux",
+      "obtention_iso": "2012"
+    }
+  ],
+  "competences": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "Express.js",
+    "PostgreSQL",
+    "MongoDB",
+    "Docker",
+    "Kubernetes",
+    "Git",
+    "GraphQL",
+    "Next.js",
+    "AWS",
+    "CI/CD"
+  ],
+  "langues": [
+    {
+      "langue": "Français",
+      "niveau": "Natif"
+    },
+    {
+      "langue": "Anglais",
+      "niveau": "Courant"
+    }
+  ]
+}

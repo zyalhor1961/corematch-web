@@ -10,6 +10,7 @@ import {
   convertToLegacyFormat,
   type JobSpec
 } from '@/lib/cv-analysis/deterministic-evaluator';
+import { normalizePhone, maskPII } from '@/lib/utils/data-normalization';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -60,7 +61,9 @@ async function analyzeCandidateDeterministic(
   const systemPrompt = buildEvaluatorSystemPrompt();
   const userPrompt = buildEvaluatorUserPrompt(jobSpec, cvJson);
 
-  console.log(`[Deterministic] Analyzing ${candidate.first_name} ${candidate.last_name}`);
+  // Masquer les PII dans les logs
+  const maskedName = maskPII(`${candidate.first_name} ${candidate.last_name}`);
+  console.log(`[Deterministic] Analyzing ${maskedName}`);
 
   // TEMPORARY FIX: Hardcode model to avoid env var issues
   const modelToUse = 'gpt-4o';
@@ -86,7 +89,7 @@ async function analyzeCandidateDeterministic(
   });
 
   const analysisText = completion.choices[0].message.content || '{}';
-  const evaluation = parseEvaluationResult(analysisText);
+  const evaluation = parseEvaluationResult(analysisText, cvJson); // Pass cvJson for diploma detection
   const legacyFormat = convertToLegacyFormat(evaluation);
 
   return {
@@ -322,12 +325,16 @@ export async function POST(
           updateData.email = analysisResult.extractedEmail;
         }
         if (analysisResult.extractedPhone && analysisResult.extractedPhone !== 'INFORMATION_MANQUANTE') {
-          updateData.phone = analysisResult.extractedPhone;
+          // Normaliser le téléphone au format E.164
+          updateData.phone = normalizePhone(analysisResult.extractedPhone);
         }
 
-        // Note: evaluation_result, relevance_months_direct, relevance_months_adjacent
-        // are not included as these columns don't exist in the candidates table yet
-        // TODO: Add migration to create these columns if needed
+        // Save deterministic analysis results if available
+        if (analysisResult.evaluation) {
+          updateData.evaluation_result = analysisResult.evaluation;
+          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary.months_direct || 0;
+          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary.months_adjacent || 0;
+        }
 
         const { error: updateError } = await supabaseAdmin
           .from('candidates')
@@ -336,7 +343,14 @@ export async function POST(
 
         if (updateError) {
           console.error('[Update Error]', updateError);
-          console.error('[Update Data]', JSON.stringify(updateData, null, 2));
+          // Masquer les PII avant de logger updateData
+          const maskedUpdateData = {
+            ...updateData,
+            email: updateData.email ? maskPII(updateData.email) : undefined,
+            phone: updateData.phone ? maskPII(updateData.phone) : undefined,
+            notes: updateData.notes ? maskPII(updateData.notes) : undefined
+          };
+          console.error('[Update Data]', JSON.stringify(maskedUpdateData, null, 2));
           throw new Error(`Erreur mise à jour candidat: ${updateError.message}`);
         }
 

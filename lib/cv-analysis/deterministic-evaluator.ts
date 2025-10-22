@@ -627,7 +627,7 @@ function extractKeywordsFromText(text: string): string[] {
 /**
  * Parse le résultat JSON de l'évaluation avec validation stricte et post-processing
  */
-export function parseEvaluationResult(jsonString: string): EvaluationResult {
+export function parseEvaluationResult(jsonString: string, cvJson?: any): EvaluationResult {
   try {
     // Nettoyer les éventuels wrapper markdown
     const cleaned = jsonString
@@ -647,7 +647,7 @@ export function parseEvaluationResult(jsonString: string): EvaluationResult {
     }
 
     // Post-processing obligatoire
-    result = applyPostProcessing(result);
+    result = applyPostProcessing(result, cvJson);
 
     return result;
   } catch (error) {
@@ -659,7 +659,31 @@ export function parseEvaluationResult(jsonString: string): EvaluationResult {
 /**
  * Applique les améliorations post-GPT à l'évaluation
  */
-function applyPostProcessing(evaluation: EvaluationResult): EvaluationResult {
+function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): EvaluationResult {
+  // 0. Détecter diplômes FLE si CV fourni
+  if (cvJson && cvJson.formations) {
+    // Import de la fonction de détection (sera ajouté en haut du fichier)
+    const diplomaDetection = detectFLEDiplomasInCVInternal(cvJson.formations);
+
+    if (diplomaDetection.length > 0) {
+      // Ajouter un point fort pour chaque diplôme FLE détecté
+      diplomaDetection.forEach(({ diploma, quote, field_path }) => {
+        // Vérifier qu'on ne l'a pas déjà ajouté
+        const alreadyExists = evaluation.strengths.some(s =>
+          s.point.toLowerCase().includes('diplôme') &&
+          s.point.toLowerCase().includes('fle')
+        );
+
+        if (!alreadyExists) {
+          evaluation.strengths.unshift({
+            point: `Diplôme FLE ✅: ${diploma}`,
+            evidence: [{ quote, field_path }]
+          });
+        }
+      });
+    }
+  }
+
   // 1. Garantir minimum 2 points forts
   while (evaluation.strengths.length < 2) {
     if (evaluation.strengths.length === 0) {
@@ -703,6 +727,43 @@ function applyPostProcessing(evaluation: EvaluationResult): EvaluationResult {
   (evaluation.subscores as any).exp_total_years = parseFloat(expTotalYears.toFixed(2));
 
   return evaluation;
+}
+
+/**
+ * Version interne de detectFLEDiplomasInCV (pour éviter dépendance circulaire)
+ */
+function detectFLEDiplomasInCVInternal(formations: any[]): Array<{ diploma: string; quote: string; field_path: string }> {
+  if (!formations || !Array.isArray(formations)) return [];
+
+  const detected: Array<{ diploma: string; quote: string; field_path: string }> = [];
+
+  const diplomas = [
+    { pattern: /master.*fle|m2.*fle|master 2.*fle/i, name: 'Master FLE (M2)' },
+    { pattern: /master.*didactique.*langues|m2.*didactique/i, name: 'Master Didactique des Langues' },
+    { pattern: /daefle/i, name: 'DAEFLE (Alliance Française)' },
+    { pattern: /dufle/i, name: 'DUFLE' },
+    { pattern: /licence.*fle|l3.*fle/i, name: 'Licence FLE' },
+    { pattern: /du.*fle/i, name: 'DU FLE' }
+  ];
+
+  formations.forEach((formation, index) => {
+    const intitule = formation.intitule || '';
+    const etablissement = formation.etablissement || '';
+    const combinedText = `${intitule} ${etablissement}`.toLowerCase();
+
+    for (const diploma of diplomas) {
+      if (diploma.pattern.test(combinedText)) {
+        detected.push({
+          diploma: diploma.name,
+          quote: intitule || combinedText,
+          field_path: `formations[${index}].intitule`
+        });
+        break; // Un seul diplôme par formation
+      }
+    }
+  });
+
+  return detected;
 }
 
 /**

@@ -215,6 +215,10 @@ export async function POST(
 
         const uploadPath = uploadData.path;
 
+        // Build public URL for the CV
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const cvPublicUrl = `${supabaseUrl}/storage/v1/object/public/cv/${uploadPath}`;
+
         // Extract candidate name from filename (remove extension)
         const candidateName = file.name.replace(/\.[^/.]+$/, "");
         // Try to split into first and last name if there's a space or underscore
@@ -230,6 +234,9 @@ export async function POST(
             org_id: project.org_id,
             first_name: firstName,
             last_name: lastName || null,
+            name: candidateName, // Full name from filename
+            cv_filename: file.name, // Original filename
+            cv_url: cvPublicUrl, // Public URL to access the CV
             status: 'pending',
             notes: `CV file: ${file.name} | Path: ${uploadPath} | Original file: ${file.name}`,
           })

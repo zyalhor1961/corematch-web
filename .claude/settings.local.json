@@ -89,7 +89,8 @@
       "WebFetch(domain:corematch.fr)",
       "WebFetch(domain:corematch-k1eidlcdq-corematchs-projects.vercel.app)",
       "Bash(npm audit:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []

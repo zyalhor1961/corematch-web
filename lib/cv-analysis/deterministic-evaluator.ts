@@ -236,28 +236,30 @@ ${JSON.stringify(cvJson, null, 2)}`;
 }
 
 /**
- * Crée un JOB_SPEC par défaut basé sur le projet
+ * Types de domaines professionnels détectables
  */
-export function createDefaultJobSpec(project: any): JobSpec {
-  const title = project.job_title || project.name || 'Poste non spécifié';
-  const titleLower = title.toLowerCase();
-  const requirementsLower = (project.requirements || '').toLowerCase();
-  const descriptionLower = (project.description || '').toLowerCase();
+type JobDomain = 'fle' | 'tech' | 'finance' | 'healthcare' | 'sales' | 'marketing' | 'hr' | 'generic';
 
-  // Détection automatique du domaine FLE
-  const isFLE = titleLower.includes('fle') ||
-                titleLower.includes('français langue') ||
-                titleLower.includes('formateur') ||
-                requirementsLower.includes('fle') ||
-                descriptionLower.includes('fle');
+/**
+ * Configuration pour un domaine professionnel
+ */
+interface DomainConfig {
+  keywords: string[]; // Mots-clés pour détecter ce domaine
+  relevanceRules: RelevanceRules;
+  skillsRequired: string[];
+  niceToHave: string[];
+  skillsMap: Record<string, string[]>;
+  mustHaveTemplate: string;
+  yearsFullScore?: number; // Optionnel: années pour 100%
+}
 
-  // Règles de pertinence adaptées au domaine
-  let relevanceRules: RelevanceRules;
-  let skillsMap: Record<string, string[]> = {};
-
-  if (isFLE) {
-    // Règles spécifiques pour FLE
-    relevanceRules = {
+/**
+ * Templates de domaines professionnels
+ */
+const DOMAIN_TEMPLATES: Record<JobDomain, DomainConfig> = {
+  fle: {
+    keywords: ['fle', 'français langue étrangère', 'formateur fle', 'enseignant fle', 'didactique du fle'],
+    relevanceRules: {
       direct: [
         'formateur fle', 'formatrice fle', 'enseignant fle', 'enseignante fle',
         'professeur fle', 'professeure de français', 'assistant fle', 'assistante fle',
@@ -275,46 +277,321 @@ export function createDefaultJobSpec(project: any): JobSpec {
         'éducation', 'formation', 'enseignement', 'pédagogie',
         'école', 'collège', 'lycée', 'animation'
       ]
-    };
-
-    // Synonymes de compétences FLE
-    skillsMap = {
+    },
+    skillsRequired: ['conception de cours', 'évaluation', 'gestion de classe', 'didactique', 'cecrl'],
+    niceToHave: ['delf', 'dalf', 'tcf', 'tice', 'numérique', 'interculturel'],
+    skillsMap: {
       'conception de cours': ['ingénierie pédagogique', 'séquences pédagogiques', 'préparer des séances', 'outils pédagogiques', 'fiches pédagogiques'],
       'évaluation': ['évaluer les apprenants', 'examens', 'barèmes', 'cecrl', 'delf', 'dalf', 'tcf'],
       'gestion de classe': ['animer des cours', 'animation de groupe', 'formation adultes', 'public migrant', 'collège', 'lycée'],
       'didactique': ['méthodologie', 'approche communicative', 'approche actionnelle', 'pédagogie'],
       'français': ['fle', 'langue française', 'grammaire', 'phonétique', 'linguistique']
-    };
-  } else {
-    // Règles génériques
-    relevanceRules = {
-      direct: extractKeywordsFromText(title),
+    },
+    mustHaveTemplate: 'Au moins 24 mois cumulés d\'enseignement FLE en établissement scolaire, université ou centre agréé',
+    yearsFullScore: 2
+  },
+
+  tech: {
+    keywords: ['développeur', 'developer', 'ingénieur', 'engineer', 'programmeur', 'devops', 'data scientist', 'analyste', 'tech lead', 'cto', 'architecte logiciel'],
+    relevanceRules: {
+      direct: [
+        'développeur', 'developer', 'ingénieur logiciel', 'software engineer',
+        'programmeur', 'data scientist', 'devops', 'sre', 'tech lead',
+        'architecte logiciel', 'full stack', 'backend', 'frontend', 'mobile'
+      ],
+      adjacent: [
+        'analyste', 'consultant technique', 'chef de projet technique',
+        'product manager tech', 'qa engineer', 'testeur', 'support technique',
+        'administrateur système', 'sysadmin'
+      ],
+      peripheral: [
+        'informatique', 'technologie', 'digital', 'numérique',
+        'startup', 'tech', 'agile', 'scrum'
+      ]
+    },
+    skillsRequired: ['développement', 'programmation', 'architecture', 'debugging', 'git'],
+    niceToHave: ['ci/cd', 'docker', 'kubernetes', 'cloud', 'agile', 'tests unitaires'],
+    skillsMap: {
+      'développement': ['dev', 'coding', 'programming', 'développement logiciel'],
+      'programmation': ['coding', 'dev', 'développement'],
+      'javascript': ['js', 'ecmascript', 'es6', 'node', 'nodejs'],
+      'typescript': ['ts'],
+      'python': ['py'],
+      'react': ['reactjs', 'react.js', 'react native'],
+      'angular': ['angularjs'],
+      'vue': ['vuejs', 'vue.js'],
+      'docker': ['conteneurisation', 'containerization'],
+      'kubernetes': ['k8s', 'orchestration'],
+      'git': ['github', 'gitlab', 'version control', 'vcs'],
+      'ci/cd': ['intégration continue', 'déploiement continu', 'devops'],
+      'cloud': ['aws', 'azure', 'gcp', 'cloud computing'],
+      'base de données': ['sql', 'nosql', 'postgresql', 'mongodb', 'database']
+    },
+    mustHaveTemplate: 'Au moins 24 mois d\'expérience en développement logiciel ou poste technique équivalent',
+    yearsFullScore: 3
+  },
+
+  finance: {
+    keywords: ['comptable', 'financier', 'analyste financier', 'contrôleur de gestion', 'auditeur', 'trésorier', 'fiscaliste'],
+    relevanceRules: {
+      direct: [
+        'comptable', 'financier', 'analyste financier', 'contrôleur de gestion',
+        'auditeur', 'commissaire aux comptes', 'trésorier', 'fiscaliste',
+        'directeur financier', 'daf', 'cfo', 'expert-comptable'
+      ],
+      adjacent: [
+        'assistant comptable', 'gestionnaire', 'analyste',
+        'contrôleur', 'consultant financier', 'conseiller financier'
+      ],
+      peripheral: [
+        'banque', 'assurance', 'finance', 'comptabilité',
+        'gestion', 'audit', 'cabinet comptable'
+      ]
+    },
+    skillsRequired: ['comptabilité', 'analyse financière', 'reporting', 'excel', 'normes comptables'],
+    niceToHave: ['ifrs', 'us gaap', 'sage', 'sap', 'power bi', 'fiscalité'],
+    skillsMap: {
+      'comptabilité': ['compta', 'accounting', 'tenue de comptes'],
+      'analyse financière': ['financial analysis', 'analyse', 'modélisation financière'],
+      'excel': ['microsoft excel', 'tableur', 'spreadsheet'],
+      'reporting': ['rapports', 'tableaux de bord', 'dashboard'],
+      'normes comptables': ['ifrs', 'us gaap', 'pcg', 'plan comptable'],
+      'erp': ['sap', 'oracle', 'sage', 'cegid'],
+      'fiscalité': ['tax', 'impôts', 'tva', 'is']
+    },
+    mustHaveTemplate: 'Au moins 24 mois d\'expérience en comptabilité, finance ou audit',
+    yearsFullScore: 3
+  },
+
+  healthcare: {
+    keywords: ['infirmier', 'médecin', 'aide-soignant', 'pharmacien', 'kinésithérapeute', 'dentiste', 'psychologue', 'sage-femme'],
+    relevanceRules: {
+      direct: [
+        'infirmier', 'infirmière', 'médecin', 'docteur', 'aide-soignant',
+        'aide-soignante', 'pharmacien', 'pharmacienne', 'kinésithérapeute',
+        'dentiste', 'psychologue', 'sage-femme', 'manipulateur radio'
+      ],
+      adjacent: [
+        'auxiliaire de santé', 'assistant médical', 'secrétaire médicale',
+        'brancardier', 'ambulancier', 'préparateur en pharmacie'
+      ],
+      peripheral: [
+        'santé', 'médical', 'hôpital', 'clinique', 'ehpad',
+        'soins', 'patient', 'sanitaire'
+      ]
+    },
+    skillsRequired: ['soins', 'diagnostic', 'protocoles médicaux', 'hygiène', 'relation patient'],
+    niceToHave: ['urgences', 'réanimation', 'pédiatrie', 'gériatrie', 'spécialisation'],
+    skillsMap: {
+      'soins': ['nursing', 'care', 'prise en charge'],
+      'diagnostic': ['diagnostique', 'évaluation clinique'],
+      'protocoles médicaux': ['procédures', 'guidelines', 'référentiels'],
+      'hygiène': ['asepsie', 'stérilisation', 'prévention infection'],
+      'relation patient': ['communication', 'empathie', 'accompagnement']
+    },
+    mustHaveTemplate: 'Diplôme requis + au moins 12 mois d\'expérience en milieu de soins',
+    yearsFullScore: 2
+  },
+
+  sales: {
+    keywords: ['commercial', 'vendeur', 'business developer', 'account manager', 'ingénieur commercial', 'technico-commercial'],
+    relevanceRules: {
+      direct: [
+        'commercial', 'commerciale', 'vendeur', 'vendeuse',
+        'business developer', 'account manager', 'ingénieur commercial',
+        'technico-commercial', 'directeur commercial', 'responsable commercial'
+      ],
+      adjacent: [
+        'assistant commercial', 'conseiller clientèle', 'chargé de clientèle',
+        'relation client', 'customer success', 'support vente'
+      ],
+      peripheral: [
+        'vente', 'commerce', 'négociation', 'client',
+        'prospection', 'retail', 'magasin'
+      ]
+    },
+    skillsRequired: ['prospection', 'négociation', 'closing', 'relation client', 'crm'],
+    niceToHave: ['salesforce', 'b2b', 'b2c', 'hunter', 'farmer', 'grands comptes'],
+    skillsMap: {
+      'prospection': ['prospecting', 'lead generation', 'développement commercial'],
+      'négociation': ['negotiation', 'argumentation', 'closing'],
+      'relation client': ['customer relationship', 'service client', 'fidélisation'],
+      'crm': ['salesforce', 'hubspot', 'zoho', 'gestion client'],
+      'b2b': ['business to business', 'entreprise'],
+      'b2c': ['business to consumer', 'grand public']
+    },
+    mustHaveTemplate: 'Au moins 24 mois d\'expérience en vente ou développement commercial',
+    yearsFullScore: 2
+  },
+
+  marketing: {
+    keywords: ['marketing', 'communication', 'digital marketing', 'community manager', 'content manager', 'seo', 'sem', 'social media'],
+    relevanceRules: {
+      direct: [
+        'marketing', 'digital marketing', 'responsable marketing',
+        'chef de produit', 'product marketing', 'community manager',
+        'content manager', 'seo', 'sem', 'social media manager',
+        'growth hacker', 'traffic manager'
+      ],
+      adjacent: [
+        'communication', 'chargé de communication', 'assistant marketing',
+        'brand manager', 'event manager', 'relations publiques'
+      ],
+      peripheral: [
+        'publicité', 'médias', 'digital', 'web',
+        'réseaux sociaux', 'contenu', 'marque'
+      ]
+    },
+    skillsRequired: ['stratégie marketing', 'digital', 'analytics', 'content', 'réseaux sociaux'],
+    niceToHave: ['seo', 'sem', 'google ads', 'facebook ads', 'marketing automation', 'growth hacking'],
+    skillsMap: {
+      'digital': ['numérique', 'web', 'online', 'digital marketing'],
+      'analytics': ['google analytics', 'data analysis', 'kpi', 'metrics'],
+      'seo': ['référencement naturel', 'search engine optimization'],
+      'sem': ['référencement payant', 'sea', 'google ads'],
+      'réseaux sociaux': ['social media', 'facebook', 'instagram', 'linkedin', 'twitter'],
+      'content': ['contenu', 'rédaction', 'content marketing'],
+      'email marketing': ['emailing', 'newsletter', 'mailchimp'],
+      'crm': ['hubspot', 'salesforce', 'relation client']
+    },
+    mustHaveTemplate: 'Au moins 24 mois d\'expérience en marketing digital ou communication',
+    yearsFullScore: 2
+  },
+
+  hr: {
+    keywords: ['ressources humaines', 'rh', 'recrutement', 'talent acquisition', 'hr', 'chargé de recrutement', 'responsable rh', 'drh'],
+    relevanceRules: {
+      direct: [
+        'ressources humaines', 'rh', 'hr', 'recrutement', 'recruteur',
+        'recruteuse', 'talent acquisition', 'chargé de recrutement',
+        'responsable rh', 'drh', 'directeur ressources humaines',
+        'gestionnaire rh', 'hr business partner'
+      ],
+      adjacent: [
+        'assistant rh', 'chargé de formation', 'développement rh',
+        'gestionnaire paie', 'administration du personnel', 'responsable formation'
+      ],
+      peripheral: [
+        'formation', 'gestion des talents', 'paie', 'social',
+        'droit du travail', 'qvt', 'marque employeur'
+      ]
+    },
+    skillsRequired: ['recrutement', 'entretien', 'sourcing', 'gestion rh', 'droit du travail'],
+    niceToHave: ['ats', 'linkedin recruiter', 'assessment', 'talent management', 'hris'],
+    skillsMap: {
+      'recrutement': ['recruitment', 'hiring', 'talent acquisition'],
+      'sourcing': ['chasse', 'recherche candidats', 'talent sourcing'],
+      'entretien': ['interview', 'entretien de recrutement'],
+      'ats': ['applicant tracking system', 'logiciel recrutement'],
+      'linkedin recruiter': ['linkedin', 'réseautage professionnel'],
+      'gestion rh': ['administration rh', 'sirh', 'hris'],
+      'paie': ['payroll', 'gestion paie', 'salaires'],
+      'formation': ['training', 'développement compétences', 'learning']
+    },
+    mustHaveTemplate: 'Au moins 24 mois d\'expérience en ressources humaines ou recrutement',
+    yearsFullScore: 2
+  },
+
+  generic: {
+    keywords: [],
+    relevanceRules: {
+      direct: [],
+      adjacent: [],
+      peripheral: []
+    },
+    skillsRequired: [],
+    niceToHave: [],
+    skillsMap: {},
+    mustHaveTemplate: 'Expérience pertinente dans le domaine'
+  }
+};
+
+/**
+ * Détecte le domaine professionnel d'un poste
+ */
+function detectJobDomain(project: any): JobDomain {
+  const title = (project.job_title || project.name || '').toLowerCase();
+  const requirements = (project.requirements || '').toLowerCase();
+  const description = (project.description || '').toLowerCase();
+  const combinedText = `${title} ${requirements} ${description}`;
+
+  // Tester chaque domaine (sauf generic)
+  const domains = Object.keys(DOMAIN_TEMPLATES).filter(d => d !== 'generic') as JobDomain[];
+
+  for (const domain of domains) {
+    const config = DOMAIN_TEMPLATES[domain];
+    const matchCount = config.keywords.filter(keyword =>
+      combinedText.includes(keyword.toLowerCase())
+    ).length;
+
+    // Si au moins 1 mot-clé correspond, on a trouvé le domaine
+    if (matchCount > 0) {
+      console.log(`[Domain Detection] Detected: ${domain.toUpperCase()} (${matchCount} keywords matched)`);
+      return domain;
+    }
+  }
+
+  console.log('[Domain Detection] No specific domain detected, using GENERIC template');
+  return 'generic';
+}
+
+/**
+ * Crée un JOB_SPEC par défaut basé sur le projet avec détection automatique du domaine
+ */
+export function createDefaultJobSpec(project: any): JobSpec {
+  const title = project.job_title || project.name || 'Poste non spécifié';
+
+  // Détecter le domaine professionnel
+  const domain = detectJobDomain(project);
+  const template = DOMAIN_TEMPLATES[domain];
+
+  // Pour le domaine générique, extraire intelligemment les infos du projet
+  if (domain === 'generic') {
+    const titleKeywords = extractKeywordsFromText(title);
+    const relevanceRules: RelevanceRules = {
+      direct: titleKeywords,
       adjacent: [],
       peripheral: []
     };
+
+    return {
+      title,
+      must_have: [
+        {
+          id: 'M1',
+          desc: project.requirements || 'Expérience pertinente dans le domaine',
+          severity: 'standard'
+        }
+      ],
+      skills_required: extractSkillsFromText(project.requirements || ''),
+      nice_to_have: extractSkillsFromText(project.description || ''),
+      relevance_rules: relevanceRules,
+      skills_map: undefined,
+      weights: DEFAULT_WEIGHTS,
+      thresholds: DEFAULT_THRESHOLDS,
+      analysis_date: new Date().toISOString().split('T')[0]
+    };
   }
 
+  // Utiliser le template du domaine détecté
   return {
     title,
     must_have: [
       {
         id: 'M1',
-        desc: isFLE
-          ? 'Au moins 24 mois cumulés d\'enseignement FLE en établissement scolaire, université ou centre agréé'
-          : (project.requirements || 'Expérience pertinente dans le domaine'),
-        severity: 'standard' // 'critical' force REJECT
+        desc: template.mustHaveTemplate,
+        severity: 'standard'
       }
     ],
-    skills_required: isFLE
-      ? ['conception de cours', 'évaluation', 'gestion de classe', 'didactique', 'cecrl']
-      : extractSkillsFromText(project.requirements || ''),
-    nice_to_have: isFLE
-      ? ['delf', 'dalf', 'tcf', 'tice', 'numérique', 'interculturel']
-      : extractSkillsFromText(project.description || ''),
-    relevance_rules: relevanceRules,
-    skills_map: Object.keys(skillsMap).length > 0 ? skillsMap : undefined,
+    skills_required: template.skillsRequired,
+    nice_to_have: template.niceToHave,
+    relevance_rules: template.relevanceRules,
+    skills_map: Object.keys(template.skillsMap).length > 0 ? template.skillsMap : undefined,
     weights: DEFAULT_WEIGHTS,
-    thresholds: DEFAULT_THRESHOLDS,
+    thresholds: {
+      ...DEFAULT_THRESHOLDS,
+      years_full_score: template.yearsFullScore || DEFAULT_THRESHOLDS.years_full_score
+    },
     analysis_date: new Date().toISOString().split('T')[0]
   };
 }

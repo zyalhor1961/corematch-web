@@ -311,12 +311,9 @@ export async function POST(
           notes: `${candidate.notes}\n\n--- ANALYSE ---\n${analysisResult.explanation}`
         };
 
-        // Add deterministic-specific fields if available
-        if (useDeterministicAnalysis && 'evaluation' in analysisResult) {
-          updateData.evaluation_result = analysisResult.evaluation;
-          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary.months_direct;
-          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary.months_adjacent;
-        }
+        // Note: evaluation_result, relevance_months_direct, relevance_months_adjacent
+        // are not included as these columns don't exist in the candidates table yet
+        // TODO: Add migration to create these columns if needed
 
         const { error: updateError } = await supabaseAdmin
           .from('candidates')
@@ -324,7 +321,9 @@ export async function POST(
           .eq('id', candidate.id);
 
         if (updateError) {
-          throw new Error('Erreur mise à jour candidat');
+          console.error('[Update Error]', updateError);
+          console.error('[Update Data]', JSON.stringify(updateData, null, 2));
+          throw new Error(`Erreur mise à jour candidat: ${updateError.message}`);
         }
 
         results.push({

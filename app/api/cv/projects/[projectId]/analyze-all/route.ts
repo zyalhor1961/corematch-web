@@ -305,7 +305,7 @@ export async function POST(
         // Update candidate
         const updateData: any = {
           status: 'analyzed',
-          score: analysisResult.score,
+          score: Math.round(analysisResult.score), // Round to integer for DB
           explanation: analysisResult.explanation,
           shortlisted: analysisResult.shortlist,
           notes: `${candidate.notes}\n\n--- ANALYSE ---\n${analysisResult.explanation}`

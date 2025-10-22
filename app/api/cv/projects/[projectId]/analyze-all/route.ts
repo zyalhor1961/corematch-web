@@ -58,9 +58,13 @@ async function analyzeCandidateDeterministic(
 
   console.log(`[Deterministic] Analyzing ${candidate.first_name} ${candidate.last_name}`);
 
+  // TEMPORARY FIX: Hardcode model to avoid env var issues
+  const modelToUse = 'gpt-4o';
+  console.log(`[Deterministic] Using model: ${modelToUse} (env var: ${process.env.CM_OPENAI_MODEL})`);
+
   // Call OpenAI with deterministic settings
   const completion = await openai.chat.completions.create({
-    model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
+    model: modelToUse,
     messages: [
       {
         role: 'system',
@@ -140,8 +144,12 @@ Réponds en JSON:
 
   console.log(`[Legacy] Analyzing ${candidate.first_name} ${candidate.last_name}`);
 
+  // TEMPORARY FIX: Hardcode model to avoid env var issues
+  const modelToUse = 'gpt-4o';
+  console.log(`[Legacy] Using model: ${modelToUse} (env var: ${process.env.CM_OPENAI_MODEL})`);
+
   const completion = await openai.chat.completions.create({
-    model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
+    model: modelToUse,
     messages: [
       {
         role: 'system',

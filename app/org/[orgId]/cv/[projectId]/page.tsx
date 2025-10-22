@@ -427,6 +427,16 @@ export default function ProjectCandidatesPage() {
               )}
             </Button>
             <Button
+              variant="outline"
+              onClick={() => {
+                window.open(`/api/cv/projects/${projectId}/export?format=xlsx&type=all`, '_blank');
+              }}
+              disabled={candidates.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Exporter
+            </Button>
+            <Button
               onClick={handleAnalyzeAll}
               disabled={isAnalyzing || candidates.filter(c => c.status === 'pending').length === 0}
             >

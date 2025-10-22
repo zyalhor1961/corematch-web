@@ -1,31 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
+import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-/**
- * Extract text from PDF buffer
- */
-async function extractTextFromPDF(pdfBuffer: ArrayBuffer): Promise<string> {
-  try {
-    // Convert ArrayBuffer to Buffer for pdf-parse
-    const buffer = Buffer.from(pdfBuffer);
-
-    // Use dynamic require for pdf-parse (CommonJS module)
-    const pdfParse = require('pdf-parse');
-
-    // Extract text using pdf-parse
-    const data = await pdfParse(buffer);
-
-    return data.text.trim();
-  } catch (error) {
-    console.error('Error extracting PDF text:', error);
-    throw new Error('Impossible d\'extraire le texte du PDF');
-  }
-}
 
 export async function POST(
   request: NextRequest,
@@ -101,21 +81,18 @@ export async function POST(
 
         if (cvPath) {
           try {
-            // Download PDF from Supabase Storage
-            const { data: pdfData, error: downloadError } = await supabaseAdmin.storage
-              .from('cv')
-              .download(cvPath);
-
-            if (downloadError || !pdfData) {
-              console.error('Error downloading PDF:', downloadError);
-              throw new Error('Impossible de télécharger le CV');
+            // Build public URL for the PDF file
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            if (!supabaseUrl) {
+              throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
             }
 
-            // Convert blob to ArrayBuffer
-            const arrayBuffer = await pdfData.arrayBuffer();
+            const pdfUrl = `${supabaseUrl}/storage/v1/object/public/cv/${cvPath}`;
+            console.log(`[PDF Extract] Fetching from URL: ${pdfUrl}`);
 
-            // Extract text from PDF
-            cvText = await extractTextFromPDF(arrayBuffer);
+            // Extract text from PDF using the centralized extractor
+            const rawText = await extractTextFromPDF(pdfUrl);
+            cvText = cleanPDFText(rawText);
 
             console.log(`✅ PDF extraction successful for ${candidate.id}: ${cvText.length} characters`);
             console.log(`[DEBUG] First 200 chars: ${cvText.substring(0, 200)}...`);

@@ -627,7 +627,7 @@ function extractKeywordsFromText(text: string): string[] {
 /**
  * Parse le résultat JSON de l'évaluation avec validation stricte et post-processing
  */
-export function parseEvaluationResult(jsonString: string, cvJson?: any): EvaluationResult {
+export function parseEvaluationResult(jsonString: string, cvJson?: any, jobSpec?: JobSpec): EvaluationResult {
   try {
     // Nettoyer les éventuels wrapper markdown
     const cleaned = jsonString
@@ -647,7 +647,7 @@ export function parseEvaluationResult(jsonString: string, cvJson?: any): Evaluat
     }
 
     // Post-processing obligatoire
-    result = applyPostProcessing(result, cvJson);
+    result = applyPostProcessing(result, cvJson, jobSpec);
 
     return result;
   } catch (error) {
@@ -659,8 +659,15 @@ export function parseEvaluationResult(jsonString: string, cvJson?: any): Evaluat
 /**
  * Force la vérification stricte de la règle M1 (24 mois cumulés)
  * PRIORITÉ: Cette vérification override le GPT pour garantir la cohérence
+ * NOTE: Ne s'applique QUE si M1 existe dans le jobSpec (spécifique domaine FLE)
  */
-function enforceM1Rule(evaluation: EvaluationResult): EvaluationResult {
+function enforceM1Rule(evaluation: EvaluationResult, jobSpec?: JobSpec): EvaluationResult {
+  // Vérifier si la règle M1 existe dans le jobSpec
+  // Si pas de jobSpec ou pas de M1, ne rien faire
+  if (!jobSpec || !jobSpec.must_have.some(rule => rule.id === 'M1')) {
+    return evaluation;
+  }
+
   const monthsDirect = evaluation.relevance_summary.months_direct || 0;
 
   // Règle M1: ≥ 24 mois cumulés FLE
@@ -711,10 +718,11 @@ function enforceM1Rule(evaluation: EvaluationResult): EvaluationResult {
 /**
  * Applique les améliorations post-GPT à l'évaluation
  */
-function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): EvaluationResult {
-  // 0. CRITIQUE: Vérification stricte de la règle M1 (24 mois cumulés)
+function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any, jobSpec?: JobSpec): EvaluationResult {
+  // 0. CRITIQUE: Vérification stricte de la règle M1 (24 mois cumulés) SI APPLICABLE
   // Cette étape override le GPT pour garantir la cohérence
-  evaluation = enforceM1Rule(evaluation);
+  // Ne s'applique QUE si M1 existe dans le jobSpec (domaine FLE)
+  evaluation = enforceM1Rule(evaluation, jobSpec);
 
   // 1. Détecter diplômes FLE si CV fourni
   if (cvJson && cvJson.formations) {

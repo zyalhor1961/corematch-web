@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
+import AnalysisChatbot from '@/app/components/cv/AnalysisChatbot';
 import {
   ArrowLeft,
   Upload,
@@ -899,6 +900,9 @@ export default function ProjectCandidatesPage() {
           </div>
         )}
       </div>
+
+      {/* Analysis Chatbot */}
+      <AnalysisChatbot projectId={projectId} />
     </div>
   );
 }

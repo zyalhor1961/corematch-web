@@ -7,8 +7,8 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
 import AnalysisChatbot from '@/app/components/cv/AnalysisChatbot';
-import JobSpecEditor from '@/app/components/cv/JobSpecEditor';
-import AnalysisConfigModal from '@/app/components/cv/AnalysisConfigModal';
+// import JobSpecEditor from '@/app/components/cv/JobSpecEditor'; // Removed: Job spec now auto-generated during analysis
+// import AnalysisConfigModal from '@/app/components/cv/AnalysisConfigModal'; // Removed: Simplified flow
 import type { JobSpec } from '@/lib/cv-analysis/deterministic-evaluator';
 import {
   ArrowLeft,
@@ -64,18 +64,8 @@ export default function ProjectCandidatesPage() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmModalData, setConfirmModalData] = useState<{
-    emoji: string;
-    title: string;
-    description: string;
-    timeEstimate: string;
-    pendingCount: number;
-  } | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [customJobSpec, setCustomJobSpec] = useState<JobSpec | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
@@ -270,7 +260,7 @@ export default function ProjectCandidatesPage() {
     }
   };
 
-  const handleAnalyzeAll = () => {
+  const handleAnalyzeAll = async () => {
     const pendingCount = candidates.filter(c => c.status === 'pending').length;
 
     if (pendingCount === 0) {
@@ -279,8 +269,8 @@ export default function ProjectCandidatesPage() {
       return;
     }
 
-    // Ouvrir la modal de configuration des critères
-    setShowConfigModal(true);
+    // Simplified: Start analysis directly with auto-generated job spec
+    await handleAnalyzeWithConfig();
   };
 
   const handleViewCandidate = (candidate: Candidate) => {
@@ -339,11 +329,6 @@ export default function ProjectCandidatesPage() {
     }
   };
 
-  const proceedWithAnalysis = async () => {
-    setShowConfirmModal(false);
-    await handleAnalyzeWithConfig();
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -385,7 +370,6 @@ export default function ProjectCandidatesPage() {
               onChange={handleFileSelect}
               className="hidden"
             />
-            <JobSpecEditor projectId={projectId} />
             <Button
               variant="outline"
               onClick={handleUploadClick}
@@ -467,14 +451,6 @@ export default function ProjectCandidatesPage() {
             </button>
           </div>
         )}
-
-        {/* Modal de configuration des critères d'analyse */}
-        <AnalysisConfigModal
-          projectId={projectId}
-          isOpen={showConfigModal}
-          onClose={() => setShowConfigModal(false)}
-          onAnalyze={handleAnalyzeWithConfig}
-        />
 
         {/* Modal de détails du candidat - Vue PDF + Analyse */}
         {showDetailsModal && selectedCandidate && (
@@ -628,85 +604,6 @@ export default function ProjectCandidatesPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de confirmation d'analyse */}
-        {showConfirmModal && confirmModalData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`relative w-full max-w-md rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200 ${
-              isDarkMode
-                ? 'bg-gray-800 border-gray-700'
-                : 'bg-white border-gray-200'
-            }`}>
-              {/* Header avec emoji */}
-              <div className={`p-6 pb-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex items-start space-x-4">
-                  <div className="text-5xl">{confirmModalData.emoji}</div>
-                  <div className="flex-1">
-                    <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {confirmModalData.title}
-                    </h3>
-                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {confirmModalData.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Détails */}
-              <div className="p-6 space-y-4">
-                <div className={`flex items-center justify-between p-4 rounded-lg ${
-                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                }`}>
-                  <div className="flex items-center space-x-2">
-                    <Clock className={`w-5 h-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                      Temps estimé
-                    </span>
-                  </div>
-                  <span className={`font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                    {confirmModalData.timeEstimate}
-                  </span>
-                </div>
-
-                <div className={`flex items-center justify-between p-4 rounded-lg ${
-                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                }`}>
-                  <div className="flex items-center space-x-2">
-                    <FileText className={`w-5 h-5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                    <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                      CVs à analyser
-                    </span>
-                  </div>
-                  <span className={`font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                    {confirmModalData.pendingCount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className={`p-6 pt-0 flex space-x-3`}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowConfirmModal(false)}
-                  className="flex-1"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={proceedWithAnalysis}
-                  className={`flex-1 ${
-                    isDarkMode
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  <Brain className="w-4 h-4 mr-2" />
-                  Lancer l&apos;analyse
-                </Button>
               </div>
             </div>
           </div>

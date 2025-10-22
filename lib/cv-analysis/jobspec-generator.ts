@@ -99,33 +99,58 @@ Génère maintenant le JOB_SPEC complet en JSON.`;
 
   console.log('[JobSpec Generator] Calling OpenAI with gpt-4o...');
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: 'user',
-        content: userPrompt
-      }
-    ],
-    temperature: 0.7,
-    max_tokens: 2000,
-    response_format: { type: 'json_object' }
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
 
-  const resultText = completion.choices[0].message.content || '{}';
-  const jobSpec = JSON.parse(resultText) as JobSpec;
+    const resultText = completion.choices[0]?.message?.content;
+    if (!resultText) {
+      throw new Error('No content returned from OpenAI');
+    }
 
-  // Ajouter la date d'analyse
-  jobSpec.analysis_date = new Date().toISOString().split('T')[0];
+    let jobSpec: JobSpec;
+    try {
+      jobSpec = JSON.parse(resultText) as JobSpec;
+    } catch (parseError) {
+      console.error('[JobSpec Generator] JSON parse error:', parseError);
+      console.error('[JobSpec Generator] Raw response:', resultText);
+      throw new Error('Failed to parse OpenAI response as JSON');
+    }
 
-  console.log('[JobSpec Generator] Generated successfully');
-  console.log(`- Must-have: ${jobSpec.must_have.length} rules`);
-  console.log(`- Skills required: ${jobSpec.skills_required.length}`);
-  console.log(`- Nice-to-have: ${jobSpec.nice_to_have.length}`);
+    // Validate required fields
+    if (!jobSpec.title || !Array.isArray(jobSpec.must_have) || !Array.isArray(jobSpec.skills_required)) {
+      console.error('[JobSpec Generator] Invalid JobSpec structure:', jobSpec);
+      throw new Error('Generated JobSpec is missing required fields');
+    }
 
-  return jobSpec;
+    // Ajouter la date d'analyse
+    jobSpec.analysis_date = new Date().toISOString().split('T')[0];
+
+    console.log('[JobSpec Generator] Generated successfully');
+    console.log(`- Must-have: ${jobSpec.must_have.length} rules`);
+    console.log(`- Skills required: ${jobSpec.skills_required.length}`);
+    console.log(`- Nice-to-have: ${jobSpec.nice_to_have?.length || 0}`);
+
+    return jobSpec;
+  } catch (error) {
+    console.error('[JobSpec Generator] Error:', error);
+    if (error instanceof Error) {
+      throw new Error(`JobSpec generation failed: ${error.message}`);
+    }
+    throw new Error('JobSpec generation failed: Unknown error');
+  }
 }

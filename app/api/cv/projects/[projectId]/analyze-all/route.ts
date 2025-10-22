@@ -1,11 +1,185 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
-import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
+import { extractTextFromPDF, cleanPDFText, parseCV } from '@/lib/utils/pdf-extractor';
+import {
+  buildEvaluatorSystemPrompt,
+  buildEvaluatorUserPrompt,
+  createDefaultJobSpec,
+  parseEvaluationResult,
+  convertToLegacyFormat,
+  type JobSpec
+} from '@/lib/cv-analysis/deterministic-evaluator';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+/**
+ * Analyse un candidat avec le système déterministe
+ */
+async function analyzeCandidateDeterministic(
+  candidate: any,
+  cvText: string,
+  jobSpec: JobSpec
+) {
+  // Parse CV to structured JSON
+  const cvStructure = parseCV(cvText);
+
+  const cvJson = {
+    identite: {
+      prenom: candidate.first_name || 'INFORMATION_MANQUANTE',
+      nom: candidate.last_name || '',
+      email: candidate.email || 'INFORMATION_MANQUANTE',
+      telephone: candidate.phone || 'INFORMATION_MANQUANTE'
+    },
+    experiences: cvStructure.experience.map((exp, index) => ({
+      index,
+      titre: exp,
+      employeur: 'INFORMATION_MANQUANTE',
+      date_debut: 'INFORMATION_MANQUANTE',
+      date_fin: 'INFORMATION_MANQUANTE',
+      missions: [exp]
+    })),
+    formations: cvStructure.education.map((edu, index) => ({
+      index,
+      intitule: edu,
+      etablissement: 'INFORMATION_MANQUANTE',
+      annee: 'INFORMATION_MANQUANTE'
+    })),
+    competences: cvStructure.skills,
+    langues: cvStructure.languages,
+    texte_brut: cvText
+  };
+
+  // Build prompts
+  const systemPrompt = buildEvaluatorSystemPrompt();
+  const userPrompt = buildEvaluatorUserPrompt(jobSpec, cvJson);
+
+  console.log(`[Deterministic] Analyzing ${candidate.first_name} ${candidate.last_name}`);
+
+  // Call OpenAI with deterministic settings
+  const completion = await openai.chat.completions.create({
+    model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt
+      },
+      {
+        role: 'user',
+        content: userPrompt
+      }
+    ],
+    temperature: 0, // DÉTERMINISTE
+    top_p: 0.1, // DÉTERMINISTE
+    max_tokens: 2500,
+    response_format: { type: 'json_object' }
+  });
+
+  const analysisText = completion.choices[0].message.content || '{}';
+  const evaluation = parseEvaluationResult(analysisText);
+  const legacyFormat = convertToLegacyFormat(evaluation);
+
+  return {
+    evaluation,
+    legacyFormat,
+    score: evaluation.overall_score_0_to_100,
+    shortlist: evaluation.recommendation === 'SHORTLIST',
+    explanation: `**ANALYSE DÉTERMINISTE**
+
+**Score : ${evaluation.overall_score_0_to_100}/100**
+Recommandation : ${evaluation.recommendation}
+
+**Sous-scores :**
+- Expérience pertinente : ${evaluation.subscores.experience_years_relevant.toFixed(1)} ans
+- Compétences : ${evaluation.subscores.skills_match_0_to_100}%
+- Nice-to-have : ${evaluation.subscores.nice_to_have_0_to_100}%
+
+**Pertinence :**
+- ${evaluation.relevance_summary.months_direct} mois DIRECTE
+- ${evaluation.relevance_summary.months_adjacent} mois ADJACENTE
+
+**Points forts :**
+${evaluation.strengths.map(s => `• ${s.point}`).join('\n')}
+
+**Points d'amélioration :**
+${evaluation.improvements.map(i => `• ${i.point}`).join('\n')}
+${evaluation.fails.length > 0 ? `\n**⚠️ Règles non satisfaites :**\n${evaluation.fails.map(f => `• ${f.reason}`).join('\n')}` : ''}`
+  };
+}
+
+/**
+ * Analyse un candidat avec le système legacy
+ */
+async function analyzeCandidateLegacy(
+  candidate: any,
+  cvText: string,
+  project: any
+) {
+  const prompt = `Tu es un expert en recrutement. Analyse RIGOUREUSEMENT ce CV par rapport au poste suivant.
+
+**POSTE À POURVOIR:**
+- Titre: ${project.job_title || 'Non spécifié'}
+- Description: ${project.description || 'Non spécifiée'}
+- Exigences: ${project.requirements || 'Non spécifiées'}
+
+**CV DU CANDIDAT:**
+${cvText}
+
+Réponds en JSON:
+{
+  "score": number,
+  "strengths": ["point fort 1", "point fort 2"],
+  "weaknesses": ["point faible 1", "point faible 2"],
+  "recommendation": "Recommandé|À considérer|Non recommandé",
+  "summary": "Résumé en 2-3 phrases",
+  "shortlist": boolean,
+  "shortlist_reason": "Justification"
+}`;
+
+  console.log(`[Legacy] Analyzing ${candidate.first_name} ${candidate.last_name}`);
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: 'Tu es un expert en recrutement. Réponds UNIQUEMENT en JSON valide.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.3,
+    max_tokens: 2000,
+  });
+
+  const analysisText = completion.choices[0].message.content || '{}';
+  const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const analysis = JSON.parse(cleanJson);
+
+  return {
+    score: analysis.score,
+    shortlist: analysis.shortlist,
+    explanation: `**Score:** ${analysis.score}/100
+
+**Recommandation:** ${analysis.recommendation}
+
+**Points forts:**
+${analysis.strengths.map((s: string) => `• ${s}`).join('\n')}
+
+**Points à améliorer:**
+${analysis.weaknesses.map((w: string) => `• ${w}`).join('\n')}
+
+**Résumé:**
+${analysis.summary}
+
+**Shortlist:** ${analysis.shortlist ? 'OUI' : 'NON'}
+${analysis.shortlist_reason}`
+  };
+}
 
 export async function POST(
   request: NextRequest,
@@ -21,7 +195,7 @@ export async function POST(
       );
     }
 
-    // Get all pending candidates for this project
+    // Get all pending candidates
     const { data: candidates, error: candidatesError } = await supabaseAdmin
       .from('candidates')
       .select(`
@@ -31,7 +205,8 @@ export async function POST(
           name,
           job_title,
           requirements,
-          description
+          description,
+          job_spec_config
         )
       `)
       .eq('project_id', projectId)
@@ -48,11 +223,22 @@ export async function POST(
       return NextResponse.json({
         success: true,
         message: 'Aucun CV en attente d\'analyse',
-        data: { analyzed: 0, failed: 0 }
+        data: { analyzed: 0, failed: 0, shortlisted: 0 }
       });
     }
 
     const project = candidates[0].project;
+    const useDeterministicAnalysis = !!project.job_spec_config;
+
+    console.log(`\n========== BATCH ANALYSIS ==========`);
+    console.log(`Project: ${project.name}`);
+    console.log(`Candidates: ${candidates.length}`);
+    console.log(`Mode: ${useDeterministicAnalysis ? '🎯 DÉTERMINISTE' : '🔄 LEGACY'}`);
+
+    const jobSpec = useDeterministicAnalysis
+      ? project.job_spec_config as JobSpec
+      : createDefaultJobSpec(project);
+
     let analyzed = 0;
     let failed = 0;
     const results = [];
@@ -60,185 +246,59 @@ export async function POST(
     // Process each candidate
     for (const candidate of candidates) {
       try {
-        console.log(`\n========== BATCH ANALYSE CV ==========`);
-        console.log(`Candidate ID: ${candidate.id}`);
-        console.log(`Candidate Name: ${candidate.first_name} ${candidate.last_name}`);
-        console.log(`Notes brutes: ${candidate.notes}`);
-
-        // Update status to processing
         await supabaseAdmin
           .from('candidates')
           .update({ status: 'processing' })
           .eq('id', candidate.id);
 
-        // Extract CV file path from notes
+        // Extract CV text
         const pathMatch = candidate.notes?.match(/Path: ([^|]+)/);
         const cvPath = pathMatch ? pathMatch[1].trim() : null;
-
-        console.log(`Extracted cvPath: ${cvPath}`);
-
         let cvText = '';
 
         if (cvPath) {
           try {
-            // Build public URL for the PDF file
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             if (!supabaseUrl) {
-              throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+              throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL');
             }
 
             const pdfUrl = `${supabaseUrl}/storage/v1/object/public/cv/${cvPath}`;
-            console.log(`[PDF Extract] Fetching from URL: ${pdfUrl}`);
-
-            // Extract text from PDF using the centralized extractor
             const rawText = await extractTextFromPDF(pdfUrl);
             cvText = cleanPDFText(rawText);
-
-            console.log(`✅ PDF extraction successful for ${candidate.id}: ${cvText.length} characters`);
-            console.log(`[DEBUG] First 200 chars: ${cvText.substring(0, 200)}...`);
-            console.log(`[DEBUG] Last 100 chars: ...${cvText.substring(cvText.length - 100)}`);
+            console.log(`✅ PDF extracted: ${cvText.length} chars`);
           } catch (extractError) {
-            console.error('Error extracting CV text:', extractError);
-            cvText = `Erreur lors de l'extraction du texte du CV.
-
-Nom: ${candidate.first_name || ''} ${candidate.last_name || ''}
-Email: ${candidate.email || 'Non renseigné'}
-Téléphone: ${candidate.phone || 'Non renseigné'}`;
+            console.error('PDF extraction error:', extractError);
+            cvText = `Erreur extraction. Nom: ${candidate.first_name} ${candidate.last_name}`;
           }
         } else {
-          cvText = `Informations du candidat:
-
-Nom: ${candidate.first_name || ''} ${candidate.last_name || ''}
-Email: ${candidate.email || 'Non renseigné'}
-Téléphone: ${candidate.phone || 'Non renseigné'}
-
-Note: Le fichier CV n'a pas pu être localisé pour extraction automatique.`;
+          cvText = `Nom: ${candidate.first_name} ${candidate.last_name}`;
         }
 
-        // Prepare prompt for GPT-4
-        const prompt = `Tu es un expert en recrutement. Analyse RIGOUREUSEMENT ce CV par rapport au poste suivant.
+        // Analyze with appropriate method
+        const analysisResult = useDeterministicAnalysis
+          ? await analyzeCandidateDeterministic(candidate, cvText, jobSpec)
+          : await analyzeCandidateLegacy(candidate, cvText, project);
 
-**POSTE À POURVOIR:**
-- Titre: ${project.job_title || 'Non spécifié'}
-- Description: ${project.description || 'Non spécifiée'}
-- Exigences: ${project.requirements || 'Non spécifiées'}
+        // Update candidate
+        const updateData: any = {
+          status: 'analyzed',
+          score: analysisResult.score,
+          explanation: analysisResult.explanation,
+          shortlisted: analysisResult.shortlist,
+          notes: `${candidate.notes}\n\n--- ANALYSE ---\n${analysisResult.explanation}`
+        };
 
-**CV DU CANDIDAT:**
-${cvText}
-
-**INSTRUCTIONS STRICTES:**
-1. **Score de 0 à 100** - Sois RÉALISTE et STRICT:
-   - 90-100: Correspond PARFAITEMENT (compétences exactes + expérience pertinente)
-   - 70-89: Bon profil (la plupart des compétences + expérience similaire)
-   - 50-69: Profil moyen (quelques compétences + expérience partielle)
-   - 30-49: Profil faible (peu de compétences + expérience non pertinente)
-   - 0-29: Profil inadapté (aucune compétence requise)
-
-2. **Vérifie l'adéquation RÉELLE:**
-   - Les compétences du CV correspondent-elles aux exigences du poste ?
-   - L'expérience est-elle pertinente pour ce poste spécifique ?
-   - Le niveau d'expérience est-il adapté ?
-
-3. **Sois HONNÊTE:**
-   - Si le CV ne correspond PAS au poste, donne un score BAS (20-40)
-   - Ne sois pas trop généreux avec les scores
-   - Liste les VRAIS points forts (basés sur le CV réel)
-   - Liste les VRAIS manques par rapport au poste
-
-4. **Recommandation:**
-   - "Recommandé" SEULEMENT si score >= 75 ET bon fit
-   - "À considérer" si score 50-74
-   - "Non recommandé" si score < 50
-
-5. **Shortlist:**
-   - true SEULEMENT si score >= 75 ET recommandé
-   - false sinon
-
-Réponds en JSON avec cette structure:
-{
-  "score": number,
-  "strengths": ["point fort 1", "point fort 2", ...],
-  "weaknesses": ["point faible 1", "point faible 2", ...],
-  "recommendation": "Recommandé|À considérer|Non recommandé",
-  "summary": "Résumé HONNÊTE en 2-3 phrases de l'évaluation",
-  "shortlist": boolean,
-  "shortlist_reason": "Justification RÉALISTE pour shortlist ou non"
-}`;
-
-        console.log(`\n========== ENVOI VERS OPENAI (BATCH) ==========`);
-        console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidate.id})`);
-        console.log(`CV Text Length: ${cvText.length} characters`);
-        console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o-mini'}`);
-
-        // Call OpenAI GPT-4
-        const completion = await openai.chat.completions.create({
-          model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Tu es un expert en recrutement STRICT et HONNÊTE. Tu analyses les CVs de manière RIGOUREUSE. Si un CV ne correspond pas au poste, tu donnes un score BAS. Tu ne fais PAS de complaisance. Réponds UNIQUEMENT en JSON valide, sans markdown.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: parseFloat(process.env.CM_TEMPERATURE || '0.3'),
-          max_tokens: 2000,
-        });
-
-        const analysisText = completion.choices[0].message.content;
-
-        console.log(`\n========== RÉPONSE OPENAI (BATCH) ==========`);
-        console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidate.id})`);
-        console.log(`Response:`, analysisText);
-        console.log(`=====================================\n`);
-
-        // Parse JSON response
-        let analysis;
-        try {
-          const cleanJson = analysisText?.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim() || '{}';
-          analysis = JSON.parse(cleanJson);
-        } catch (parseError) {
-          console.error('Erreur parsing JSON:', parseError);
-          analysis = {
-            score: 70,
-            strengths: ["Profil analysé", "Compétences évaluées"],
-            weaknesses: ["Besoin d'évaluation approfondie"],
-            recommendation: "À considérer",
-            summary: "Analyse automatique basée sur les informations disponibles.",
-            shortlist: false,
-            shortlist_reason: "Analyse technique incomplète"
-          };
+        // Add deterministic-specific fields if available
+        if (useDeterministicAnalysis && 'evaluation' in analysisResult) {
+          updateData.evaluation_result = analysisResult.evaluation;
+          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary.months_direct;
+          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary.months_adjacent;
         }
 
-        // Prepare detailed explanation
-        const explanation = `**Score:** ${analysis.score}/100
-
-**Recommandation:** ${analysis.recommendation}
-
-**Points forts:**
-${analysis.strengths.map((s: string) => `• ${s}`).join('\n')}
-
-**Points à améliorer:**
-${analysis.weaknesses.map((w: string) => `• ${w}`).join('\n')}
-
-**Résumé:**
-${analysis.summary}
-
-**Shortlist:** ${analysis.shortlist ? 'OUI' : 'NON'}
-${analysis.shortlist_reason}`;
-
-        // Update candidate with analysis results
         const { error: updateError } = await supabaseAdmin
           .from('candidates')
-          .update({
-            status: 'analyzed',
-            score: analysis.score,
-            explanation: explanation,
-            shortlisted: analysis.shortlist,
-            notes: `${candidate.notes}\n\n--- ANALYSE IA ---\n${explanation}`
-          })
+          .update(updateData)
           .eq('id', candidate.id);
 
         if (updateError) {
@@ -247,26 +307,26 @@ ${analysis.shortlist_reason}`;
 
         results.push({
           candidateId: candidate.id,
-          name: candidate.first_name || 'Candidat',
-          score: analysis.score,
-          recommendation: analysis.recommendation,
-          shortlist: analysis.shortlist
+          name: `${candidate.first_name} ${candidate.last_name || ''}`.trim(),
+          score: analysisResult.score,
+          shortlist: analysisResult.shortlist
         });
 
         analyzed++;
-        
+
       } catch (error) {
-        console.error(`Erreur analyse candidat ${candidate.id}:`, error);
-        
-        // Reset status to pending on error
+        console.error(`Error analyzing candidate ${candidate.id}:`, error);
+
         await supabaseAdmin
           .from('candidates')
           .update({ status: 'pending' })
           .eq('id', candidate.id);
-          
+
         failed++;
       }
     }
+
+    console.log(`\n✅ Batch analysis complete: ${analyzed} analyzed, ${failed} failed`);
 
     return NextResponse.json({
       success: true,
@@ -275,7 +335,8 @@ ${analysis.shortlist_reason}`;
         analyzed,
         failed,
         results,
-        shortlisted: results.filter(r => r.shortlist).length
+        shortlisted: results.filter(r => r.shortlist).length,
+        mode: useDeterministicAnalysis ? 'deterministic' : 'legacy'
       }
     });
 

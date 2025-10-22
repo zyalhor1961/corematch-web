@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
 import AnalysisChatbot from '@/app/components/cv/AnalysisChatbot';
+import JobSpecEditor from '@/app/components/cv/JobSpecEditor';
 import {
   ArrowLeft,
   Upload,
@@ -410,6 +411,7 @@ export default function ProjectCandidatesPage() {
               onChange={handleFileSelect}
               className="hidden"
             />
+            <JobSpecEditor projectId={projectId} />
             <Button
               variant="outline"
               onClick={handleUploadClick}

@@ -26,12 +26,16 @@ async function analyzeCandidateDeterministic(
   // Parse CV to structured JSON
   const cvStructure = parseCV(cvText);
 
+  // Extract contact info from CV if not already in candidate record
+  const extractedEmail = cvStructure.email || candidate.email || 'INFORMATION_MANQUANTE';
+  const extractedPhone = cvStructure.phone || candidate.phone || 'INFORMATION_MANQUANTE';
+
   const cvJson = {
     identite: {
       prenom: candidate.first_name || 'INFORMATION_MANQUANTE',
       nom: candidate.last_name || '',
-      email: candidate.email || 'INFORMATION_MANQUANTE',
-      telephone: candidate.phone || 'INFORMATION_MANQUANTE'
+      email: extractedEmail,
+      telephone: extractedPhone
     },
     experiences: cvStructure.experience.map((exp, index) => ({
       index,
@@ -90,6 +94,8 @@ async function analyzeCandidateDeterministic(
     legacyFormat,
     score: evaluation.overall_score_0_to_100,
     shortlist: evaluation.recommendation === 'SHORTLIST',
+    extractedEmail, // Return extracted email to save in DB
+    extractedPhone, // Return extracted phone to save in DB
     explanation: `**ANALYSE DÉTERMINISTE**
 
 **Score : ${evaluation.overall_score_0_to_100}/100**
@@ -302,7 +308,7 @@ export async function POST(
           ? await analyzeCandidateDeterministic(candidate, cvText, jobSpec)
           : await analyzeCandidateLegacy(candidate, cvText, project);
 
-        // Update candidate
+        // Update candidate with extracted contact info
         const updateData: any = {
           status: 'analyzed',
           score: Math.round(analysisResult.score), // Round to integer for DB
@@ -310,6 +316,14 @@ export async function POST(
           shortlisted: analysisResult.shortlist,
           notes: `${candidate.notes}\n\n--- ANALYSE ---\n${analysisResult.explanation}`
         };
+
+        // Add extracted email and phone if found in CV
+        if (analysisResult.extractedEmail && analysisResult.extractedEmail !== 'INFORMATION_MANQUANTE') {
+          updateData.email = analysisResult.extractedEmail;
+        }
+        if (analysisResult.extractedPhone && analysisResult.extractedPhone !== 'INFORMATION_MANQUANTE') {
+          updateData.phone = analysisResult.extractedPhone;
+        }
 
         // Note: evaluation_result, relevance_months_direct, relevance_months_adjacent
         // are not included as these columns don't exist in the candidates table yet

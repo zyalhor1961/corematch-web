@@ -3,32 +3,15 @@
  * SECURITY: Includes protections against DoS attacks and malicious PDFs
  */
 export async function extractTextFromPDF(source: Buffer | string): Promise<string> {
-  // Try multiple extraction methods in order of reliability
-  const errors: string[] = [];
-
-  // Method 1: Try pdf-parse (most reliable for text extraction)
+  // Use pdf-parse only (pdfjs-dist has DOMMatrix issues in serverless Node.js)
   try {
-    console.log('[PDF Extract] Attempting method 1: pdf-parse');
+    console.log('[PDF Extract] Attempting extraction with pdf-parse');
     return await extractWithPdfParse(source);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    errors.push(`pdf-parse: ${errorMsg}`);
-    console.warn(`[PDF Extract] Method 1 failed: ${errorMsg}`);
+    console.error(`[PDF Extract] Failed: ${errorMsg}`);
+    throw new Error(`Failed to extract text from PDF: ${errorMsg}`);
   }
-
-  // Method 2: Try pdfjs-dist as fallback
-  try {
-    console.log('[PDF Extract] Attempting method 2: pdfjs-dist');
-    return await extractWithPdfjsDist(source);
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    errors.push(`pdfjs-dist: ${errorMsg}`);
-    console.error(`[PDF Extract] Method 2 failed: ${errorMsg}`);
-  }
-
-  // All methods failed
-  console.error('[PDF Extract] ALL METHODS FAILED:', errors.join(' | '));
-  throw new Error('Failed to extract text from PDF: all methods exhausted');
 }
 
 /**

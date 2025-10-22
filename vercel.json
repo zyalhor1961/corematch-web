@@ -36,7 +36,7 @@
       "maxDuration": 60
     },
     "app/api/cv/projects/[projectId]/analyze-all/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 180
     },
     "app/**": {
       "maxDuration": 10

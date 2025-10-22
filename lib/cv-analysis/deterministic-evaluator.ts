@@ -657,10 +657,66 @@ export function parseEvaluationResult(jsonString: string, cvJson?: any): Evaluat
 }
 
 /**
+ * Force la vérification stricte de la règle M1 (24 mois cumulés)
+ * PRIORITÉ: Cette vérification override le GPT pour garantir la cohérence
+ */
+function enforceM1Rule(evaluation: EvaluationResult): EvaluationResult {
+  const monthsDirect = evaluation.relevance_summary.months_direct || 0;
+
+  // Règle M1: ≥ 24 mois cumulés FLE
+  const m1FailIndex = evaluation.fails.findIndex(f => f.rule_id === 'M1');
+  const m1Failed = m1FailIndex >= 0 ? evaluation.fails[m1FailIndex] : null;
+
+  if (monthsDirect >= 24) {
+    // ✅ PASSE la règle M1
+    // Retirer M1 de fails si présent
+    if (m1FailIndex >= 0) {
+      evaluation.fails.splice(m1FailIndex, 1);
+    }
+
+    // Recalculer meets_all_must_have
+    evaluation.meets_all_must_have = evaluation.fails.filter(f => f.rule_id.startsWith('M')).length === 0;
+
+    // Déplacer preuves M1 vers strengths si elles existent
+    if (m1Failed && m1Failed.evidence.length > 0) {
+      const experienceStrength = {
+        point: `Expérience FLE validée: ${monthsDirect} mois cumulés d'enseignement`,
+        evidence: m1Failed.evidence
+      };
+      // Ajouter au début des strengths (haute priorité)
+      evaluation.strengths.unshift(experienceStrength);
+    }
+  } else {
+    // ❌ ÉCHOUE la règle M1
+    // Ajouter M1 à fails si pas déjà présent
+    if (!m1Failed) {
+      evaluation.fails.push({
+        rule_id: 'M1',
+        reason: `Moins de 24 mois cumulés d'enseignement FLE requis (${monthsDirect} mois détectés)`,
+        evidence: []
+      });
+    } else {
+      // Mettre à jour la raison avec le nombre exact de mois
+      evaluation.fails[m1FailIndex].reason =
+        `Moins de 24 mois cumulés d'enseignement FLE requis (${monthsDirect} mois détectés)`;
+    }
+
+    // Forcer meets_all_must_have = false
+    evaluation.meets_all_must_have = false;
+  }
+
+  return evaluation;
+}
+
+/**
  * Applique les améliorations post-GPT à l'évaluation
  */
 function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): EvaluationResult {
-  // 0. Détecter diplômes FLE si CV fourni
+  // 0. CRITIQUE: Vérification stricte de la règle M1 (24 mois cumulés)
+  // Cette étape override le GPT pour garantir la cohérence
+  evaluation = enforceM1Rule(evaluation);
+
+  // 1. Détecter diplômes FLE si CV fourni
   if (cvJson && cvJson.formations) {
     // Import de la fonction de détection (sera ajouté en haut du fichier)
     const diplomaDetection = detectFLEDiplomasInCVInternal(cvJson.formations);
@@ -684,7 +740,7 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): Evalua
     }
   }
 
-  // 1. Garantir minimum 2 points forts
+  // 2. Garantir minimum 2 points forts
   while (evaluation.strengths.length < 2) {
     if (evaluation.strengths.length === 0) {
       evaluation.strengths.push({
@@ -701,7 +757,7 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): Evalua
     }
   }
 
-  // 2. Garantir minimum 2 axes d'amélioration
+  // 3. Garantir minimum 2 axes d'amélioration
   while (evaluation.improvements.length < 2) {
     if (evaluation.improvements.length === 0) {
       evaluation.improvements.push({
@@ -718,7 +774,7 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any): Evalua
     }
   }
 
-  // 3. Ajouter exp_total_years dans subscores
+  // 4. Ajouter exp_total_years dans subscores
   const monthsDirect = evaluation.relevance_summary.months_direct || 0;
   const monthsAdjacent = evaluation.relevance_summary.months_adjacent || 0;
   const expTotalYears = (monthsDirect + 0.5 * monthsAdjacent) / 12;

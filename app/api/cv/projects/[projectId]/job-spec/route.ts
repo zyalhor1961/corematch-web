@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
+import { verifyAuth, verifyProjectAccess } from '@/lib/auth/verify-auth';
 import type { JobSpec } from '@/lib/cv-analysis/deterministic-evaluator';
 
 export async function GET(
@@ -18,6 +18,15 @@ export async function GET(
 
     const { projectId } = await params;
 
+    // Verify project access
+    const hasAccess = await verifyProjectAccess(user.id, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this project' },
+        { status: 403 }
+      );
+    }
+
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, name, org_id, job_spec_config, job_title, requirements, description')
@@ -28,14 +37,6 @@ export async function GET(
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
-      );
-    }
-
-    const hasAccess = await verifyOrgAccess(user.id, project.org_id);
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access denied to this organization' },
-        { status: 403 }
       );
     }
 
@@ -103,24 +104,11 @@ export async function PUT(
       );
     }
 
-    // Get project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from('projects')
-      .select('id, org_id')
-      .eq('id', projectId)
-      .single();
-
-    if (projectError || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    const hasAccess = await verifyOrgAccess(user.id, project.org_id);
+    // Verify project access
+    const hasAccess = await verifyProjectAccess(user.id, projectId);
     if (!hasAccess) {
       return NextResponse.json(
-        { error: 'Access denied to this organization' },
+        { error: 'Access denied to this project' },
         { status: 403 }
       );
     }

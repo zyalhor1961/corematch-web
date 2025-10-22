@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
+import { verifyAuth, verifyProjectAccess } from '@/lib/auth/verify-auth';
 import { generateJobSpec } from '@/lib/cv-analysis/jobspec-generator';
 
 export async function POST(
@@ -18,6 +18,15 @@ export async function POST(
 
     const { projectId } = await params;
 
+    // Verify project access
+    const hasAccess = await verifyProjectAccess(user.id, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to this project' },
+        { status: 403 }
+      );
+    }
+
     // Get project
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
@@ -29,14 +38,6 @@ export async function POST(
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
-      );
-    }
-
-    const hasAccess = await verifyOrgAccess(user.id, project.org_id);
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access denied to this organization' },
-        { status: 403 }
       );
     }
 

@@ -16,14 +16,18 @@ import * as XLSX from 'xlsx';
 
 interface Candidate {
   id: string;
-  first_name: string;
-  last_name: string | null;
+  name: string; // Combined first_name + last_name from API
+  first_name?: string;
+  last_name?: string | null;
   email: string | null;
   phone: string | null;
   status: string;
   notes: string | null;
   created_at: string;
-  score?: number;
+  cv_filename?: string;
+  cv_url?: string;
+  score?: number | null;
+  explanation?: string;
   recommendation?: string;
   summary?: string;
   shortlisted: boolean;
@@ -51,21 +55,48 @@ export default function CandidatesSheetView({
   // Process candidates to extract analysis data
   const processedCandidates = useMemo(() => {
     return candidates.map(candidate => {
+      // Use database columns directly instead of parsing notes
+      // Fallback to notes parsing only if columns are empty (legacy support)
       const notes = candidate.notes || '';
-      const scoreMatch = notes.match(/Score: (\d+)\/100/);
-      const recommendationMatch = notes.match(/Recommandation: ([^\n]+)/);
-      const summaryMatch = notes.match(/Résumé: ([^\n]+)/);
-      const shortlistMatch = notes.match(/Statut: (SÉLECTIONNÉ|NON RETENU)/);
-      
+
+      let score = candidate.score ?? null;
+      let recommendation = candidate.recommendation || '-';
+      let summary = candidate.summary || candidate.explanation || '';
+      let shortlisted = candidate.shortlisted || false;
+
+      // Fallback: parse notes if score is missing (legacy data)
+      if (score === null && notes) {
+        const scoreMatch = notes.match(/Score: (\d+)\/100/);
+        score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+      }
+
+      // Fallback: parse recommendation from notes if missing
+      if (recommendation === '-' && notes) {
+        const recommendationMatch = notes.match(/Recommandation: ([^\n]+)/);
+        recommendation = recommendationMatch?.[1] || '-';
+      }
+
+      // Fallback: parse summary from notes if missing
+      if (!summary && notes) {
+        const summaryMatch = notes.match(/Résumé: ([^\n]+)/);
+        summary = summaryMatch?.[1] || '';
+      }
+
+      // Fallback: parse shortlist from notes if not set
+      if (!shortlisted && notes) {
+        const shortlistMatch = notes.match(/Statut: (SÉLECTIONNÉ|NON RETENU)/);
+        shortlisted = shortlistMatch?.[1] === 'SÉLECTIONNÉ';
+      }
+
       return {
         ...candidate,
-        score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-        recommendation: recommendationMatch?.[1] || '-',
-        summary: summaryMatch?.[1] || '-',
-        shortlisted: shortlistMatch?.[1] === 'SÉLECTIONNÉ',
-        displayName: candidate.first_name || 'Candidat',
+        score: score ?? 0,
+        recommendation,
+        summary: summary || '-',
+        shortlisted,
+        displayName: candidate.name || candidate.first_name || 'Candidat',
         uploadDate: new Date(candidate.created_at).toLocaleDateString('fr-FR'),
-        analysisStatus: candidate.status === 'analyzed' ? 'Analysé' : 
+        analysisStatus: candidate.status === 'analyzed' ? 'Analysé' :
                        candidate.status === 'processing' ? 'En cours' : 'En attente'
       };
     });
@@ -174,27 +205,30 @@ export default function CandidatesSheetView({
 
   const exportToExcel = (onlyFiltered: boolean = false) => {
     const dataToExport = onlyFiltered ? filteredAndSortedData : processedCandidates;
-    
-    const exportData = dataToExport.map(candidate => ({
-      'Nom': candidate.displayName,
+
+    const exportData = dataToExport.map((candidate, index) => ({
+      'Nom': candidate.displayName || 'Candidat',
       'Email': candidate.email || '',
       'Téléphone': candidate.phone || '',
+      'Fichier CV': candidate.cv_filename || '',
       'Date Upload': candidate.uploadDate,
-      'Statut': candidate.analysisStatus,
-      'Score': candidate.score,
-      'Recommandation': candidate.recommendation,
-      'Résumé': candidate.summary,
-      'Shortlist': candidate.shortlisted ? 'OUI' : 'NON'
+      'Statut Analyse': candidate.analysisStatus,
+      'Score IA': candidate.score || 0,
+      'Recommandation': candidate.recommendation || '-',
+      'Résumé': candidate.summary || '-',
+      'Shortlist': candidate.shortlisted ? 'OUI' : 'NON',
+      'Rang': candidate.shortlisted ? index + 1 : '',
+      'Justification': candidate.explanation ? candidate.explanation.substring(0, 200) : ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Candidats');
-    
+
     // Auto-size columns
     const maxWidth = 50;
     const cols = Object.keys(exportData[0] || {}).map(key => ({
-      wch: Math.min(maxWidth, Math.max(key.length, ...exportData.map(row => 
+      wch: Math.min(maxWidth, Math.max(key.length, ...exportData.map(row =>
         (row[key as keyof typeof row] || '').toString().length
       )))
     }));
@@ -205,20 +239,23 @@ export default function CandidatesSheetView({
 
   const exportToCSV = (onlyFiltered: boolean = false) => {
     const dataToExport = onlyFiltered ? filteredAndSortedData : processedCandidates;
-    
-    const headers = ['Nom', 'Email', 'Téléphone', 'Date Upload', 'Statut', 'Score', 'Recommandation', 'Résumé', 'Shortlist'];
+
+    const headers = ['Nom', 'Email', 'Téléphone', 'Fichier CV', 'Date Upload', 'Statut Analyse', 'Score IA', 'Recommandation', 'Résumé', 'Shortlist', 'Rang', 'Justification'];
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(candidate => [
-        candidate.displayName,
+      ...dataToExport.map((candidate, index) => [
+        candidate.displayName || 'Candidat',
         candidate.email || '',
         candidate.phone || '',
+        candidate.cv_filename || '',
         candidate.uploadDate,
         candidate.analysisStatus,
-        candidate.score,
-        candidate.recommendation,
-        candidate.summary,
-        candidate.shortlisted ? 'OUI' : 'NON'
+        candidate.score || 0,
+        candidate.recommendation || '-',
+        candidate.summary || '-',
+        candidate.shortlisted ? 'OUI' : 'NON',
+        candidate.shortlisted ? index + 1 : '',
+        candidate.explanation ? candidate.explanation.substring(0, 200) : ''
       ].map(value => {
         const strValue = value.toString();
         if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {

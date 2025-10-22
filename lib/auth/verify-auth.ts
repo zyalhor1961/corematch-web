@@ -123,26 +123,40 @@ export async function verifyProjectAccess(userId: string, projectId: string): Pr
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[verifyProjectAccess] Missing Supabase environment variables');
       return false;
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get project with org info
+    // Get project with org info and creator
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, org_id')
+      .select('id, org_id, user_id')
       .eq('id', projectId)
       .single();
 
-    if (projectError || !project) {
+    if (projectError) {
+      console.error('[verifyProjectAccess] Project query error:', projectError);
       return false;
     }
 
-    // Check if user has access to the project's organization
+    if (!project) {
+      console.error('[verifyProjectAccess] Project not found:', projectId);
+      return false;
+    }
+
+    // Check if user is the project creator
+    if (project.user_id === userId) {
+      console.log('[verifyProjectAccess] Access granted: user is project creator');
+      return true;
+    }
+
+    // If not creator, check if user has access to the project's organization
+    console.log('[verifyProjectAccess] Checking org access for org_id:', project.org_id);
     return verifyOrgAccess(userId, project.org_id);
   } catch (error) {
-    console.error('Project access verification error:', error);
+    console.error('[verifyProjectAccess] Error:', error);
     return false;
   }
 }

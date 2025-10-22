@@ -6,6 +6,7 @@
 import { extractCV } from './extraction/extractor';
 import { evaluateCV } from './analysis/evaluator';
 import { aggregateResults } from './analysis/aggregate';
+import { aggregateResultsImproved } from './analysis/aggregate-improved';
 import { logger } from './utils/logger';
 import { initValidators } from './utils/json';
 import type { CV_JSON } from './extraction/extractor';
@@ -44,9 +45,9 @@ export async function analyzeCV(
       logger.warn(`Gemini error: ${errors.gemini}`);
     }
 
-    // Pass 3: Aggregate results
-    logger.info('--- Pass 3: Aggregation ---');
-    const result = aggregateResults(openai, gemini);
+    // Pass 3: Aggregate results with improvements
+    logger.info('--- Pass 3: Aggregation (Enhanced) ---');
+    const result = aggregateResultsImproved(openai, gemini, aggregateResults);
 
     logger.info('=== Analysis Complete ===');
     logger.info(`Recommendation: ${result.final_decision.recommendation}`);
@@ -64,4 +65,13 @@ export async function analyzeCV(
 
 // Export types
 export type { CV_JSON, JobSpec, AggregatedResult };
-export { extractCV, evaluateCV, aggregateResults };
+export { extractCV, evaluateCV, aggregateResults, aggregateResultsImproved };
+
+// Export utilities
+export {
+  skillsMatch,
+  calculateSkillsMatch,
+  normalizeSkill,
+  getSkillVariants,
+  addSkillAlias
+} from './utils/skills-normalizer';

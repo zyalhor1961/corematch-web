@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["identite", "experiences", "formations", "competences"],
+  "properties": {
+    "identite": {
+      "type": "object",
+      "required": ["prenom", "nom"],
+      "properties": {
+        "prenom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nom": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "telephone": {
+          "type": "string"
+        },
+        "adresse": {
+          "type": "string"
+        },
+        "linkedin": {
+          "type": "string"
+        },
+        "github": {
+          "type": "string"
+        }
+      }
+    },
+    "experiences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "titre"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "titre": {
+            "type": "string",
+            "minLength": 1
+          },
+          "employeur": {
+            "type": "string"
+          },
+          "date_debut": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}|INFORMATION_MANQUANTE)$"
+          },
+          "date_fin": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(\\d{4}-\\d{2}|en cours|INFORMATION_MANQUANTE)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lieu": {
+            "type": "string"
+          },
+          "type_contrat": {
+            "type": "string",
+            "enum": ["CDI", "CDD", "Freelance", "Stage", "Alternance", "INFORMATION_MANQUANTE"]
+          }
+        }
+      }
+    },
+    "formations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "intitule"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "intitule": {
+            "type": "string",
+            "minLength": 1
+          },
+          "etablissement": {
+            "type": "string"
+          },
+          "annee": {
+            "type": "string"
+          },
+          "lieu": {
+            "type": "string"
+          },
+          "niveau": {
+            "type": "string",
+            "enum": ["Bac", "Bac+2", "Bac+3", "Bac+5", "Doctorat", "INFORMATION_MANQUANTE"]
+          }
+        }
+      }
+    },
+    "competences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "langues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["langue"],
+        "properties": {
+          "langue": {
+            "type": "string"
+          },
+          "niveau": {
+            "type": "string",
+            "enum": ["Natif", "Courant", "Professionnel", "Intermédiaire", "Débutant", "INFORMATION_MANQUANTE"]
+          }
+        }
+      }
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["nom"],
+        "properties": {
+          "nom": {
+            "type": "string"
+          },
+          "organisme": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["titre"],
+        "properties": {
+          "titre": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "technologies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "texte_brut": {
+      "type": "string",
+      "description": "Texte original du CV pour référence"
+    }
+  }
+}

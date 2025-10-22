@@ -246,14 +246,19 @@ export async function POST(
                    (project.job_spec_config as JobSpec | null) ||
                    createDefaultJobSpec(project);
 
-    const useDeterministicAnalysis = !!customJobSpec || !!project.job_spec_config;
+    // ALWAYS use deterministic analysis (legacy mode deprecated)
+    const useDeterministicAnalysis = true;
 
     console.log(`\n========== BATCH ANALYSIS ==========`);
     console.log(`Project: ${project.name}`);
     console.log(`Candidates: ${candidates.length}`);
-    console.log(`Mode: ${useDeterministicAnalysis ? '🎯 DÉTERMINISTE' : '🔄 LEGACY'}`);
+    console.log(`Mode: 🎯 DÉTERMINISTE (improved multi-provider system)`);
     if (customJobSpec) {
       console.log(`🔧 Using CUSTOM JobSpec for this analysis`);
+    } else if (project.job_spec_config) {
+      console.log(`📋 Using SAVED JobSpec from project config`);
+    } else {
+      console.log(`🤖 Using AUTO-GENERATED JobSpec from project info`);
     }
 
     let analyzed = 0;

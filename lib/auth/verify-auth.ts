@@ -132,7 +132,7 @@ export async function verifyProjectAccess(userId: string, projectId: string): Pr
     // Get project with org info and creator
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, org_id, user_id')
+      .select('id, org_id, created_by')
       .eq('id', projectId)
       .single();
 
@@ -147,7 +147,7 @@ export async function verifyProjectAccess(userId: string, projectId: string): Pr
     }
 
     // Check if user is the project creator
-    if (project.user_id === userId) {
+    if (project.created_by === userId) {
       console.log('[verifyProjectAccess] Access granted: user is project creator');
       return true;
     }

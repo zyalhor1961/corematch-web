@@ -18,7 +18,7 @@ function jsonError(message: string, status = 500) {
 export async function POST(req: Request) {
   try {
     const OPENAI_KEY = process.env.OPENAI_API_KEY;
-    const MODEL = process.env.CM_OPENAI_MODEL || "gpt-4o-mini";
+    const MODEL = process.env.CM_OPENAI_MODEL || "gpt-4o";
 
     if (!OPENAI_KEY) return jsonError("OPENAI_API_KEY manquant côté serveur");
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {

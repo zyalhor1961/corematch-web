@@ -12,7 +12,8 @@ import {
   CheckCircle,
   X,
   HelpCircle,
-  Sliders
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 import type { JobSpec, MustHaveRule } from '@/lib/cv-analysis/deterministic-evaluator';
 
@@ -50,6 +51,7 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
   const { isDarkMode } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +153,38 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
     }));
   };
 
+  const handleAutoGenerate = async () => {
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/cv/projects/${projectId}/job-spec/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération automatique');
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data?.jobSpec) {
+        setJobSpec(result.data.jobSpec);
+        console.log('[JobSpecEditor] Auto-generated JobSpec loaded');
+      } else {
+        throw new Error('Réponse invalide du serveur');
+      }
+    } catch (err) {
+      console.error('Auto-generate error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur de génération');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
@@ -205,7 +239,7 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
         <div className={`p-6 border-b flex items-center justify-between ${
           isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200'
         }`}>
-          <div>
+          <div className="flex-1">
             <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               Configuration JOB_SPEC
             </h2>
@@ -213,12 +247,32 @@ export default function JobSpecEditor({ projectId, initialJobSpec, onSave }: Job
               Configuration déterministe et auditable de l'analyse CV
             </p>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-          >
-            <X className={`w-6 h-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`} />
-          </button>
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={handleAutoGenerate}
+              disabled={isGenerating}
+              variant="outline"
+              className="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white border-none hover:from-purple-600 hover:to-blue-600"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Génération...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Générer automatiquement</span>
+                </>
+              )}
+            </Button>
+            <button
+              onClick={() => setIsOpen(false)}
+              className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+            >
+              <X className={`w-6 h-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

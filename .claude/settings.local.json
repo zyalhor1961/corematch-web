@@ -87,7 +87,9 @@
       "Bash(npx supabase db remote:*)",
       "Bash(taskkill:*)",
       "WebFetch(domain:corematch.fr)",
-      "WebFetch(domain:corematch-k1eidlcdq-corematchs-projects.vercel.app)"
+      "WebFetch(domain:corematch-k1eidlcdq-corematchs-projects.vercel.app)",
+      "Bash(npm audit:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

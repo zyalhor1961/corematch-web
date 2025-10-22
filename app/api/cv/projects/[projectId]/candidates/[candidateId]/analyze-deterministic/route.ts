@@ -164,7 +164,7 @@ export async function POST(
 
     // Call OpenAI with deterministic settings
     const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',

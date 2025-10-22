@@ -230,12 +230,12 @@ Réponds en JSON:
     console.log(`\n========== ENVOI VERS OPENAI ==========`);
     console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidateId})`);
     console.log(`CV Text Length: ${cvText.length} characters`);
-    console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o-mini'}`);
+    console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o'}`);
     console.log(`Temperature: ${parseFloat(process.env.CM_TEMPERATURE || '0.7')}`);
 
     // Call OpenAI GPT-4
     const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',

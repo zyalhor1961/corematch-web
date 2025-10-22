@@ -8,6 +8,8 @@ import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
 import AnalysisChatbot from '@/app/components/cv/AnalysisChatbot';
 import JobSpecEditor from '@/app/components/cv/JobSpecEditor';
+import AnalysisConfigModal from '@/app/components/cv/AnalysisConfigModal';
+import type { JobSpec } from '@/lib/cv-analysis/deterministic-evaluator';
 import {
   ArrowLeft,
   Upload,
@@ -62,6 +64,7 @@ export default function ProjectCandidatesPage() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmModalData, setConfirmModalData] = useState<{
     emoji: string;
@@ -72,6 +75,7 @@ export default function ProjectCandidatesPage() {
   } | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [customJobSpec, setCustomJobSpec] = useState<JobSpec | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = params?.orgId as string;
@@ -275,45 +279,8 @@ export default function ProjectCandidatesPage() {
       return;
     }
 
-    // Messages créatifs selon le nombre de CVs
-    let modalData;
-    if (pendingCount === 1) {
-      modalData = {
-        emoji: '🚀',
-        title: 'Prêt à découvrir le potentiel de ce candidat ?',
-        description: "L'IA va analyser en profondeur ce CV et vous donner son avis d'expert.",
-        timeEstimate: '~30 secondes',
-        pendingCount
-      };
-    } else if (pendingCount <= 5) {
-      modalData = {
-        emoji: '🎯',
-        title: `${pendingCount} CVs à analyser !`,
-        description: "Notre IA va passer au crible chaque profil pour identifier les meilleurs talents.",
-        timeEstimate: `~${pendingCount * 30} secondes`,
-        pendingCount
-      };
-    } else if (pendingCount <= 10) {
-      const minutes = Math.ceil(pendingCount * 30 / 60);
-      modalData = {
-        emoji: '🔥',
-        title: `Wow ! ${pendingCount} candidats attendent d'être analysés !`,
-        description: "L'IA va travailler dur pour scorer et classer tous ces profils. Préparez-vous à découvrir des pépites !",
-        timeEstimate: `~${minutes} minute${minutes > 1 ? 's' : ''}`,
-        pendingCount
-      };
-    } else {
-      modalData = {
-        emoji: '💎',
-        title: `Analyse massive en vue : ${pendingCount} CVs !`,
-        description: "Notre IA va déployer toute sa puissance pour analyser cette montagne de talents. Installez-vous confortablement, ça va chauffer !",
-        timeEstimate: `~${Math.ceil(pendingCount * 30 / 60)} minutes`,
-        pendingCount
-      };
-    }
-
-    setConfirmModalData(modalData);
-    setShowConfirmModal(true);
+    // Ouvrir la modal de configuration des critères
+    setShowConfigModal(true);
   };
 
   const handleViewCandidate = (candidate: Candidate) => {
@@ -321,8 +288,7 @@ export default function ProjectCandidatesPage() {
     setShowDetailsModal(true);
   };
 
-  const proceedWithAnalysis = async () => {
-    setShowConfirmModal(false);
+  const handleAnalyzeWithConfig = async (config?: JobSpec) => {
     setIsAnalyzing(true);
     setError(null);
     setAnalyzeSuccess(null);
@@ -333,12 +299,15 @@ export default function ProjectCandidatesPage() {
         throw new Error("Vous devez être connecté pour analyser les CVs.");
       }
 
+      const requestBody = config ? { customJobSpec: config } : {};
+
       const response = await fetch(`/api/cv/projects/${projectId}/analyze-all`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -368,6 +337,11 @@ export default function ProjectCandidatesPage() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const proceedWithAnalysis = async () => {
+    setShowConfirmModal(false);
+    await handleAnalyzeWithConfig();
   };
 
   if (isLoading) {
@@ -493,6 +467,14 @@ export default function ProjectCandidatesPage() {
             </button>
           </div>
         )}
+
+        {/* Modal de configuration des critères d'analyse */}
+        <AnalysisConfigModal
+          projectId={projectId}
+          isOpen={showConfigModal}
+          onClose={() => setShowConfigModal(false)}
+          onAnalyze={handleAnalyzeWithConfig}
+        />
 
         {/* Modal de détails du candidat - Vue PDF + Analyse */}
         {showDetailsModal && selectedCandidate && (

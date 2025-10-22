@@ -91,13 +91,13 @@ export async function verifyOrgAccess(userId: string, orgId: string): Promise<bo
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       return false;
     }
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     // Check if user has access to the organization
     const { data, error } = await supabase
       .from('organization_members')
@@ -105,14 +105,44 @@ export async function verifyOrgAccess(userId: string, orgId: string): Promise<bo
       .eq('user_id', userId)
       .eq('org_id', orgId)
       .single();
-    
+
     if (error || !data) {
       return false;
     }
-    
+
     return true;
   } catch (error) {
     console.error('Org access verification error:', error);
+    return false;
+  }
+}
+
+export async function verifyProjectAccess(userId: string, projectId: string): Promise<boolean> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return false;
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get project with org info
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id, org_id')
+      .eq('id', projectId)
+      .single();
+
+    if (projectError || !project) {
+      return false;
+    }
+
+    // Check if user has access to the project's organization
+    return verifyOrgAccess(userId, project.org_id);
+  } catch (error) {
+    console.error('Project access verification error:', error);
     return false;
   }
 }

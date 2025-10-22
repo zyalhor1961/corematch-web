@@ -101,10 +101,10 @@ export interface EvaluationResult {
 
 // Poids par défaut (ajustés pour être plus équilibrés)
 const DEFAULT_WEIGHTS: Weights = {
-  w_exp: 0.6,      // 60% expérience (prioritaire)
-  w_skills: 0.25,  // 25% compétences (moins pénalisant si extraction imparfaite)
+  w_exp: 0.55,     // 55% expérience (prioritaire mais pas écrasant)
+  w_skills: 0.30,  // 30% compétences (plus important pour détecter les vrais profils)
   w_nice: 0.15,    // 15% nice-to-have
-  p_adjacent: 0.6  // Expériences adjacentes valorisées à 60%
+  p_adjacent: 0.5  // Expériences adjacentes valorisées à 50%
 };
 
 // Seuils par défaut (plus réalistes)
@@ -127,6 +127,8 @@ Principes
 Zéro invention : n'utilisez que les champs présents dans CV_JSON.
 
 Must-have : appliquez toutes les règles de JOB_SPEC.must_have à la lettre. Une règle non satisfaite = lister dans fails.
+⚠️ IMPORTANT : Pour les exigences d'expérience, vérifiez le TOTAL CUMULÉ (somme de toutes les périodes pertinentes), PAS la période continue la plus longue.
+Exemple : si la règle demande "24 mois cumulés d'enseignement FLE", additionnez TOUS les mois d'expérience DIRECTE en FLE, même si ce sont des missions courtes espacées.
 
 Pertinence des expériences (taxonomie) :
 
@@ -151,7 +153,7 @@ nice_to_have_0_to_100 : idem pour nice_to_have.
 Score global :
 overall = 100 * ( w_exp*score_exp_norm + w_skills*(skills/100) + w_nice*(nice/100) )
 où score_exp_norm = min(1, experience_years_relevant / thresholds.years_full_score).
-Poids par défaut : w_exp=0.5, w_skills=0.3, w_nice=0.2 (surchargeables via weights).
+Poids par défaut : w_exp=0.55, w_skills=0.30, w_nice=0.15 (surchargeables via weights).
 
 Recommandation :
 
@@ -164,6 +166,11 @@ overall ≥ thresholds.shortlist_min ⇒ "SHORTLIST"
 overall ≥ thresholds.consider_min ⇒ "CONSIDER"
 
 Sinon ⇒ "REJECT".
+
+Points forts & améliorations :
+- Générez AU MINIMUM 2 points forts et 2 axes d'amélioration
+- Si vous en trouvez moins, développez des variantes ou ajoutez des points génériques pertinents
+- Soyez constructif et précis dans vos formulations
 
 Preuves : pour chaque décision clé (expérience/compétence), fournissez quote + field_path du CV_JSON.
 
@@ -618,7 +625,7 @@ function extractKeywordsFromText(text: string): string[] {
 }
 
 /**
- * Parse le résultat JSON de l'évaluation avec validation stricte
+ * Parse le résultat JSON de l'évaluation avec validation stricte et post-processing
  */
 export function parseEvaluationResult(jsonString: string): EvaluationResult {
   try {
@@ -628,7 +635,7 @@ export function parseEvaluationResult(jsonString: string): EvaluationResult {
       .replace(/```\n?/g, '')
       .trim();
 
-    const result = JSON.parse(cleaned) as EvaluationResult;
+    let result = JSON.parse(cleaned) as EvaluationResult;
 
     // Validation basique
     if (typeof result.overall_score_0_to_100 !== 'number') {
@@ -639,11 +646,137 @@ export function parseEvaluationResult(jsonString: string): EvaluationResult {
       throw new Error('Invalid recommendation');
     }
 
+    // Post-processing obligatoire
+    result = applyPostProcessing(result);
+
     return result;
   } catch (error) {
     console.error('Failed to parse evaluation result:', error);
     throw new Error('Invalid evaluation JSON format');
   }
+}
+
+/**
+ * Applique les améliorations post-GPT à l'évaluation
+ */
+function applyPostProcessing(evaluation: EvaluationResult): EvaluationResult {
+  // 1. Garantir minimum 2 points forts
+  while (evaluation.strengths.length < 2) {
+    if (evaluation.strengths.length === 0) {
+      evaluation.strengths.push({
+        point: 'Profil correspondant aux critères de base du poste',
+        evidence: []
+      });
+    } else {
+      // Dupliquer et varier le premier point
+      const variant = {
+        point: `${evaluation.strengths[0].point} (aspect complémentaire)`,
+        evidence: evaluation.strengths[0].evidence
+      };
+      evaluation.strengths.push(variant);
+    }
+  }
+
+  // 2. Garantir minimum 2 axes d'amélioration
+  while (evaluation.improvements.length < 2) {
+    if (evaluation.improvements.length === 0) {
+      evaluation.improvements.push({
+        point: 'Renforcer les compétences techniques spécifiques au poste',
+        why: 'Pour mieux répondre aux exigences détaillées',
+        suggested_action: 'Se former sur les outils et méthodologies du domaine'
+      });
+    } else {
+      evaluation.improvements.push({
+        point: 'Développer l\'expérience pratique dans le domaine cible',
+        why: 'Pour consolider le profil',
+        suggested_action: 'Multiplier les missions courtes ou stages ciblés'
+      });
+    }
+  }
+
+  // 3. Ajouter exp_total_years dans subscores
+  const monthsDirect = evaluation.relevance_summary.months_direct || 0;
+  const monthsAdjacent = evaluation.relevance_summary.months_adjacent || 0;
+  const expTotalYears = (monthsDirect + 0.5 * monthsAdjacent) / 12;
+
+  // Ajouter au résultat (TypeScript peut ne pas avoir ce champ dans l'interface)
+  (evaluation.subscores as any).exp_total_years = parseFloat(expTotalYears.toFixed(2));
+
+  return evaluation;
+}
+
+/**
+ * Génère la version HTML du rapport d'évaluation
+ */
+export function generateHTMLReport(evaluation: EvaluationResult): string {
+  const { overall_score_0_to_100, recommendation, subscores, relevance_summary, strengths, improvements, fails } = evaluation;
+
+  let html = '<div class="evaluation-report">';
+
+  // Header avec score
+  html += `<div class="score-header">`;
+  html += `<strong>Score : ${Math.round(overall_score_0_to_100)}/100</strong><br>`;
+  html += `Recommandation : <strong>${recommendation}</strong>`;
+  html += `</div>`;
+
+  // Sous-scores
+  html += `<div class="subscores">`;
+  html += `<strong>Sous-scores :</strong>`;
+  html += `<ul>`;
+  html += `<li>Expérience pertinente : ${subscores.experience_years_relevant.toFixed(1)} ans</li>`;
+  html += `<li>Compétences : ${subscores.skills_match_0_to_100}%</li>`;
+  html += `<li>Nice-to-have : ${subscores.nice_to_have_0_to_100}%</li>`;
+  html += `</ul>`;
+  html += `</div>`;
+
+  // Pertinence
+  html += `<div class="relevance">`;
+  html += `<strong>Pertinence :</strong>`;
+  html += `<ul>`;
+  html += `<li>${relevance_summary.months_direct} mois DIRECTE</li>`;
+  html += `<li>${relevance_summary.months_adjacent} mois ADJACENTE</li>`;
+  html += `</ul>`;
+  html += `</div>`;
+
+  // Points forts
+  if (strengths.length > 0) {
+    html += `<div class="strengths">`;
+    html += `<strong>Points forts :</strong>`;
+    html += `<ul>`;
+    strengths.forEach(s => {
+      html += `<li>${s.point}</li>`;
+    });
+    html += `</ul>`;
+    html += `</div>`;
+  }
+
+  // Points d'amélioration
+  if (improvements.length > 0) {
+    html += `<div class="improvements">`;
+    html += `<strong>Points d'amélioration :</strong>`;
+    html += `<ul>`;
+    improvements.forEach(i => {
+      html += `<li>${i.point}</li>`;
+    });
+    html += `</ul>`;
+    html += `</div>`;
+  }
+
+  // Règles non satisfaites
+  if (fails.length > 0) {
+    html += `<div class="failures">`;
+    html += `<strong>⚠️ Règles non satisfaites :</strong>`;
+    html += `<ul>`;
+    fails.forEach(f => {
+      html += `<li>${f.reason}</li>`;
+    });
+    html += `</ul>`;
+    html += `</div>`;
+  }
+
+  html += '</div>';
+
+  return html;
 }
 
 /**

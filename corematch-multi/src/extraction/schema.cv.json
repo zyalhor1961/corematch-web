@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "identite": {
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "prenom": { "type": "string" },
+        "email": { "type": "string" },
+        "telephone": { "type": "string" },
+        "adresse": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "github": { "type": "string" }
+      }
+    },
+    "experiences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "titre": { "type": "string" },
+          "employeur": { "type": "string" },
+          "ville_pays": { "type": "string" },
+          "debut_iso": { "type": "string", "pattern": "^\\d{4}-\\d{2}(-\\d{2})?$" },
+          "fin_iso": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}(-\\d{2})?$" },
+          "en_cours": { "type": "boolean" },
+          "missions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["titre", "debut_iso"]
+      }
+    },
+    "formations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "intitule": { "type": "string" },
+          "niveau": { "type": "string" },
+          "etablissement": { "type": "string" },
+          "obtention_iso": { "type": "string", "pattern": "^\\d{4}(-\\d{2})?$" }
+        }
+      }
+    },
+    "competences": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "langues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "langue": { "type": "string" },
+          "niveau": { "type": "string" }
+        }
+      }
+    },
+    "evidences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": { "type": "string" },
+          "quote": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["experiences", "competences"]
+}

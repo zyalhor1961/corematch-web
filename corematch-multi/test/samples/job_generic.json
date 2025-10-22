@@ -1,0 +1,70 @@
+{
+  "title": "Développeur Full Stack Senior",
+  "must_have": [
+    {
+      "id": "M1",
+      "desc": "Minimum 5 ans d'expérience en développement web",
+      "severity": "critical"
+    },
+    {
+      "id": "M2",
+      "desc": "Maîtrise de JavaScript/TypeScript",
+      "severity": "standard"
+    },
+    {
+      "id": "M3",
+      "desc": "Expérience avec React et Node.js",
+      "severity": "standard"
+    }
+  ],
+  "skills_required": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "PostgreSQL",
+    "Git"
+  ],
+  "nice_to_have": [
+    "Docker",
+    "Kubernetes",
+    "AWS",
+    "GraphQL",
+    "Next.js"
+  ],
+  "relevance_rules": {
+    "direct": [
+      "développeur",
+      "developer",
+      "software engineer",
+      "ingénieur logiciel",
+      "full stack",
+      "frontend",
+      "backend"
+    ],
+    "adjacent": [
+      "tech lead",
+      "architect",
+      "CTO",
+      "engineering manager",
+      "DevOps engineer"
+    ],
+    "peripheral": [
+      "IT support",
+      "system administrator",
+      "data analyst",
+      "QA engineer"
+    ]
+  },
+  "weights": {
+    "w_exp": 0.5,
+    "w_skills": 0.3,
+    "w_nice": 0.2,
+    "p_adjacent": 0.5
+  },
+  "thresholds": {
+    "years_full_score": 5,
+    "shortlist_min": 75,
+    "consider_min": 60
+  }
+}

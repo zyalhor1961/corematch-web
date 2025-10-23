@@ -58,7 +58,7 @@ if (analysisResult.evaluation) {
 
 ## 🔄 CORRECTIONS FINALES À IMPLÉMENTER
 
-### 📌 PRIORITÉ 1: Vérification Stricte Règle M1
+### ✅ PRIORITÉ 1: Vérification Stricte Règle M1 (IMPLÉMENTÉ - Commit 1df5ba7)
 
 **Demande:**
 > Dans le module de vérification des règles, remplace toute logique existante par :
@@ -67,41 +67,47 @@ if (analysisResult.evaluation) {
 > Condition : if (months_direct < 24) -> fail(M1), sinon retirer M1 de fails.
 
 **État actuel:**
-- ✅ Le prompt système demande déjà le cumul total
-- ⚠️ **MAIS**: La vérification est déléguée au GPT, pas hardcodée
+- ✅ `enforceM1Rule()` implémenté avec vérification conditionnelle
+- ✅ Applique M1 UNIQUEMENT si règle existe dans jobSpec
+- ✅ Override GPT pour garantie absolue de cohérence
+- ✅ Propagation jobSpec complète (route → parse → postprocessing → enforce)
 
-**Solution proposée:**
+**Solution implémentée:**
 
-#### Option A: Post-Processing Strict (RECOMMANDÉ)
-Ajouter dans `parseEvaluationResult()` une vérification post-GPT:
+#### Post-Processing Strict avec Vérification Conditionnelle
+Fonction `enforceM1Rule()` dans `deterministic-evaluator.ts:659-715`:
 
 ```typescript
-function enforceM1Rule(evaluation: EvaluationResult): EvaluationResult {
-  const monthsDirect = evaluation.relevance_summary.months_direct || 0;
+function enforceM1Rule(evaluation: EvaluationResult, jobSpec?: JobSpec): EvaluationResult {
+  // CRITIQUE: Vérifier si M1 existe dans jobSpec avant d'appliquer
+  if (!jobSpec || !jobSpec.must_have.some(rule => rule.id === 'M1')) {
+    return evaluation; // Pas de M1 dans ce projet → pas de vérification
+  }
 
-  // Règle M1: ≥ 24 mois cumulés FLE
-  const m1Failed = evaluation.fails.find(f => f.rule_id === 'M1');
+  const monthsDirect = evaluation.relevance_summary.months_direct || 0;
+  const m1FailIndex = evaluation.fails.findIndex(f => f.rule_id === 'M1');
+  const m1Failed = m1FailIndex >= 0 ? evaluation.fails[m1FailIndex] : null;
 
   if (monthsDirect >= 24) {
-    // PASSE la règle M1
-    evaluation.fails = evaluation.fails.filter(f => f.rule_id !== 'M1');
-    evaluation.meets_all_must_have = evaluation.fails.length === 0;
+    // ✅ PASSE M1
+    if (m1FailIndex >= 0) {
+      evaluation.fails.splice(m1FailIndex, 1);
+    }
+    evaluation.meets_all_must_have = evaluation.fails.filter(f => f.rule_id.startsWith('M')).length === 0;
 
-    // Déplacer preuves M1 vers strengths si elles existent
+    // Déplacer preuves M1 vers strengths
     if (m1Failed && m1Failed.evidence.length > 0) {
-      const experienceStrength = {
-        point: `Expérience FLE validée: ${monthsDirect} mois cumulés`,
+      evaluation.strengths.unshift({
+        point: `Expérience FLE validée: ${monthsDirect} mois cumulés d'enseignement`,
         evidence: m1Failed.evidence
-      };
-      // Ajouter au début des strengths
-      evaluation.strengths.unshift(experienceStrength);
+      });
     }
   } else {
-    // ÉCHOUE la règle M1
+    // ❌ ÉCHOUE M1
     if (!m1Failed) {
       evaluation.fails.push({
         rule_id: 'M1',
-        reason: `Moins de 24 mois cumulés d'enseignement FLE (${monthsDirect} mois détectés)`,
+        reason: `Moins de 24 mois cumulés d'enseignement FLE requis (${monthsDirect} mois détectés)`,
         evidence: []
       });
     }
@@ -113,15 +119,21 @@ function enforceM1Rule(evaluation: EvaluationResult): EvaluationResult {
 ```
 
 **Avantages:**
-- ✅ Garantie absolue que M1 est vérifié correctement
+- ✅ Garantie absolue que M1 est vérifié correctement pour projets FLE
 - ✅ Indépendant du GPT (zéro hallucination)
-- ✅ Rétro-compatible avec système existant
+- ✅ **Vérification conditionnelle**: appliqué UNIQUEMENT si M1 existe dans jobSpec
+- ✅ Projets non-FLE (Peintre, Tech, etc.) ne sont pas affectés
 - ✅ Déplacement automatique preuves M1 → strengths
 
-**Implémentation:**
-1. Ajouter `enforceM1Rule()` dans deterministic-evaluator.ts
-2. Appeler dans `parseEvaluationResult()` après `applyPostProcessing()`
-3. Ajouter test unitaire: `months_direct=45 => meets_all_must_have=true`
+**Implémentation complète:**
+1. ✅ `enforceM1Rule(evaluation, jobSpec)` dans deterministic-evaluator.ts:659-715
+2. ✅ Appelé dans `applyPostProcessing(evaluation, cvJson, jobSpec)` ligne 721
+3. ✅ `parseEvaluationResult(jsonString, cvJson, jobSpec)` accepte jobSpec ligne 630
+4. ✅ `analyze-all/route.ts` ligne 92 passe jobSpec à parseEvaluationResult()
+
+**Bug corrigé:**
+- Avant: Tous projets recevaient vérification M1 (FLE + Peintre + Tech + ...)
+- Après: Vérification M1 appliquée UNIQUEMENT aux projets FLE avec must_have.M1
 
 ---
 
@@ -433,18 +445,24 @@ describe('CSV Export Integration', () => {
 
 ## 📝 CHECKLIST FINALE
 
-- [ ] `enforceM1Rule()` implémenté et testé
-- [ ] Test unitaire: `months_direct=45 => OK`
-- [ ] Debug.matched_skills ajouté
-- [ ] Test intégration CSV vs DB
-- [ ] Système multi-provider vérifié/activé
-- [ ] Documentation mise à jour
+- [x] `enforceM1Rule()` implémenté avec vérification conditionnelle
+- [x] Propagation jobSpec complète (route → parse → postprocessing)
+- [x] Documentation mise à jour
+- [ ] Test unitaire: `months_direct=45 => OK` (à faire)
+- [ ] Test projet Peintre: vérifier absence de M1
+- [ ] Test projet FLE: vérifier présence de M1
+- [ ] Debug.matched_skills ajouté (PRIORITÉ 2)
+- [ ] Test intégration CSV vs DB (PRIORITÉ 2)
+- [ ] Système multi-provider vérifié/activé (PRIORITÉ 3)
 
 ---
 
 ## 🔗 RÉFÉRENCES
 
-- **Commit actuel:** `792d8c0`
+- **Commit actuel:** `1df5ba7` (fix: Appliquer règle M1 uniquement aux projets FLE)
+- **Commits précédents:**
+  - `1b931b1` - feat: Vérification stricte règle M1
+  - `792d8c0` - feat: Corrections immédiates - Normalisation et PII
 - **Documentation:** `docs/ANALYSIS_IMPROVEMENTS_2025.md`
 - **Code principal:**
   - `lib/cv-analysis/deterministic-evaluator.ts`

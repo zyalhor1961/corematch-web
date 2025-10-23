@@ -563,13 +563,7 @@ export function createDefaultJobSpec(project: any): JobSpec {
 
     return {
       title,
-      must_have: [
-        {
-          id: 'M1',
-          desc: project.requirements || 'Expérience pertinente dans le domaine',
-          severity: 'standard'
-        }
-      ],
+      must_have: [], // Pas de règle M1 pour le domaine générique
       skills_required: extractSkillsFromText(project.requirements || ''),
       nice_to_have: extractSkillsFromText(project.description || ''),
       relevance_rules: relevanceRules,
@@ -581,15 +575,18 @@ export function createDefaultJobSpec(project: any): JobSpec {
   }
 
   // Utiliser le template du domaine détecté
+  // M1 (24 mois cumulés) est spécifique au domaine FLE
+  const mustHaveRules = domain === 'fle' ? [
+    {
+      id: 'M1',
+      desc: template.mustHaveTemplate,
+      severity: 'standard' as const
+    }
+  ] : [];
+
   return {
     title,
-    must_have: [
-      {
-        id: 'M1',
-        desc: template.mustHaveTemplate,
-        severity: 'standard'
-      }
-    ],
+    must_have: mustHaveRules,
     skills_required: template.skillsRequired,
     nice_to_have: template.niceToHave,
     relevance_rules: template.relevanceRules,

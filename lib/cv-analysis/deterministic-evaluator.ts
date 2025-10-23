@@ -543,59 +543,32 @@ function detectJobDomain(project: any): JobDomain {
 }
 
 /**
- * Crée un JOB_SPEC par défaut basé sur le projet avec détection automatique du domaine
+ * Crée un JOB_SPEC par défaut basé sur le projet - GÉNÉRIQUE
+ *
+ * IMPORTANT: Cette fonction crée un jobSpec minimal sans règles spécifiques.
+ * Les projets doivent définir leur propre job_spec_config avec leurs règles must_have.
+ * Les templates de domaines (FLE, Tech, etc.) sont disponibles comme AIDE à la création,
+ * mais ne sont JAMAIS appliqués automatiquement.
  */
 export function createDefaultJobSpec(project: any): JobSpec {
   const title = project.job_title || project.name || 'Poste non spécifié';
+  const titleKeywords = extractKeywordsFromText(title);
 
-  // Détecter le domaine professionnel
-  const domain = detectJobDomain(project);
-  const template = DOMAIN_TEMPLATES[domain];
-
-  // Pour le domaine générique, extraire intelligemment les infos du projet
-  if (domain === 'generic') {
-    const titleKeywords = extractKeywordsFromText(title);
-    const relevanceRules: RelevanceRules = {
-      direct: titleKeywords,
-      adjacent: [],
-      peripheral: []
-    };
-
-    return {
-      title,
-      must_have: [], // Pas de règle M1 pour le domaine générique
-      skills_required: extractSkillsFromText(project.requirements || ''),
-      nice_to_have: extractSkillsFromText(project.description || ''),
-      relevance_rules: relevanceRules,
-      skills_map: undefined,
-      weights: DEFAULT_WEIGHTS,
-      thresholds: DEFAULT_THRESHOLDS,
-      analysis_date: new Date().toISOString().split('T')[0]
-    };
-  }
-
-  // Utiliser le template du domaine détecté
-  // M1 (24 mois cumulés) est spécifique au domaine FLE
-  const mustHaveRules = domain === 'fle' ? [
-    {
-      id: 'M1',
-      desc: template.mustHaveTemplate,
-      severity: 'standard' as const
-    }
-  ] : [];
+  const relevanceRules: RelevanceRules = {
+    direct: titleKeywords,
+    adjacent: [],
+    peripheral: []
+  };
 
   return {
     title,
-    must_have: mustHaveRules,
-    skills_required: template.skillsRequired,
-    nice_to_have: template.niceToHave,
-    relevance_rules: template.relevanceRules,
-    skills_map: Object.keys(template.skillsMap).length > 0 ? template.skillsMap : undefined,
+    must_have: [], // AUCUNE règle par défaut - le projet doit les définir dans job_spec_config
+    skills_required: extractSkillsFromText(project.requirements || ''),
+    nice_to_have: extractSkillsFromText(project.description || ''),
+    relevance_rules: relevanceRules,
+    skills_map: undefined,
     weights: DEFAULT_WEIGHTS,
-    thresholds: {
-      ...DEFAULT_THRESHOLDS,
-      years_full_score: template.yearsFullScore || DEFAULT_THRESHOLDS.years_full_score
-    },
+    thresholds: DEFAULT_THRESHOLDS,
     analysis_date: new Date().toISOString().split('T')[0]
   };
 }
@@ -716,36 +689,16 @@ function enforceM1Rule(evaluation: EvaluationResult, jobSpec?: JobSpec): Evaluat
  * Applique les améliorations post-GPT à l'évaluation
  */
 function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any, jobSpec?: JobSpec): EvaluationResult {
-  // 0. CRITIQUE: Vérification stricte de la règle M1 (24 mois cumulés) SI APPLICABLE
+  // 0. CRITIQUE: Vérification stricte des règles must_have SI APPLICABLES
   // Cette étape override le GPT pour garantir la cohérence
-  // Ne s'applique QUE si M1 existe dans le jobSpec (domaine FLE)
+  // Ne s'applique QUE si les règles existent dans le jobSpec du projet
   evaluation = enforceM1Rule(evaluation, jobSpec);
 
-  // 1. Détecter diplômes FLE si CV fourni
-  if (cvJson && cvJson.formations) {
-    // Import de la fonction de détection (sera ajouté en haut du fichier)
-    const diplomaDetection = detectFLEDiplomasInCVInternal(cvJson.formations);
+  // NOTE: Détection de diplômes/certifications spécifiques supprimée
+  // Chaque projet doit définir ses propres critères dans job_spec_config
+  // Le système est maintenant complètement générique
 
-    if (diplomaDetection.length > 0) {
-      // Ajouter un point fort pour chaque diplôme FLE détecté
-      diplomaDetection.forEach(({ diploma, quote, field_path }) => {
-        // Vérifier qu'on ne l'a pas déjà ajouté
-        const alreadyExists = evaluation.strengths.some(s =>
-          s.point.toLowerCase().includes('diplôme') &&
-          s.point.toLowerCase().includes('fle')
-        );
-
-        if (!alreadyExists) {
-          evaluation.strengths.unshift({
-            point: `Diplôme FLE ✅: ${diploma}`,
-            evidence: [{ quote, field_path }]
-          });
-        }
-      });
-    }
-  }
-
-  // 2. Garantir minimum 2 points forts
+  // 1. Garantir minimum 2 points forts
   while (evaluation.strengths.length < 2) {
     if (evaluation.strengths.length === 0) {
       evaluation.strengths.push({
@@ -762,7 +715,7 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any, jobSpec
     }
   }
 
-  // 3. Garantir minimum 2 axes d'amélioration
+  // 2. Garantir minimum 2 axes d'amélioration
   while (evaluation.improvements.length < 2) {
     if (evaluation.improvements.length === 0) {
       evaluation.improvements.push({
@@ -779,7 +732,7 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any, jobSpec
     }
   }
 
-  // 4. Ajouter exp_total_years dans subscores
+  // 3. Ajouter exp_total_years dans subscores
   const monthsDirect = evaluation.relevance_summary.months_direct || 0;
   const monthsAdjacent = evaluation.relevance_summary.months_adjacent || 0;
   const expTotalYears = (monthsDirect + 0.5 * monthsAdjacent) / 12;
@@ -791,7 +744,13 @@ function applyPostProcessing(evaluation: EvaluationResult, cvJson?: any, jobSpec
 }
 
 /**
+ * @deprecated FONCTION NON UTILISÉE - Logique métier-spécifique retirée
+ *
  * Version interne de detectFLEDiplomasInCV (pour éviter dépendance circulaire)
+ * CETTE FONCTION N'EST PLUS APPELÉE depuis la généricisation du système.
+ *
+ * Gardée temporairement pour référence. Les projets doivent maintenant définir
+ * leurs propres critères de certification/diplôme dans job_spec_config.
  */
 function detectFLEDiplomasInCVInternal(formations: any[]): Array<{ diploma: string; quote: string; field_path: string }> {
   if (!formations || !Array.isArray(formations)) return [];

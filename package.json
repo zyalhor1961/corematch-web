@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.23",
+    "@anthropic-ai/sdk": "^0.67.0",
     "@azure/ai-form-recognizer": "^5.1.0",
     "@google/generative-ai": "^0.24.1",
     "@stripe/stripe-js": "^4.4.0",
@@ -17,6 +19,7 @@
     "@types/busboy": "^1.5.4",
     "ag-grid-community": "^34.2.0",
     "ag-grid-react": "^34.2.0",
+    "ai": "^5.0.78",
     "ajv": "^8.17.1",
     "busboy": "^1.6.0",
     "clsx": "^2.1.1",

@@ -1,0 +1,286 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AggregatedResult",
+  "description": "Résultat final d'une analyse multi-provider avec consensus et traçabilité",
+  "type": "object",
+  "required": [
+    "final_decision",
+    "providers_raw",
+    "consensus",
+    "debug",
+    "performance",
+    "cost"
+  ],
+  "properties": {
+    "final_decision": {
+      "description": "Décision finale agrégée",
+      "$ref": "./output.schema.json"
+    },
+    "providers_raw": {
+      "description": "Résultats bruts de chaque provider pour traçabilité",
+      "type": "object",
+      "properties": {
+        "openai": {
+          "oneOf": [
+            { "$ref": "./output.schema.json" },
+            { "type": "null" }
+          ]
+        },
+        "gemini": {
+          "oneOf": [
+            { "$ref": "./output.schema.json" },
+            { "type": "null" }
+          ]
+        },
+        "claude": {
+          "oneOf": [
+            { "$ref": "./output.schema.json" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "consensus": {
+      "description": "Métriques de consensus entre modèles",
+      "type": "object",
+      "required": [
+        "level",
+        "delta_overall_score",
+        "delta_subscores",
+        "agreement_rate",
+        "disagreements_count"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["strong", "medium", "weak", "none"],
+          "description": "Niveau de consensus: strong (Δ<5), medium (Δ<15), weak (Δ<30), none (Δ≥30)"
+        },
+        "delta_overall_score": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Écart maximal sur le score global entre modèles"
+        },
+        "delta_subscores": {
+          "type": "object",
+          "required": ["experience", "skills", "nice_to_have"],
+          "properties": {
+            "experience": {
+              "type": "number",
+              "minimum": 0
+            },
+            "skills": {
+              "type": "number",
+              "minimum": 0
+            },
+            "nice_to_have": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "agreement_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Taux d'accord global (0-1)"
+        },
+        "disagreements_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "arbiter": {
+      "description": "Résultat de l'arbitrage LLM (si mode balanced/premium)",
+      "type": "object",
+      "required": [
+        "justification",
+        "arbitrage_summary",
+        "resolved_disagreements",
+        "execution_time_ms"
+      ],
+      "properties": {
+        "justification": {
+          "type": "string"
+        },
+        "arbitrage_summary": {
+          "type": "string"
+        },
+        "resolved_disagreements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "chosen_value", "reason"],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "chosen_value": {},
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "execution_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tokens_used": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "debug": {
+      "description": "Informations de debug et traçabilité",
+      "type": "object",
+      "required": [
+        "mode",
+        "providers_used",
+        "aggregation_method",
+        "model_disagreements",
+        "early_exit"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["eco", "balanced", "premium"]
+        },
+        "providers_used": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["openai", "gemini", "claude"]
+          }
+        },
+        "aggregation_method": {
+          "type": "string"
+        },
+        "model_disagreements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "values", "severity"],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "values": {
+                "type": "object"
+              },
+              "delta": {
+                "type": "number"
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["minor", "moderate", "major"]
+              }
+            }
+          }
+        },
+        "early_exit": {
+          "type": "boolean",
+          "description": "True si mode eco ou balanced sans triggers"
+        },
+        "reasons_for_multi_provider": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "performance": {
+      "description": "Métriques de performance",
+      "type": "object",
+      "required": [
+        "total_execution_time_ms",
+        "extraction_time_ms",
+        "evaluation_time_ms"
+      ],
+      "properties": {
+        "total_execution_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "prefilter_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "extraction_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "evaluation_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "aggregation_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "arbiter_time_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "cost": {
+      "description": "Coûts détaillés en USD",
+      "type": "object",
+      "required": ["total_usd", "by_provider", "by_stage"],
+      "properties": {
+        "total_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "by_provider": {
+          "type": "object",
+          "properties": {
+            "openai": {
+              "type": "number",
+              "minimum": 0
+            },
+            "gemini": {
+              "type": "number",
+              "minimum": 0
+            },
+            "claude": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "by_stage": {
+          "type": "object",
+          "required": ["extraction", "evaluation"],
+          "properties": {
+            "extraction": {
+              "type": "number",
+              "minimum": 0
+            },
+            "evaluation": {
+              "type": "number",
+              "minimum": 0
+            },
+            "arbiter": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

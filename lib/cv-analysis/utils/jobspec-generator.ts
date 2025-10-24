@@ -73,9 +73,9 @@ export function generateJobSpec(project: ProjectInfo): JobSpec {
       break;
     case 'teaching': // ⚠️ teaching, pas 'enseignement'
       relevance_rules = {
-        direct: ['professeur', 'enseignant', 'formateur', 'instructeur', 'fle', 'prof'],
+        direct: ['professeur', 'enseignant', 'formateur', 'instructeur', 'fle', 'prof', 'assistant', 'assistante'],
         adjacent: ['tuteur', 'éducateur', 'animateur pédagogique', 'intervenant'],
-        peripheral: ['assistant pédagogique', 'surveillant', 'assistant'],
+        peripheral: ['surveillant', 'aide'],
       };
       break;
     case 'construction': // ⚠️ construction, pas 'btp'

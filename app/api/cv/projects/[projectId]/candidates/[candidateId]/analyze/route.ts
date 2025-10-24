@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
-import { extractTextFromPDF, cleanPDFText, parseCV } from '@/lib/utils/pdf-extractor';
+import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
 import { handleApiError, AppError, ErrorCode } from '@/lib/utils/error-handler';
-import OpenAI from 'openai';
-
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { orchestrateAnalysis } from '@/lib/cv-analysis';
+import { generateJobSpec } from '@/lib/cv-analysis/utils/jobspec-generator';
+import type { JobSpec } from '@/lib/cv-analysis/types';
 
 export async function POST(
   request: NextRequest,
@@ -83,18 +80,13 @@ export async function POST(
 
     // Extract PDF text
     let cvText = '';
-    let cvStructure: any = null;
     const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
     const filePath = pathMatch?.[1]?.trim();
-    const fileNameMatch = candidate.notes?.match(/CV file: ([^|\n]+)/);
-    const fileName = fileNameMatch?.[1]?.trim() || 'CV.pdf';
 
-    console.log(`\n========== DEBUG ANALYSE CV ==========`);
+    console.log(`\n========== 🎯 CV ANALYSIS (Multi-Provider) ==========`);
     console.log(`Candidate ID: ${candidateId}`);
     console.log(`Candidate Name: ${candidate.first_name} ${candidate.last_name}`);
-    console.log(`Notes brutes: ${candidate.notes}`);
     console.log(`Extracted filePath: ${filePath}`);
-    console.log(`Extracted fileName: ${fileName}`);
 
     if (filePath) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -123,13 +115,8 @@ export async function POST(
         const rawText = await extractTextFromPDF(pdfUrl);
         cvText = cleanPDFText(rawText);
 
-        // Parse CV structure
-        cvStructure = parseCV(cvText);
-
         // SECURITY: Only log metadata, never actual CV content (PII)
         console.log(`✅ PDF extraction successful: ${cvText.length} characters extracted`);
-        console.log(`[DEBUG] First 200 chars of CV text: ${cvText.substring(0, 200)}...`);
-        console.log(`[DEBUG] Last 100 chars of CV text: ...${cvText.substring(cvText.length - 100)}`);
       } catch (pdfError) {
         // SECURITY: Sanitize error messages - don't expose internal details
         const sanitizedError = pdfError instanceof Error
@@ -138,142 +125,106 @@ export async function POST(
 
         console.error(`❌ PDF extraction failed for candidate ${candidateId}: ${sanitizedError}`);
 
-        // SECURITY: Don't expose technical error details to AI or logs
-        // Fallback with minimal information
-        cvText = `
-⚠️ ERREUR TECHNIQUE: Impossible d'extraire le texte du CV.
+        // Update candidate with error
+        await supabaseAdmin
+          .from('candidates')
+          .update({
+            status: 'pending',
+            notes: `${candidate.notes}\n\n⚠️ ERREUR: Impossible d'extraire le texte du CV. Veuillez réessayer.`
+          })
+          .eq('id', candidateId);
 
-INSTRUCTION POUR L'IA:
-Le contenu du CV n'est PAS ACCESSIBLE en raison d'une erreur technique.
-Tu dois répondre :
-{
-  "score": 50,
-  "strengths": [],
-  "weaknesses": ["Erreur technique - analyse impossible"],
-  "recommendation": "À considérer",
-  "summary": "⚠️ Erreur technique lors de la lecture du CV. Veuillez réessayer ou contacter le support si le problème persiste."
-}
-        `;
+        return NextResponse.json(
+          {
+            error: 'PDF extraction failed',
+            message: 'Impossible d\'extraire le texte du CV'
+          },
+          { status: 500 }
+        );
       }
-      
-      // Add filename analysis hints
-      const fileNameLower = fileName.toLowerCase();
-      if (fileNameLower.includes('peintre') || fileNameLower.includes('painter')) {
-        cvText += '\n\nINDICE: Le nom du fichier suggère un profil de PEINTRE.';
-      } else if (fileNameLower.includes('dev') || fileNameLower.includes('developer')) {
-        cvText += '\n\nINDICE: Le nom du fichier suggère un profil de DÉVELOPPEUR.';
-      } else if (fileNameLower.includes('design')) {
-        cvText += '\n\nINDICE: Le nom du fichier suggère un profil de DESIGNER.';
-      }
-      
-      console.log('CV analysis text prepared');
     } else {
-      cvText = "Erreur: Impossible de trouver le fichier CV";
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
+        'CV file path not found',
+        400
+      );
     }
 
-    // Prepare prompt for GPT-4
+    // Generate or retrieve JobSpec
     const project = candidate.project;
-
-    // If description/requirements are empty, generate context from job_title
-    let contextPrompt = '';
-    if (!project.description && !project.requirements && project.job_title) {
-      contextPrompt = `\n\n⚠️ IMPORTANT: Aucune description détaillée fournie pour ce poste.
-Tu dois DÉDUIRE les exigences typiques d'un poste de "${project.job_title}" :
-- Quelles compétences sont INDISPENSABLES pour ce métier ?
-- Quelle expérience est normalement attendue ?
-- Quelles formations/certifications sont requises ?
-
-SOIS STRICT : si le candidat n'a PAS ces compétences de base pour "${project.job_title}", le score doit être très bas (0-30).`;
-    }
-
-    const prompt = `Tu es un expert en recrutement IMPITOYABLE. Analyse ce CV par rapport au poste suivant comme un vrai recruteur professionnel :
-
-**POSTE À POURVOIR:**
-- Titre: ${project.job_title || 'Non spécifié'}
-- Description: ${project.description || 'Non spécifiée'}
-- Exigences: ${project.requirements || 'Non spécifiées'}${contextPrompt}
-
-**CV DU CANDIDAT:**
-${cvText}
-
-**EXEMPLE D'ANALYSE STRICTE:**
-Pour un poste Product Designer UX/UI, un candidat peintre/plaquiste aura :
-- Score: 15/100 (totalement inadapté)
-- Points forts: Polyglotte, adaptabilité, ouverture apprentissage
-- Manques CRITIQUES: Aucune formation design, pas de portfolio, aucune maîtrise Figma/Sketch/Adobe, pas de méthodes UX, expérience éloignée du numérique
-- Recommandation: Non recommandé - Formation complète nécessaire avant candidature
-
-**INSTRUCTIONS IMPITOYABLES:**
-1. Sois BRUTALEMENT HONNÊTE - un recruteur rejetterait-il ce profil ?
-2. Score basé sur l'ADÉQUATION RÉELLE métier/expérience/compétences
-3. Points forts = SEULEMENT ce qui est utile pour CE poste précis
-4. Manques = tout ce qui est INDISPENSABLE et absent
-5. Pas de politiquement correct - dis la vérité
-
-**BARÈME STRICT:**
-- 0-15: Métier complètement différent (rejet immédiat)
-- 16-30: Domaine éloigné, formation majeure requise
-- 31-50: Profil junior/en transition, gros manques
-- 51-70: Profil correct mais manques importants
-- 71-85: Bon profil, quelques manques mineurs
-- 86-100: Profil parfait/sur-qualifié
-
-Réponds en JSON:
-{
-  "score": number,
-  "strengths": ["forces RÉELLEMENT utiles pour ce poste spécifique"],
-  "weaknesses": ["manques CRITIQUES qui empêchent l'embauche"],
-  "recommendation": "Recommandé|À considérer|Non recommandé",
-  "summary": "Analyse BRUTALEMENT honnête d'un vrai recruteur"
-}`;
-
-    console.log(`\n========== ENVOI VERS OPENAI ==========`);
-    console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidateId})`);
-    console.log(`CV Text Length: ${cvText.length} characters`);
-    console.log(`Model: ${process.env.CM_OPENAI_MODEL || 'gpt-4o'}`);
-    console.log(`Temperature: ${parseFloat(process.env.CM_TEMPERATURE || '0.7')}`);
-
-    // Call OpenAI GPT-4
-    const completion = await openai.chat.completions.create({
-      model: process.env.CM_OPENAI_MODEL || 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'Tu es un expert en recrutement. Réponds uniquement en JSON valide.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: parseFloat(process.env.CM_TEMPERATURE || '0.7'),
-      max_tokens: 1500,
+    const jobSpec = generateJobSpec({
+      job_title: project.job_title,
+      description: project.description,
+      requirements: project.requirements,
+      job_spec_config: project.job_spec_config,
     });
 
-    const analysisText = completion.choices[0].message.content;
-    console.log(`\n========== RÉPONSE OPENAI ==========`);
-    console.log(`Candidate: ${candidate.first_name} ${candidate.last_name} (${candidateId})`);
-    console.log(`Response:`, analysisText);
-    console.log(`=====================================\n`);
+    console.log(`[CV Analysis] Job Title: ${jobSpec.title}`);
+    console.log(`[CV Analysis] Must-have rules: ${jobSpec.must_have.length}`);
+    console.log(`[CV Analysis] Using mode: BALANCED (multi-provider)`);
 
-    // Parse JSON response (handle ```json wrapper)
-    let analysis;
+    // Analyze with multi-provider system
+    let result;
     try {
-      // Remove ```json wrapper if present
-      const cleanJson = analysisText?.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim() || '{}';
-      analysis = JSON.parse(cleanJson);
-    } catch (parseError) {
-      console.error('Erreur parsing JSON:', parseError);
-      console.log('Texte reçu:', analysisText);
-      // Fallback analysis
-      analysis = {
-        score: 75,
-        strengths: ["Profil intéressant", "Expérience pertinente"],
-        weaknesses: ["Manque d'informations détaillées"],
-        recommendation: "À considérer",
-        summary: "Analyse basée sur les informations limitées disponibles."
-      };
+      result = await orchestrateAnalysis(cvText, jobSpec, {
+        mode: 'balanced', // Use BALANCED mode by default
+        enablePrefilter: true,
+        enablePacking: true,
+      });
+
+      console.log(`\n========== 🎯 ANALYSIS RESULT ==========`);
+      console.log(`Score: ${result.final_decision.overall_score_0_to_100}/100`);
+      console.log(`Recommendation: ${result.final_decision.recommendation}`);
+      console.log(`Providers used: ${result.debug.providers_used.join(', ')}`);
+      console.log(`Cost: $${result.cost.total_usd.toFixed(4)}`);
+      console.log(`Time: ${result.performance.total_execution_time_ms}ms`);
+      if (result.consensus) {
+        console.log(`Consensus: ${result.consensus.level}`);
+      }
+      console.log(`========================================\n`);
+    } catch (analysisError) {
+      console.error('❌ Multi-provider analysis failed:', analysisError);
+
+      // Update candidate with error
+      await supabaseAdmin
+        .from('candidates')
+        .update({
+          status: 'pending',
+          notes: `${candidate.notes}\n\n⚠️ ERREUR: L'analyse IA a échoué. Veuillez réessayer.`
+        })
+        .eq('id', candidateId);
+
+      return NextResponse.json(
+        {
+          error: 'Analysis failed',
+          message: analysisError instanceof Error ? analysisError.message : 'Erreur inconnue'
+        },
+        { status: 500 }
+      );
     }
+
+    // Convert multi-provider result to legacy format for frontend compatibility
+    const analysis = {
+      score: Math.round(result.final_decision.overall_score_0_to_100),
+      strengths: result.final_decision.strengths.map(s => s.point).slice(0, 5),
+      weaknesses: result.final_decision.improvements.map(i => i.suggestion).slice(0, 5),
+      recommendation:
+        result.final_decision.recommendation === 'SHORTLIST' ? 'Recommandé' :
+        result.final_decision.recommendation === 'CONSIDER' ? 'À considérer' :
+        'Non recommandé',
+      summary: `Score: ${Math.round(result.final_decision.overall_score_0_to_100)}/100. ${
+        result.final_decision.meets_all_must_have
+          ? '✅ Répond à tous les critères obligatoires.'
+          : '❌ Ne répond pas à tous les critères obligatoires.'
+      } Analysé avec ${result.debug.providers_used.length} AI provider(s).`,
+      // Add extra metadata for debugging
+      _metadata: {
+        providers_used: result.debug.providers_used,
+        mode: result.debug.mode,
+        cost_usd: result.cost.total_usd,
+        consensus_level: result.consensus?.level,
+      }
+    };
 
     // Update candidate with analysis results
     const { error: updateError } = await supabaseAdmin

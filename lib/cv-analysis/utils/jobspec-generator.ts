@@ -3,7 +3,7 @@
  */
 
 import type { JobSpec } from '../types';
-import { detectDomain } from '../config/domains';
+import { detectDomain } from '../config/thresholds';
 
 interface ProjectInfo {
   job_title: string;

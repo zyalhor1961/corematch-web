@@ -1,108 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import OpenAI from 'openai';
-import { extractTextFromPDF, cleanPDFText, parseCV } from '@/lib/utils/pdf-extractor';
-import {
-  buildEvaluatorSystemPrompt,
-  buildEvaluatorUserPrompt,
-  createDefaultJobSpec,
-  parseEvaluationResult,
-  convertToLegacyFormat,
-  type JobSpec
-} from '@/lib/cv-analysis/deterministic-evaluator';
+import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
+import { orchestrateAnalysis } from '@/lib/cv-analysis';
+import { generateJobSpec } from '@/lib/cv-analysis/utils/jobspec-generator';
+import type { JobSpec } from '@/lib/cv-analysis/types';
 import { normalizePhone, maskPII } from '@/lib/utils/data-normalization';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 /**
- * Analyse un candidat avec le système déterministe
+ * Analyse un candidat avec le système multi-provider orchestré
  */
-async function analyzeCandidateDeterministic(
+async function analyzeCandidateMultiProvider(
   candidate: any,
   cvText: string,
   jobSpec: JobSpec
 ) {
-  // Parse CV to structured JSON
-  const cvStructure = parseCV(cvText);
-
-  // Extract contact info from CV if not already in candidate record
-  const extractedEmail = cvStructure.email || candidate.email || 'INFORMATION_MANQUANTE';
-  const extractedPhone = cvStructure.phone || candidate.phone || 'INFORMATION_MANQUANTE';
-
-  const cvJson = {
-    identite: {
-      prenom: candidate.first_name || 'INFORMATION_MANQUANTE',
-      nom: candidate.last_name || '',
-      email: extractedEmail,
-      telephone: extractedPhone
-    },
-    experiences: cvStructure.experience.map((exp, index) => ({
-      index,
-      titre: exp,
-      employeur: 'INFORMATION_MANQUANTE',
-      date_debut: 'INFORMATION_MANQUANTE',
-      date_fin: 'INFORMATION_MANQUANTE',
-      missions: [exp]
-    })),
-    formations: cvStructure.education.map((edu, index) => ({
-      index,
-      intitule: edu,
-      etablissement: 'INFORMATION_MANQUANTE',
-      annee: 'INFORMATION_MANQUANTE'
-    })),
-    competences: cvStructure.skills,
-    langues: cvStructure.languages,
-    texte_brut: cvText
-  };
-
-  // Build prompts
-  const systemPrompt = buildEvaluatorSystemPrompt();
-  const userPrompt = buildEvaluatorUserPrompt(jobSpec, cvJson);
-
   // Masquer les PII dans les logs
   const maskedName = maskPII(`${candidate.first_name} ${candidate.last_name}`);
-  console.log(`[Deterministic] Analyzing ${maskedName}`);
+  console.log(`[🎯 Multi-Provider] Analyzing ${maskedName}`);
+  console.log(`[🎯 Multi-Provider] JobSpec: ${jobSpec.title}`);
+  console.log(`[🎯 Multi-Provider] Mode: BALANCED`);
 
-  // TEMPORARY FIX: Hardcode model to avoid env var issues
-  const modelToUse = 'gpt-4o';
-  console.log(`[Deterministic] Using model: ${modelToUse} (env var: ${process.env.CM_OPENAI_MODEL})`);
-
-  // Call OpenAI with deterministic settings
-  const completion = await openai.chat.completions.create({
-    model: modelToUse,
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: 'user',
-        content: userPrompt
-      }
-    ],
-    temperature: 0, // DÉTERMINISTE
-    top_p: 0.1, // DÉTERMINISTE
-    max_tokens: 2500,
-    response_format: { type: 'json_object' }
+  // Appeler le nouveau système orchestré
+  const result = await orchestrateAnalysis(cvText, jobSpec, {
+    mode: 'balanced', // Mode BALANCED par défaut pour batch
+    enablePrefilter: true,
+    enablePacking: true,
   });
 
-  const analysisText = completion.choices[0].message.content || '{}';
-  const evaluation = parseEvaluationResult(analysisText, cvJson, jobSpec); // Pass cvJson for diploma detection and jobSpec for conditional rule enforcement
-  const legacyFormat = convertToLegacyFormat(evaluation);
+  console.log(`[🎯 Multi-Provider] ✅ Analysis complete`);
+  console.log(`[🎯 Multi-Provider] Score: ${result.final_decision.overall_score_0_to_100}/100`);
+  console.log(`[🎯 Multi-Provider] Providers: ${result.debug.providers_used.join(', ')}`);
+  console.log(`[🎯 Multi-Provider] Consensus: ${result.consensus?.level || 'N/A'}`);
+  console.log(`[🎯 Multi-Provider] Months DIRECTE: ${result.final_decision.relevance_summary?.total_months_direct || 'N/A'}`);
+
+  // Extraire email/téléphone du CV JSON si disponible
+  const extractedEmail = result.cv_json?.identite?.email || candidate.email || 'INFORMATION_MANQUANTE';
+  const extractedPhone = result.cv_json?.identite?.telephone || candidate.phone || 'INFORMATION_MANQUANTE';
+
+  const evaluation = result.final_decision;
+  const SENTINEL = 'COREMATCH-V2-MULTI-PROVIDER';
 
   return {
     evaluation,
-    legacyFormat,
-    score: evaluation.overall_score_0_to_100,
+    legacyFormat: evaluation, // Le nouveau format est déjà compatible
+    score: Math.round(evaluation.overall_score_0_to_100),
     shortlist: evaluation.recommendation === 'SHORTLIST',
-    extractedEmail, // Return extracted email to save in DB
-    extractedPhone, // Return extracted phone to save in DB
-    explanation: `**ANALYSE DÉTERMINISTE**
+    extractedEmail,
+    extractedPhone,
+    explanation: `**[${SENTINEL}] ANALYSE MULTI-PROVIDER**
 
-**Score : ${evaluation.overall_score_0_to_100}/100**
+**Score : ${Math.round(evaluation.overall_score_0_to_100)}/100**
 Recommandation : ${evaluation.recommendation}
+Mode : ${result.debug.mode} | Providers : ${result.debug.providers_used.join(', ')} | Consensus : ${result.consensus?.level || 'N/A'}
 
 **Sous-scores :**
 - Expérience pertinente : ${evaluation.subscores.experience_years_relevant.toFixed(1)} ans
@@ -110,91 +59,17 @@ Recommandation : ${evaluation.recommendation}
 - Nice-to-have : ${evaluation.subscores.nice_to_have_0_to_100}%
 
 **Pertinence :**
-- ${evaluation.relevance_summary.months_direct} mois DIRECTE
-- ${evaluation.relevance_summary.months_adjacent} mois ADJACENTE
+- ${evaluation.relevance_summary?.total_months_direct || 0} mois DIRECTE
+- ${evaluation.relevance_summary?.total_months_adjacent || 0} mois ADJACENTE
 
 **Points forts :**
 ${evaluation.strengths.map(s => `• ${s.point}`).join('\n')}
 
 **Points d'amélioration :**
-${evaluation.improvements.map(i => `• ${i.point}`).join('\n')}
-${evaluation.fails.length > 0 ? `\n**⚠️ Règles non satisfaites :**\n${evaluation.fails.map(f => `• ${f.reason}`).join('\n')}` : ''}`
-  };
-}
+${evaluation.improvements.map(i => `• ${i.suggestion}`).join('\n')}
+${evaluation.fails?.length > 0 ? `\n**⚠️ Règles non satisfaites :**\n${evaluation.fails.map(f => `• ${f.reason}`).join('\n')}` : ''}
 
-/**
- * Analyse un candidat avec le système legacy
- */
-async function analyzeCandidateLegacy(
-  candidate: any,
-  cvText: string,
-  project: any
-) {
-  const prompt = `Tu es un expert en recrutement. Analyse RIGOUREUSEMENT ce CV par rapport au poste suivant.
-
-**POSTE À POURVOIR:**
-- Titre: ${project.job_title || 'Non spécifié'}
-- Description: ${project.description || 'Non spécifiée'}
-- Exigences: ${project.requirements || 'Non spécifiées'}
-
-**CV DU CANDIDAT:**
-${cvText}
-
-Réponds en JSON:
-{
-  "score": number,
-  "strengths": ["point fort 1", "point fort 2"],
-  "weaknesses": ["point faible 1", "point faible 2"],
-  "recommendation": "Recommandé|À considérer|Non recommandé",
-  "summary": "Résumé en 2-3 phrases",
-  "shortlist": boolean,
-  "shortlist_reason": "Justification"
-}`;
-
-  console.log(`[Legacy] Analyzing ${candidate.first_name} ${candidate.last_name}`);
-
-  // TEMPORARY FIX: Hardcode model to avoid env var issues
-  const modelToUse = 'gpt-4o';
-  console.log(`[Legacy] Using model: ${modelToUse} (env var: ${process.env.CM_OPENAI_MODEL})`);
-
-  const completion = await openai.chat.completions.create({
-    model: modelToUse,
-    messages: [
-      {
-        role: 'system',
-        content: 'Tu es un expert en recrutement. Réponds UNIQUEMENT en JSON valide.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: 0.3,
-    max_tokens: 2000,
-  });
-
-  const analysisText = completion.choices[0].message.content || '{}';
-  const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const analysis = JSON.parse(cleanJson);
-
-  return {
-    score: analysis.score,
-    shortlist: analysis.shortlist,
-    explanation: `**Score:** ${analysis.score}/100
-
-**Recommandation:** ${analysis.recommendation}
-
-**Points forts:**
-${analysis.strengths.map((s: string) => `• ${s}`).join('\n')}
-
-**Points à améliorer:**
-${analysis.weaknesses.map((w: string) => `• ${w}`).join('\n')}
-
-**Résumé:**
-${analysis.summary}
-
-**Shortlist:** ${analysis.shortlist ? 'OUI' : 'NON'}
-${analysis.shortlist_reason}`
+**💰 Coût : $${result.cost.total_usd.toFixed(4)} | ⏱️ Temps : ${result.performance.total_execution_time_ms}ms**`
   };
 }
 
@@ -250,18 +125,21 @@ export async function POST(
 
     const project = candidates[0].project;
 
-    // Use custom JobSpec if provided, otherwise use project's JobSpec or default
+    // Use custom JobSpec if provided, otherwise use project's JobSpec or generate from project
     const jobSpec = customJobSpec ||
                    (project.job_spec_config as JobSpec | null) ||
-                   createDefaultJobSpec(project);
+                   generateJobSpec({
+                     job_title: project.job_title,
+                     description: project.description,
+                     requirements: project.requirements,
+                     job_spec_config: project.job_spec_config,
+                   });
 
-    // ALWAYS use deterministic analysis (legacy mode deprecated)
-    const useDeterministicAnalysis = true;
-
-    console.log(`\n========== BATCH ANALYSIS ==========`);
+    console.log(`\n========== 🎯 BATCH ANALYSIS (MULTI-PROVIDER) ==========`);
     console.log(`Project: ${project.name}`);
     console.log(`Candidates: ${candidates.length}`);
-    console.log(`Mode: 🎯 DÉTERMINISTE (improved multi-provider system)`);
+    console.log(`Mode: BALANCED (multi-provider with consensus)`);
+    console.log(`JobSpec: ${jobSpec.title}`);
     if (customJobSpec) {
       console.log(`🔧 Using CUSTOM JobSpec for this analysis`);
     } else if (project.job_spec_config) {
@@ -306,10 +184,8 @@ export async function POST(
           cvText = `Nom: ${candidate.first_name} ${candidate.last_name}`;
         }
 
-        // Analyze with appropriate method
-        const analysisResult = useDeterministicAnalysis
-          ? await analyzeCandidateDeterministic(candidate, cvText, jobSpec)
-          : await analyzeCandidateLegacy(candidate, cvText, project);
+        // Analyze with multi-provider orchestrated system
+        const analysisResult = await analyzeCandidateMultiProvider(candidate, cvText, jobSpec);
 
         // Update candidate with extracted contact info
         const updateData: any = {

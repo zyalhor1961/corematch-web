@@ -222,7 +222,7 @@ export async function POST(
       analysis_date: new Date().toISOString(),
       // Relevance check
       experiences_direct: result.final_decision.relevance_summary?.by_experience?.filter(e => e.relevance === 'DIRECTE').length || 0,
-      months_direct: result.final_decision.relevance_summary?.total_months_direct || 0,
+      months_direct: result.final_decision.relevance_summary.months_direct,
     };
 
     // Convert multi-provider result to legacy format for frontend compatibility
@@ -238,7 +238,7 @@ export async function POST(
         result.final_decision.meets_all_must_have
           ? '✅ Répond à tous les critères obligatoires.'
           : '❌ Ne répond pas à tous les critères obligatoires.'
-      } Analysé avec ${result.debug.providers_used.join(', ')} (${result.debug.mode} mode). Consensus: ${result.consensus?.level || 'N/A'}. Mois DIRECTE: ${result.final_decision.relevance_summary?.total_months_direct || 'N/A'}.`,
+      } Analysé avec ${result.debug.providers_used.join(', ')} (${result.debug.mode} mode). Consensus: ${result.consensus?.level || 'N/A'}. Mois DIRECTE: ${result.final_decision.relevance_summary.months_direct}.`,
       // Full metadata for debugging
       _metadata: contextSnapshot
     };

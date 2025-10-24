@@ -17,6 +17,7 @@ export * from './config';
 
 // Utils
 export * from './utils';
+export { generateJobSpec, validateJobSpec } from './utils/jobspec-generator';
 
 // Validators
 export * from './validators';

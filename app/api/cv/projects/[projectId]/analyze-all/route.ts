@@ -31,7 +31,7 @@ async function analyzeCandidateMultiProvider(
   console.log(`[🎯 Multi-Provider] Score: ${result.final_decision.overall_score_0_to_100}/100`);
   console.log(`[🎯 Multi-Provider] Providers: ${result.debug.providers_used.join(', ')}`);
   console.log(`[🎯 Multi-Provider] Consensus: ${result.consensus?.level || 'N/A'}`);
-  console.log(`[🎯 Multi-Provider] Months DIRECTE: ${result.final_decision.relevance_summary?.total_months_direct || 'N/A'}`);
+  console.log(`[🎯 Multi-Provider] Months DIRECTE: ${result.final_decision.relevance_summary.months_direct}`);
 
   // Extraire email/téléphone du CV JSON si disponible
   const extractedEmail = result.cv_json?.identite?.email || candidate.email || 'INFORMATION_MANQUANTE';
@@ -59,8 +59,8 @@ Mode : ${result.debug.mode} | Providers : ${result.debug.providers_used.join(', 
 - Nice-to-have : ${evaluation.subscores.nice_to_have_0_to_100}%
 
 **Pertinence :**
-- ${evaluation.relevance_summary?.total_months_direct || 0} mois DIRECTE
-- ${evaluation.relevance_summary?.total_months_adjacent || 0} mois ADJACENTE
+- ${evaluation.relevance_summary.months_direct} mois DIRECTE
+- ${evaluation.relevance_summary.months_adjacent} mois ADJACENTE
 
 **Points forts :**
 ${evaluation.strengths.map(s => `• ${s.point}`).join('\n')}
@@ -208,8 +208,8 @@ export async function POST(
         // Save multi-provider analysis results if available
         if (analysisResult.evaluation) {
           updateData.evaluation_result = analysisResult.evaluation;
-          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary?.total_months_direct || 0;
-          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary?.total_months_adjacent || 0;
+          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary.months_direct || 0;
+          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary.months_adjacent || 0;
         }
 
         const { error: updateError } = await supabaseAdmin

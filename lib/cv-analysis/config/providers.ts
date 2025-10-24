@@ -19,7 +19,7 @@ export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
 
   gemini: {
     name: 'gemini',
-    model: 'gemini-1.5-pro',
+    model: 'gemini-2.0-flash-exp', // Gemini 2.0 Flash (rapide et économique)
     temperature: 0,
     max_tokens: 4096,
     weight: 0.30, // 30%
@@ -27,7 +27,7 @@ export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
 
   claude: {
     name: 'claude',
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-sonnet-4-5-20250929', // Claude Sonnet 4.5 (septembre 2025)
     temperature: 0,
     max_tokens: 4096,
     weight: 0.15, // 15%

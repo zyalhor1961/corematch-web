@@ -91,7 +91,8 @@
       "Bash(npm audit:*)",
       "Bash(find:*)",
       "Bash(npm test:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

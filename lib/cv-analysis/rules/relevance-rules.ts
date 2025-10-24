@@ -19,8 +19,8 @@ import { calculateMonths } from '../utils/dates';
  * Seuils de pertinence (Jaccard similarity)
  */
 const RELEVANCE_THRESHOLDS = {
-  direct: 0.3, // ≥30% similarité = DIRECTE
-  adjacent: 0.15, // ≥15% = ADJACENTE
+  direct: 0.2, // ≥20% similarité = DIRECTE (baissé de 30% pour mieux détecter variantes)
+  adjacent: 0.1, // ≥10% = ADJACENTE (baissé de 15%)
   peripheral: 0.05, // ≥5% = PÉRIPHÉRIQUE
   // < 5% = NON_PERTINENTE
 } as const;

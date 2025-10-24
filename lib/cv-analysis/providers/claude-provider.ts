@@ -301,10 +301,14 @@ export function createClaudeProvider(): ClaudeProvider {
     throw new Error('[Claude] ANTHROPIC_API_KEY environment variable is required');
   }
 
+  // Import config to get the correct model name
+  const { PROVIDER_CONFIGS } = require('../config/providers');
+  const config = PROVIDER_CONFIGS.claude;
+
   return new ClaudeProvider({
     apiKey,
-    model: 'claude-3-5-sonnet-20241022',
-    temperature: 0,
-    maxTokens: 4096,
+    model: config.model, // Use model from config
+    temperature: config.temperature,
+    maxTokens: config.max_tokens,
   });
 }

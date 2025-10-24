@@ -205,11 +205,11 @@ export async function POST(
           updateData.phone = normalizePhone(analysisResult.extractedPhone);
         }
 
-        // Save deterministic analysis results if available
+        // Save multi-provider analysis results if available
         if (analysisResult.evaluation) {
           updateData.evaluation_result = analysisResult.evaluation;
-          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary.months_direct || 0;
-          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary.months_adjacent || 0;
+          updateData.relevance_months_direct = analysisResult.evaluation.relevance_summary?.total_months_direct || 0;
+          updateData.relevance_months_adjacent = analysisResult.evaluation.relevance_summary?.total_months_adjacent || 0;
         }
 
         const { error: updateError } = await supabaseAdmin
@@ -261,7 +261,7 @@ export async function POST(
         failed,
         results,
         shortlisted: results.filter(r => r.shortlist).length,
-        mode: useDeterministicAnalysis ? 'deterministic' : 'legacy'
+        mode: 'multi-provider-balanced'
       }
     });
 

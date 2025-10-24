@@ -298,10 +298,14 @@ export function createGeminiProvider(): GeminiProvider {
     throw new Error('[Gemini] GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY environment variable is required');
   }
 
+  // Import config to get the correct model name
+  const { PROVIDER_CONFIGS } = require('../config/providers');
+  const config = PROVIDER_CONFIGS.gemini;
+
   return new GeminiProvider({
     apiKey,
-    model: 'gemini-1.5-pro', // Correct model name for Gemini API
-    temperature: 0,
-    maxTokens: 8192,
+    model: config.model, // Use model from config
+    temperature: config.temperature,
+    maxTokens: config.max_tokens,
   });
 }

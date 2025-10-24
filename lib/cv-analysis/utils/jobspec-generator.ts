@@ -3,7 +3,7 @@
  */
 
 import type { JobSpec } from '../types';
-import { detectDomain } from '../config/thresholds';
+import { detectDomain, getDomainConfig } from '../config/thresholds';
 
 interface ProjectInfo {
   job_title: string;
@@ -66,63 +66,53 @@ export function generateJobSpec(project: ProjectInfo): JobSpec {
   switch (domain) {
     case 'tech':
       relevance_rules = {
-        direct: ['développeur', 'dev', 'software', 'ingénieur logiciel', 'programmer'],
-        adjacent: ['analyste', 'tech lead', 'architecte', 'devops'],
+        direct: ['développeur', 'dev', 'software', 'ingénieur logiciel', 'programmer', 'développeuse'],
+        adjacent: ['analyste', 'tech lead', 'architecte', 'devops', 'ingénieur'],
         peripheral: ['IT', 'informatique', 'support technique'],
       };
       break;
-    case 'enseignement':
+    case 'teaching': // ⚠️ teaching, pas 'enseignement'
       relevance_rules = {
-        direct: ['professeur', 'enseignant', 'formateur', 'instructeur'],
-        adjacent: ['tuteur', 'éducateur', 'animateur pédagogique'],
-        peripheral: ['assistant pédagogique', 'surveillant'],
+        direct: ['professeur', 'enseignant', 'formateur', 'instructeur', 'fle', 'prof'],
+        adjacent: ['tuteur', 'éducateur', 'animateur pédagogique', 'intervenant'],
+        peripheral: ['assistant pédagogique', 'surveillant', 'assistant'],
       };
       break;
-    case 'btp':
+    case 'construction': // ⚠️ construction, pas 'btp'
       relevance_rules = {
-        direct: ['peintre', 'maçon', 'électricien', 'plombier', 'charpentier'],
-        adjacent: ['chef de chantier', 'conducteur de travaux'],
-        peripheral: ['ouvrier', 'manœuvre'],
+        direct: ['peintre', 'maçon', 'électricien', 'plombier', 'charpentier', 'btp', 'artisan'],
+        adjacent: ['chef de chantier', 'conducteur de travaux', 'ouvrier qualifié'],
+        peripheral: ['ouvrier', 'manœuvre', 'aide'],
       };
       break;
     case 'management':
       relevance_rules = {
-        direct: ['manager', 'directeur', 'chef', 'responsable'],
-        adjacent: ['coordinateur', 'superviseur', 'team lead'],
-        peripheral: ['assistant', 'adjoint'],
+        direct: ['manager', 'directeur', 'chef', 'responsable', 'directrice'],
+        adjacent: ['coordinateur', 'superviseur', 'team lead', 'adjoint'],
+        peripheral: ['assistant', 'chargé'],
       };
       break;
-    case 'sante':
+    case 'healthcare': // ⚠️ healthcare, pas 'sante'
       relevance_rules = {
-        direct: ['infirmier', 'médecin', 'aide-soignant', 'kinésithérapeute'],
+        direct: ['infirmier', 'médecin', 'aide-soignant', 'kinésithérapeute', 'infirmière'],
         adjacent: ['assistant médical', 'préparateur', 'auxiliaire'],
         peripheral: ['secrétaire médical', 'agent hospitalier'],
       };
       break;
     default:
       // Générique basé sur le titre du poste
-      const titleWords = title.toLowerCase().split(/\s+/);
+      const titleWords = title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
       relevance_rules = {
         direct: titleWords,
-        adjacent: [...titleWords, 'assistant', 'junior', 'senior'],
-        peripheral: ['expérience professionnelle', 'polyvalent'],
+        adjacent: [...titleWords, 'assistant', 'assistante', 'junior', 'senior'],
+        peripheral: ['expérience professionnelle', 'polyvalent', 'généraliste'],
       };
   }
 
-  // Poids par défaut (selon le domaine)
-  const weights = {
-    w_exp: domain === 'tech' ? 0.35 : 0.40,
-    w_skills: domain === 'tech' ? 0.45 : 0.35,
-    w_nice: 0.20,
-    p_adjacent: 0.6,
-  };
-
-  // Seuils par défaut
-  const thresholds = {
-    years_full_score: domain === 'tech' ? 5 : 3,
-    shortlist_min: 75,
-    consider_min: 60,
-  };
+  // Utiliser la configuration du domaine (depuis config/thresholds.ts)
+  const domainConfig = getDomainConfig(domain);
+  const weights = domainConfig.weights;
+  const thresholds = domainConfig.thresholds;
 
   return {
     title,

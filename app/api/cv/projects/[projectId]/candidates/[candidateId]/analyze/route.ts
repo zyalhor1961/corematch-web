@@ -203,6 +203,28 @@ export async function POST(
       );
     }
 
+    // 🎯 SENTINEL: Marker to confirm new multi-provider system is running
+    const SENTINEL = 'COREMATCH-V2-MULTI-PROVIDER';
+
+    // Context Snapshot for debugging
+    const contextSnapshot = {
+      engine: SENTINEL,
+      project_id: projectId,
+      candidate_id: candidateId,
+      job_title: jobSpec.title,
+      must_have_count: jobSpec.must_have.length,
+      skills_count: jobSpec.skills_required.length,
+      providers_called: result.debug.providers_used,
+      mode: result.debug.mode,
+      consensus_level: result.consensus?.level || 'none',
+      cost_usd: result.cost.total_usd,
+      execution_time_ms: result.performance.total_execution_time_ms,
+      analysis_date: new Date().toISOString(),
+      // Relevance check
+      experiences_direct: result.final_decision.relevance_summary?.by_experience?.filter(e => e.relevance === 'DIRECTE').length || 0,
+      months_direct: result.final_decision.relevance_summary?.total_months_direct || 0,
+    };
+
     // Convert multi-provider result to legacy format for frontend compatibility
     const analysis = {
       score: Math.round(result.final_decision.overall_score_0_to_100),
@@ -212,18 +234,13 @@ export async function POST(
         result.final_decision.recommendation === 'SHORTLIST' ? 'Recommandé' :
         result.final_decision.recommendation === 'CONSIDER' ? 'À considérer' :
         'Non recommandé',
-      summary: `Score: ${Math.round(result.final_decision.overall_score_0_to_100)}/100. ${
+      summary: `[${SENTINEL}] Score: ${Math.round(result.final_decision.overall_score_0_to_100)}/100. ${
         result.final_decision.meets_all_must_have
           ? '✅ Répond à tous les critères obligatoires.'
           : '❌ Ne répond pas à tous les critères obligatoires.'
-      } Analysé avec ${result.debug.providers_used.length} AI provider(s).`,
-      // Add extra metadata for debugging
-      _metadata: {
-        providers_used: result.debug.providers_used,
-        mode: result.debug.mode,
-        cost_usd: result.cost.total_usd,
-        consensus_level: result.consensus?.level,
-      }
+      } Analysé avec ${result.debug.providers_used.join(', ')} (${result.debug.mode} mode). Consensus: ${result.consensus?.level || 'N/A'}. Mois DIRECTE: ${result.final_decision.relevance_summary?.total_months_direct || 'N/A'}.`,
+      // Full metadata for debugging
+      _metadata: contextSnapshot
     };
 
     // Update candidate with analysis results
@@ -250,7 +267,20 @@ export async function POST(
         score: analysis.score,
         recommendation: analysis.recommendation,
         analysis: analysis,
-        message: 'Analyse terminée avec succès'
+        message: 'Analyse terminée avec succès',
+        // 🎯 Context Snapshot (visible in browser console)
+        contextSnapshot: contextSnapshot,
+        // Full result for debugging
+        _debug: {
+          jobSpec: {
+            title: jobSpec.title,
+            must_have: jobSpec.must_have,
+            relevance_rules: jobSpec.relevance_rules,
+          },
+          final_decision: result.final_decision,
+          performance: result.performance,
+          cost: result.cost,
+        }
       }
     });
 

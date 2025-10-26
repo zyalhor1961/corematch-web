@@ -3,12 +3,7 @@
 /* Tailwind v4 dark mode variant configuration */
 @variant dark (&:where(.dark, .dark *));
 
-/*
-COMMENTED OUT - These CSS variables were causing conflicts with Tailwind dark mode
-The theme is now fully managed by Tailwind classes and inline styles
-*/
-
-/*
+/* CSS variables for theme system */
 :root {
   --background: #f7f8fb;
   --foreground: #0f172a;
@@ -44,29 +39,8 @@ The theme is now fully managed by Tailwind classes and inline styles
   --warning: #fbbf24;
   --destructive: #f87171;
 }
-*/
 
-/* Simplified CSS variables for components that still need them */
-:root {
-  --brand: #1f3a8a;
-  --brand-foreground: #ffffff;
-  --accent: #d4af37;
-  --ring: #1f3a8a;
-  --success: #16a34a;
-  --warning: #f59e0b;
-  --destructive: #ef4444;
-}
-
-.dark {
-  --brand: #3a5bdc;
-  --ring: #3a5bdc;
-  --success: #22c55e;
-  --warning: #fbbf24;
-  --destructive: #f87171;
-}
-
-/* Temporarily commented to prevent conflicts with Tailwind dark mode classes */
-/*
+/* Expose CSS variables to Tailwind */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -84,13 +58,6 @@ The theme is now fully managed by Tailwind classes and inline styles
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-*/
-
-@theme inline {
-  /* Keep only fonts to avoid color conflicts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

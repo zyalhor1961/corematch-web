@@ -68,7 +68,7 @@ export interface ExtractedField {
   value: any;
   confidence: number;
   type: string;
-  boundingBox?: number[];
+  boundingBox?: any; // Azure Point2D[] - array of {x, y} points
   pageNumber?: number; // Page number where this field appears (1-indexed)
 }
 
@@ -96,13 +96,13 @@ export interface AzureAnalysisResult {
   tables: ExtractedTable[];
   pages: {
     pageNumber: number;
-    width: number;
-    height: number;
-    angle: number;
-    unit: string;
+    width: number | undefined;
+    height: number | undefined;
+    angle: number | undefined;
+    unit: string | undefined;
     lines: {
       content: string;
-      boundingBox: number[];
+      boundingBox: any; // Point2D[] from Azure
       confidence: number;
     }[];
   }[];
@@ -157,7 +157,7 @@ export async function analyzeDocument(
               value: field.value,
               confidence: field.confidence || 0,
               type: field.kind || 'string',
-              boundingBox: boundingRegion?.polygon || [],
+              boundingBox: boundingRegion?.polygon,
               pageNumber: boundingRegion?.pageNumber || 1
             });
 
@@ -194,7 +194,7 @@ export async function analyzeDocument(
                       value: v,
                       confidence: (item?.confidence ?? (field as any).confidence ?? 0) as number,
                       type: typeof v === 'number' ? 'number' : 'string',
-                      boundingBox: [],
+                      boundingBox: boundingRegion?.polygon,
                       pageNumber: boundingRegion?.pageNumber || 1
                     });
                   };
@@ -228,7 +228,7 @@ export async function analyzeDocument(
             value: pair.value.content || '',
             confidence: pair.confidence || 0,
             type: 'string',
-            boundingBox: boundingRegion?.polygon || [],
+            boundingBox: boundingRegion?.polygon,
             pageNumber: boundingRegion?.pageNumber || 1
           });
         }
@@ -256,9 +256,9 @@ export async function analyzeDocument(
             fields.push({
               name: `Table ${tableIndex + 1} [R${cell.rowIndex + 1}C${cell.columnIndex + 1}]`,
               value: cell.content,
-              confidence: cell.confidence || 0,
+              confidence: 0.9, // Table cells don't have confidence in SDK
               type: 'string',
-              boundingBox: boundingRegion?.polygon || [],
+              boundingBox: boundingRegion?.polygon,
               pageNumber: boundingRegion?.pageNumber || 1
             });
           }
@@ -352,7 +352,7 @@ export async function analyzeDocumentFromBuffer(
               value: field.value,
               confidence: field.confidence || 0,
               type: field.kind || 'string',
-              boundingBox: boundingRegion?.polygon || [],
+              boundingBox: boundingRegion?.polygon,
               pageNumber: boundingRegion?.pageNumber || 1
             });
 
@@ -389,7 +389,7 @@ export async function analyzeDocumentFromBuffer(
                       value: v,
                       confidence: (item?.confidence ?? (field as any).confidence ?? 0) as number,
                       type: typeof v === 'number' ? 'number' : 'string',
-                      boundingBox: [],
+                      boundingBox: boundingRegion?.polygon,
                       pageNumber: boundingRegion?.pageNumber || 1
                     });
                   };
@@ -423,7 +423,7 @@ export async function analyzeDocumentFromBuffer(
             value: pair.value.content || '',
             confidence: pair.confidence || 0,
             type: 'string',
-            boundingBox: boundingRegion?.polygon || [],
+            boundingBox: boundingRegion?.polygon,
             pageNumber: boundingRegion?.pageNumber || 1
           });
         }
@@ -451,9 +451,9 @@ export async function analyzeDocumentFromBuffer(
             fields.push({
               name: `Table ${tableIndex + 1} [R${cell.rowIndex + 1}C${cell.columnIndex + 1}]`,
               value: cell.content,
-              confidence: cell.confidence || 0,
+              confidence: 0.9, // Table cells don't have confidence in SDK
               type: 'string',
-              boundingBox: boundingRegion?.polygon || [],
+              boundingBox: boundingRegion?.polygon,
               pageNumber: boundingRegion?.pageNumber || 1
             });
           }

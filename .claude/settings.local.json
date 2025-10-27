@@ -92,7 +92,12 @@
       "Bash(find:*)",
       "Bash(npm test:*)",
       "Bash(npx supabase:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir:*)",
+      "Read(//f/**)",
+      "Bash(npx next build:*)"
     ],
     "deny": [],
     "ask": []

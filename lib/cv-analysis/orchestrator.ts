@@ -19,6 +19,9 @@ import type {
   UncertaintyTriggers,
   EvaluationResult,
   ProviderResult,
+  ConsensusMetrics,
+  ArbiterOutput,
+  ModelDisagreement,
 } from './types';
 
 import { initValidators, validateCVData } from './validators';
@@ -33,15 +36,22 @@ import { createClaudeProvider } from './providers/claude-provider';
 import { aggregateProviderResults } from './aggregator/multi-provider-aggregator';
 import { UNCERTAINTY_THRESHOLDS, getProvidersForMode } from './config';
 
+// ✅ NOUVEAU: Imports MCP pour cache et context snapshot
+import { generateCacheKey, getCacheStore, hashJobSpec, hashCVText, ContextSnapshotBuilder } from '@/lib/mcp';
+import type { EngineType } from '@/lib/mcp/types/context-snapshot';
+
 /**
  * Options d'orchestration
  */
 export interface OrchestrationOptions {
   mode: AnalysisMode;
+  projectId: string; // ✅ NOUVEAU: ID du projet (requis pour cache key)
   enablePrefilter?: boolean; // Défaut: true en balanced/premium
   enablePacking?: boolean; // Défaut: true
   forceSingleProvider?: boolean; // Forcer mode single provider (pour tests)
   analysisDate?: string; // Date d'analyse (défaut: aujourd'hui)
+  engine?: EngineType; // ✅ NOUVEAU: Engine utilisé (défaut: 'corematch-v2')
+  candidateId?: string; // ✅ NOUVEAU: ID du candidat (pour consent/masking DB)
 }
 
 /**
@@ -66,10 +76,38 @@ export async function orchestrateAnalysis(
   initValidators();
 
   // =========================================================================
-  // 2. Extraction du CV
+  // 2. ✅ NOUVEAU: Hasher le texte brut et vérifier Cache AVANT extraction
   // =========================================================================
 
-  console.log('📄 Step 1: CV Extraction');
+  // Hasher le texte brut pour clé de cache stable (déterministe)
+  const cvTextHash = hashCVText(cvText);
+
+  const cache = getCacheStore();
+  const cacheKey = generateCacheKey({
+    cvTextHash,
+    projectId: options.projectId,
+    jobSpec,
+    mode: options.mode,
+  });
+
+  console.log(`📦 Cache key: ${cacheKey.substring(0, 60)}...`);
+
+  const cachedResult = await cache.get(cacheKey);
+  if (cachedResult) {
+    const cacheAge = Date.now() - new Date(cachedResult.context_snapshot.analysis_started_at).getTime();
+    console.log(`✅ CACHE HIT! (age: ${Math.round(cacheAge / 1000)}s)`);
+    console.log(`   Returning cached result from ${cachedResult.context_snapshot.engine}`);
+    console.log(`   Original cost: $${cachedResult.cost.total_usd.toFixed(4)}\n`);
+    return cachedResult;
+  }
+
+  console.log(`❌ Cache MISS - Proceeding with full analysis\n`);
+
+  // =========================================================================
+  // 3. Extraction du CV
+  // =========================================================================
+
+  console.log('📄 Step 2: CV Extraction');
   const extractionStart = Date.now();
 
   const provider = createOpenAIProvider();
@@ -85,7 +123,7 @@ export async function orchestrateAnalysis(
   console.log(`✅ CV extracted and validated in ${extractionTime}ms\n`);
 
   // =========================================================================
-  // 3. Pré-filtre Stage 0 (optionnel)
+  // 4. Pré-filtre Stage 0 (optionnel)
   // =========================================================================
 
   let prefilterTime = 0;
@@ -258,7 +296,7 @@ export async function orchestrateAnalysis(
     aggregationMethod = 'weighted_average';
 
     // Si consensus faible, appeler l'arbitre
-    if (consensus.level === 'weak' || (options.mode === 'premium' && consensus.level === 'moderate')) {
+    if (consensus.level === 'weak' || (options.mode === 'premium' && consensus.level === 'medium')) {
       console.log(`🤖 Step 8: Calling Arbiter (consensus ${consensus.level})`);
 
       try {
@@ -267,9 +305,11 @@ export async function orchestrateAnalysis(
         const arbiterResult = await arbiterProvider.arbitrate!(providersRaw as any, jobSpec);
 
         arbiter = {
-          verdict: arbiterResult,
-          justification: 'Arbitrage réalisé par OpenAI gpt-4o en raison d\'un consensus faible/modéré',
-          overridden_fields: [],
+          final_decision: arbiterResult,
+          justification: 'Arbitrage réalisé par OpenAI gpt-4o en raison d\'un consensus faible/medium',
+          arbitrage_summary: 'Arbiter called due to weak/medium consensus',
+          resolved_disagreements: [],
+          execution_time_ms: 0, // TODO: Track actual execution time
         };
 
         finalDecision = arbiterResult;
@@ -311,6 +351,87 @@ export async function orchestrateAnalysis(
     claude: providersRaw.claude ? 0.018 : 0, // Estimation
   };
 
+  // =========================================================================
+  // 8.5. ✅ NOUVEAU: Construire Context Snapshot
+  // =========================================================================
+
+  const contextBuilder = new ContextSnapshotBuilder(options.engine);
+
+  // Set job context
+  contextBuilder.setJobContext(
+    options.projectId,
+    jobSpec.title,
+    hashJobSpec(jobSpec)
+  );
+
+  // Set mode
+  contextBuilder.setMode(
+    options.mode,
+    options.enablePrefilter !== false,
+    options.enablePacking !== false
+  );
+
+  // Add provider calls
+  if (providersRaw.openai) {
+    contextBuilder.addProviderCall({
+      name: 'openai',
+      model: 'gpt-4o',
+      called_at: new Date(startTime).toISOString(),
+      duration_ms: evaluationTime,
+      cost_usd: mainResult.cost_usd || 0,
+      status: 'success',
+    });
+  }
+
+  if (providersRaw.gemini) {
+    contextBuilder.addProviderCall({
+      name: 'gemini',
+      model: 'gemini-2.0-flash-exp',
+      called_at: new Date(startTime + evaluationTime).toISOString(),
+      duration_ms: 5000, // Estimation
+      cost_usd: 0.015,
+      status: 'success',
+    });
+  }
+
+  if (providersRaw.claude) {
+    contextBuilder.addProviderCall({
+      name: 'claude',
+      model: 'claude-sonnet-4-5-20250929',
+      called_at: new Date(startTime + evaluationTime).toISOString(),
+      duration_ms: 5000, // Estimation
+      cost_usd: 0.018,
+      status: 'success',
+    });
+  }
+
+  // Set consensus
+  contextBuilder.setConsensus(
+    consensus.level,
+    arbiter !== undefined,
+    arbiter ? `Arbitrage: ${consensus.level} consensus` : undefined
+  );
+
+  // Set disagreements
+  contextBuilder.setDisagreements(disagreements);
+
+  // Set cost & duration
+  contextBuilder.setCost(totalCost);
+  contextBuilder.setDuration(totalTime, extractionTime, evaluationTime);
+
+  // Set compliance
+  if (options.candidateId) {
+    // Si candidateId fourni, vérifier consent et masking depuis DB
+    await contextBuilder.setConsentFromDB(options.candidateId);
+    await contextBuilder.setMaskingLevelFromDB(options.projectId);
+  } else {
+    // Sinon, pas de masking (usage interne direct)
+    contextBuilder.setCompliance('none', false);
+  }
+
+  // Build snapshot
+  const contextSnapshot = contextBuilder.complete();
+
   const finalResult: AggregatedResult = {
     final_decision: finalDecision,
     providers_raw: providersRaw as any,
@@ -320,7 +441,7 @@ export async function orchestrateAnalysis(
       mode: options.mode,
       providers_used: providersUsed as any,
       aggregation_method: aggregationMethod,
-      model_disagreements: disagreements,
+      model_disagreements: disagreements as any, // TODO: Convert string[] to ModelDisagreement[]
       early_exit: earlyExit,
       reasons_for_multi_provider: needsMore.needs_more
         ? Object.entries(needsMore.triggers)
@@ -342,6 +463,8 @@ export async function orchestrateAnalysis(
         evaluation: totalCost - 0.002,
       },
     },
+    // ✅ NOUVEAU: Context snapshot pour traçabilité
+    context_snapshot: contextSnapshot,
   };
 
   console.log('════════════════════════════════════════════════');
@@ -351,6 +474,13 @@ export async function orchestrateAnalysis(
   console.log(`   Recommendation: ${finalResult.final_decision.recommendation}`);
   console.log(`   Score: ${finalResult.final_decision.overall_score_0_to_100.toFixed(1)}/100`);
   console.log('════════════════════════════════════════════════\n');
+
+  // =========================================================================
+  // 10. ✅ NOUVEAU: Stocker dans Cache
+  // =========================================================================
+
+  await cache.set(cacheKey, finalResult, 3600); // TTL: 1 heure
+  console.log(`💾 Result cached for 1 hour (key: ${cacheKey.substring(0, 40)}...)\n`);
 
   return finalResult;
 }

@@ -10,7 +10,6 @@ SELECT
   o.name AS org_name,
   o.plan,
   o.status,
-  o.trial_end_date,
   o.created_at,
   om.role AS user_role,
   om.role, -- Keep both user_role and role for compatibility

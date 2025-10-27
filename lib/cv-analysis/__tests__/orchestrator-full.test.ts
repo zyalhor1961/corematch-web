@@ -202,6 +202,7 @@ Blog Tech
 
   const resultEco = await orchestrateAnalysis(cvText, jobSpec, {
     mode: 'eco',
+    projectId: 'test-project-eco',
     enablePrefilter: false,
     enablePacking: true,
     analysisDate: '2025-01-24',
@@ -271,6 +272,7 @@ Blog Tech
 
   const resultBalanced = await orchestrateAnalysis(cvText, jobSpec, {
     mode: 'balanced',
+    projectId: 'test-project-balanced',
     enablePrefilter: true,
     enablePacking: true,
     analysisDate: '2025-01-24',
@@ -364,7 +366,7 @@ Blog Tech
       test: 'Consensus défini',
       pass:
         resultEco.consensus.level === 'strong' ||
-        resultEco.consensus.level === 'moderate' ||
+        resultEco.consensus.level === 'medium' ||
         resultEco.consensus.level === 'weak',
     },
     {

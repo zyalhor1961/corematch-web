@@ -4,6 +4,7 @@
  */
 
 import type { EvaluationResult } from './evaluation.types';
+import type { ContextSnapshot } from '@/lib/mcp/types/context-snapshot';
 
 // ============================================================================
 // Modes d'analyse
@@ -194,6 +195,9 @@ export interface AggregatedResult {
       arbiter?: number;
     };
   };
+
+  // ✅ NOUVEAU: Context snapshot pour traçabilité et audit MCP
+  context_snapshot: ContextSnapshot;
 }
 
 // ============================================================================

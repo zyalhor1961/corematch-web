@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/server';
 
 import { withOrgAccessFromBody } from '@/lib/api/auth-middleware';
 import { z } from 'zod';
@@ -20,9 +20,9 @@ export const POST = withOrgAccessFromBody(async (request, session, orgId, member
     console.log(`[create-project] User ${session.user.id} creating project in org ${orgId}`);
 
     // Utiliser client avec RLS
-    const supabase = await createSupabaseServerClient();
+    // Use admin client to bypass RLS for creation operations
 
-    const { data: project, error } = await supabase
+    const { data: project, error } = await supabaseAdmin
       .from('projects')
       .insert({
         org_id: orgId,

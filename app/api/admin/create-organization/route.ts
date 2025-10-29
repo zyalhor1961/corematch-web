@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-
+import { supabaseAdmin } from '@/lib/supabase/server';
 import { withAuth } from '@/lib/api/auth-middleware';
 
 export const POST = withAuth(async (request, session) => {
@@ -19,11 +18,8 @@ export const POST = withAuth(async (request, session) => {
 
     console.log(`[create-organization] User ${admin_user_id} creating organization:`, { name, plan, status });
 
-    // Utiliser client avec RLS
-    const supabase = await createSupabaseServerClient();
-
-    // Create organization
-    const { data: organization, error: orgError } = await supabase
+    // Create organization (using admin client to bypass RLS)
+    const { data: organization, error: orgError } = await supabaseAdmin
       .from('organizations')
       .insert({
         name,
@@ -45,7 +41,7 @@ export const POST = withAuth(async (request, session) => {
 
     // Add user to organization_members table as owner
     try {
-      const { error: memberError } = await supabase
+      const { error: memberError } = await supabaseAdmin
         .from('organization_members')
         .insert({
           org_id: organization.id,

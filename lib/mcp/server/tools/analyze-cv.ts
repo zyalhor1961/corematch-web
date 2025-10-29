@@ -6,11 +6,27 @@
 
 import { verifyMCPProjectAccess, verifyMCPScope, type MCPAuthUser } from '../../../auth/mcp-auth';
 import { validateAnalysisRequest } from '../../security/pii-masking';
+import { maskPII } from '../../../utils/data-normalization';
 import { supabaseAdmin } from '../../../supabase/admin';
 import { orchestrateAnalysis } from '../../../cv-analysis/orchestrator';
 import type { AnalysisMode, JobSpec } from '../../../cv-analysis/types';
 import { isMockMode, getMockAnalysisResult } from './mock-data';
 import { loadCandidateCV } from '../utils/cv-parser';
+
+// ⚠️ SÉCURITÉ: supabaseAdmin utilisé avec défense en profondeur
+//
+// Ce tool utilise supabaseAdmin (bypass RLS) car le serveur MCP n'a pas de session Supabase.
+// Pour compenser, nous appliquons une défense en profondeur:
+//
+// 1. verifyMCPProjectAccess() vérifie l'accès au projet (auth manuelle)
+// 2. Toutes les queries filtrent par org_id (expectedOrgId = authUser.org_id)
+// 3. Toutes les réponses sont vérifiées pour matcher expectedOrgId
+// 4. Les updates incluent .eq('org_id', expectedOrgId) pour empêcher modifications cross-org
+//
+// ✅ Cette approche protège contre les bugs dans verifyMCPProjectAccess
+// ✅ Même si l'auth manuelle échoue, les queries sont limitées à l'org de l'user
+//
+// TODO futur: Migrer vers JWT Supabase avec service account RLS-enabled
 
 /**
  * Arguments du tool analyze_cv
@@ -122,6 +138,10 @@ export async function analyzeCV(
 
   console.error(`✅ Auth verified: ${authUser.type}:${authUser.id}`);
 
+  // Store expected org_id for defense-in-depth verification
+  const expectedOrgId = authUser.org_id;
+  console.error(`🔐 Expected org_id: ${expectedOrgId}`);
+
   // =========================================================================
   // 4. Validation RGPD (mode production)
   // =========================================================================
@@ -142,42 +162,55 @@ export async function analyzeCV(
 
   console.error('📄 Fetching candidate and project data...');
 
-  // Récupérer candidat
+  // Récupérer candidat avec vérification org_id (defense-in-depth)
   const { data: candidate, error: candidateError } = await supabaseAdmin
     .from('candidates')
-    .select('id, first_name, last_name, cv_url, cv_filename')
+    .select('id, first_name, last_name, cv_url, cv_filename, org_id')
     .eq('id', args.candidateId)
+    .eq('org_id', expectedOrgId) // ✅ Filter by org_id
     .single();
 
   if (candidateError || !candidate) {
     console.error('[analyze_cv] Candidate query error:', candidateError);
-    throw new Error(`CANDIDATE_NOT_FOUND: Candidate ${args.candidateId} not found`);
+    throw new Error(`CANDIDATE_NOT_FOUND: Candidate ${args.candidateId} not found or access denied`);
+  }
+
+  // ✅ Defense-in-depth: Verify org_id matches
+  if (candidate.org_id !== expectedOrgId) {
+    console.error(`[analyze_cv] SECURITY: Candidate org_id mismatch: expected ${expectedOrgId}, got ${candidate.org_id}`);
+    throw new Error('ACCESS_DENIED: Candidate belongs to different organization');
   }
 
   if (!candidate.cv_url) {
     throw new Error('CV_MISSING: Candidate has no CV uploaded');
   }
 
-  console.error(`✅ Candidate: ${candidate.first_name} ${candidate.last_name}`);
+  console.error(`✅ Candidate: ${maskPII(candidate.first_name)} ${maskPII(candidate.last_name)}`);
 
-  // Récupérer projet et JobSpec
+  // Récupérer projet et JobSpec avec vérification org_id (defense-in-depth)
   const { data: project, error: projectError } = await supabaseAdmin
     .from('projects')
-    .select('id, name, job_spec_config')
+    .select('id, name, job_spec_config, org_id')
     .eq('id', args.projectId)
+    .eq('org_id', expectedOrgId) // ✅ Filter by org_id
     .single();
 
   if (projectError || !project) {
     console.error('[analyze_cv] Project query error:', projectError);
-    throw new Error(`PROJECT_NOT_FOUND: Project ${args.projectId} not found`);
+    throw new Error(`PROJECT_NOT_FOUND: Project ${args.projectId} not found or access denied`);
+  }
+
+  // ✅ Defense-in-depth: Verify org_id matches
+  if (project.org_id !== expectedOrgId) {
+    console.error(`[analyze_cv] SECURITY: Project org_id mismatch: expected ${expectedOrgId}, got ${project.org_id}`);
+    throw new Error('ACCESS_DENIED: Project belongs to different organization');
   }
 
   if (!project.job_spec_config) {
     throw new Error('JOB_SPEC_MISSING: Project has no job specification');
   }
 
-  console.error(`✅ Candidate: ${candidate.first_name} ${candidate.last_name}`);
-  console.error(`✅ Project: ${project.name}`);
+  console.error(`✅ Project: ${maskPII(project.name)}`);
 
   // =========================================================================
   // 4. Parser le CV et préparer les données
@@ -227,7 +260,7 @@ export async function analyzeCV(
 
   console.error('\n💾 Saving analysis result...');
 
-  // Mettre à jour le candidat avec les résultats d'analyse
+  // Mettre à jour le candidat avec les résultats d'analyse (avec vérification org_id)
   const { error: updateError } = await supabaseAdmin
     .from('candidates')
     .update({
@@ -238,7 +271,8 @@ export async function analyzeCV(
       relevance_months_direct: result.final_decision.relevance_summary?.months_direct ?? 0,
       relevance_months_adjacent: result.final_decision.relevance_summary?.months_adjacent ?? 0,
     })
-    .eq('id', args.candidateId);
+    .eq('id', args.candidateId)
+    .eq('org_id', expectedOrgId); // ✅ Only update if org_id matches
 
   if (updateError) {
     console.error('[analyze_cv] Failed to save analysis:', updateError);
@@ -258,8 +292,8 @@ export async function analyzeCV(
   return {
     recommendation: result.final_decision.recommendation,
     score: result.final_decision.overall_score_0_to_100,
-    strengths: result.final_decision.strengths.map((s) => s.skill),
-    weaknesses: result.final_decision.fails.map((f) => f.skill),
+    strengths: result.final_decision.strengths.map((s) => s.point),
+    weaknesses: result.final_decision.fails.map((f) => `${f.rule_id}: ${f.reason}`),
     cost_usd: result.cost.total_usd,
     duration_ms: result.performance.total_execution_time_ms,
     from_cache: fromCache,

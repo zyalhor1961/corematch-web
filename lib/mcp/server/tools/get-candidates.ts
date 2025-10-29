@@ -5,8 +5,24 @@
  */
 
 import { verifyMCPProjectAccess, verifyMCPScope, type MCPAuthUser } from '../../../auth/mcp-auth';
+import { maskPII } from '../../../utils/data-normalization';
 import { supabaseAdmin } from '../../../supabase/admin';
 import { isMockMode, getMockCandidates } from './mock-data';
+
+// ⚠️ SÉCURITÉ: supabaseAdmin utilisé avec défense en profondeur
+//
+// Ce tool utilise supabaseAdmin (bypass RLS) car le serveur MCP n'a pas de session Supabase.
+// Pour compenser, nous appliquons une défense en profondeur:
+//
+// 1. verifyMCPProjectAccess() vérifie l'accès au projet (auth manuelle)
+// 2. Toutes les queries filtrent par org_id (expectedOrgId = authUser.org_id)
+// 3. Toutes les réponses sont vérifiées pour matcher expectedOrgId
+// 4. PII est masqué dans les logs
+//
+// ✅ Cette approche protège contre les bugs dans verifyMCPProjectAccess
+// ✅ Même si l'auth manuelle échoue, les queries sont limitées à l'org de l'user
+//
+// TODO futur: Migrer vers JWT Supabase avec service account RLS-enabled
 
 /**
  * Arguments du tool get_candidates
@@ -80,6 +96,10 @@ export async function getCandidates(
     }
   }
 
+  // Store expected org_id for defense-in-depth verification
+  const expectedOrgId = authUser.org_id;
+  console.error(`[get_candidates] 🔐 Expected org_id: ${expectedOrgId}`);
+
   // =========================================================================
   // 2. Mode MOCK: Retourner données de test
   // =========================================================================
@@ -117,7 +137,7 @@ export async function getCandidates(
 
   console.error(`[get_candidates] Fetching candidates for project ${args.projectId}`);
 
-  // Query candidates avec leurs résultats d'analyse
+  // Query candidates avec leurs résultats d'analyse (avec vérification org_id)
   let query = supabaseAdmin
     .from('candidates')
     .select(
@@ -130,10 +150,12 @@ export async function getCandidates(
       score,
       evaluation_result,
       status,
-      created_at
+      created_at,
+      org_id
     `
     )
     .eq('project_id', args.projectId)
+    .eq('org_id', expectedOrgId) // ✅ Filter by org_id
     .order('created_at', { ascending: false });
 
   // Filtre par statut
@@ -159,6 +181,14 @@ export async function getCandidates(
       total: 0,
       has_more: false,
     };
+  }
+
+  // ✅ Defense-in-depth: Verify all candidates belong to expectedOrgId
+  for (const candidate of candidates) {
+    if (candidate.org_id !== expectedOrgId) {
+      console.error(`[get_candidates] SECURITY: Candidate org_id mismatch: expected ${expectedOrgId}, got ${candidate.org_id}`);
+      throw new Error('ACCESS_DENIED: Candidate belongs to different organization');
+    }
   }
 
   // =========================================================================

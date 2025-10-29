@@ -7,8 +7,7 @@
  * - Permissions appropriées
  */
 
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export type AuthenticatedHandler = (
@@ -28,7 +27,7 @@ export type OrgAccessHandler = (
  */
 export function withAuth(handler: AuthenticatedHandler) {
   return async (request: NextRequest) => {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     const {
       data: { session },
@@ -65,7 +64,7 @@ export function withOrgAccess(handler: OrgAccessHandler) {
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     // Vérifier membership dans l'organisation
     const { data: membership, error } = await supabase
@@ -140,7 +139,7 @@ export function withOrgAccessFromBody(handler: OrgAccessHandler) {
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     const { data: membership, error } = await supabase
       .from('organization_members')

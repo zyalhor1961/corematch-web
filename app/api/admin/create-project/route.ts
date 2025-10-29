@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
 import { withOrgAccessFromBody } from '@/lib/api/auth-middleware';
 import { z } from 'zod';
 
@@ -20,7 +20,7 @@ export const POST = withOrgAccessFromBody(async (request, session, orgId, member
     console.log(`[create-project] User ${session.user.id} creating project in org ${orgId}`);
 
     // Utiliser client avec RLS
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     const { data: project, error } = await supabase
       .from('projects')

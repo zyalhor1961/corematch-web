@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
 import { withOrgAccess } from '@/lib/api/auth-middleware';
 
 export const GET = withOrgAccess(async (request, session, orgId, membership) => {
@@ -18,7 +18,7 @@ export const GET = withOrgAccess(async (request, session, orgId, membership) => 
     console.log(`[list-candidates] User ${session.user.id} loading candidates for project ${projectId}`);
 
     // Utiliser client avec RLS (pas supabaseAdmin!)
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     // Vérifier que le projet appartient à l'org de l'utilisateur
     const { data: project, error: projectError } = await supabase

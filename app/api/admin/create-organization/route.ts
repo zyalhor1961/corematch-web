@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
 import { withAuth } from '@/lib/api/auth-middleware';
 
 export const POST = withAuth(async (request, session) => {
@@ -20,7 +20,7 @@ export const POST = withAuth(async (request, session) => {
     console.log(`[create-organization] User ${admin_user_id} creating organization:`, { name, plan, status });
 
     // Utiliser client avec RLS
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createSupabaseServerClient();
 
     // Create organization
     const { data: organization, error: orgError } = await supabase

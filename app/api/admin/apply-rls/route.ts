@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[apply-rls] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[apply-rls] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Starting RLS enforcement...');
+    console.log('[apply-rls] Starting RLS enforcement...');
 
     const results = [];
 
@@ -27,7 +38,7 @@ export async function POST(request: NextRequest) {
     // Enable RLS on each table
     for (const table of tables) {
       try {
-        console.log(`Enabling RLS on ${table}...`);
+        console.log(`[apply-rls] Enabling RLS on ${table}...`);
 
         const { error } = await supabaseAdmin
           .from(table)
@@ -62,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Create helper functions
     try {
-      console.log('Creating RLS helper functions...');
+      console.log('[apply-rls] Creating RLS helper functions...');
 
       // Note: These functions need to be created directly in Supabase SQL editor
       // This API endpoint serves as a validation and documentation point
@@ -105,16 +116,16 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('RLS setup completed:', response);
+    console.log('[apply-rls] RLS setup completed:', response);
 
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('RLS setup failed:', error);
+    console.error('[apply-rls] RLS setup failed:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
       details: 'Failed to setup RLS'
     }, { status: 500 });
   }
-}
+});

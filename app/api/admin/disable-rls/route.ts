@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  // 🚨 DANGER: This route DISABLES Row Level Security on ALL tables
+  // ONLY allow in development environment
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[disable-rls] ⚠️ BLOCKED: Attempted RLS disable in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'RLS modification is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[disable-rls] ⚠️ DEV ONLY: User ${session.user.id} disabling RLS on all tables`);
+
   try {
-    console.log('Disabling RLS on all tables...');
+    console.log('[disable-rls] Disabling RLS on all tables...');
 
     const tables = [
       'organizations',
@@ -60,7 +73,7 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE IF EXISTS ${table} DISABLE ROW LEVEL SECURITY;`
     ).join('\n');
 
-    console.log('RLS disable results:', results);
+    console.log('[disable-rls] RLS disable results:', results);
 
     return NextResponse.json({
       success: true,
@@ -71,10 +84,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Disable RLS error:', error);
+    console.error('[disable-rls] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Failed to disable RLS', details: (error as Error).message },
       { status: 500 }
     );
   }
-}
+});

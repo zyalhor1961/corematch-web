@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[test-google-oauth] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[test-google-oauth] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Testing Google OAuth configuration...');
+    console.log('[test-google-oauth] Testing Google OAuth configuration...');
 
     const tests = [];
 
@@ -120,7 +131,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Google OAuth test failed:', error);
+    console.error('[test-google-oauth] Google OAuth test failed:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -133,4 +144,4 @@ export async function GET(request: NextRequest) {
       ]
     }, { status: 500 });
   }
-}
+});

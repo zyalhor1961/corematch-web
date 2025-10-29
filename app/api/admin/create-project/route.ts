@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { withOrgAccessFromBody } from '@/lib/api/auth-middleware';
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
@@ -8,18 +10,19 @@ const createProjectSchema = z.object({
   description: z.string().optional(),
   job_title: z.string().optional(),
   requirements: z.string().optional(),
-  created_by: z.string().uuid().optional(),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withOrgAccessFromBody(async (request, session, orgId, membership) => {
   try {
-    const body = await request.json();
-    const { orgId, name, description, job_title, requirements, created_by } = createProjectSchema.parse(body);
+    const body = (request as any).parsedBody || await request.json();
+    const { name, description, job_title, requirements } = createProjectSchema.parse(body);
 
-    console.log('Creating project (admin):', { orgId, name, created_by });
+    console.log(`[create-project] User ${session.user.id} creating project in org ${orgId}`);
 
-    // Create project using admin client (bypasses RLS and auth checks)
-    const { data: project, error } = await supabaseAdmin
+    // Utiliser client avec RLS
+    const supabase = createRouteHandlerClient({ cookies });
+
+    const { data: project, error } = await supabase
       .from('projects')
       .insert({
         org_id: orgId,
@@ -27,32 +30,31 @@ export async function POST(request: NextRequest) {
         description,
         job_title,
         requirements,
-        created_by,
+        created_by: session.user.id,  // Utiliser l'user authentifié
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating project:', error);
+      console.error('[create-project] Error:', error);
       return NextResponse.json(
         { error: 'Failed to create project', details: error.message },
         { status: 500 }
       );
     }
 
-    console.log('Project created successfully:', project);
+    console.log('[create-project] Project created successfully:', project.id);
 
     return NextResponse.json({
       success: true,
       project,
-      message: 'Project created successfully'
+      message: 'Project created successfully',
     });
-
   } catch (error) {
-    console.error('Project creation error:', error);
+    console.error('[create-project] Validation error:', error);
     return NextResponse.json(
       { error: 'Invalid request data', details: (error as Error).message },
       { status: 400 }
     );
   }
-}
+});

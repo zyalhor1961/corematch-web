@@ -18,6 +18,7 @@ interface Candidate {
   score?: number;
   cv_filename?: string;
   cv_url?: string;
+  cv_path?: string;
   notes?: string;
   created_at: string;
 }
@@ -163,9 +164,8 @@ export default function CandidatesListModal({ projectId, onClose }: CandidatesLi
                     candidate.cv_filename ||
                     `${candidate.first_name || candidate.name || 'candidat'}.pdf`;
 
-    // Extract path - make sure to stop at newline or pipe to avoid getting analysis text
-    const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
-    const filePath = pathMatch?.[1]?.trim();
+    // Use cv_path column (fallback to regex for old records)
+    const filePath = candidate.cv_path || candidate.notes?.match(/Path: ([^|\n]+)/)?.[1]?.trim();
 
     console.log('Tentative d\'ouverture CV:', {
       candidateId: candidate.id,

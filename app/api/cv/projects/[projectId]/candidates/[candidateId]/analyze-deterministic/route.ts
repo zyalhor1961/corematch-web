@@ -36,6 +36,7 @@ export async function POST(
     const customJobSpec = body.jobSpec as JobSpec | undefined;
 
     // Get candidate and project info
+    // Note: cv_path column is included in * selector
     const { data: candidate, error: candidateError } = await supabaseAdmin
       .from('candidates')
       .select(`
@@ -90,8 +91,8 @@ export async function POST(
 
     // Extract PDF text
     let cvText = '';
-    const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
-    const filePath = pathMatch?.[1]?.trim();
+    // Use cv_path column (fallback to regex for old records)
+    const filePath = candidate.cv_path || candidate.notes?.match(/Path: ([^|\n]+)/)?.[1]?.trim();
 
     if (filePath) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

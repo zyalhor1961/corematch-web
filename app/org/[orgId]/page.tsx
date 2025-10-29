@@ -74,8 +74,14 @@ export default function OrganizationOverview() {
       const results = await Promise.all(Object.values(promises));
       const [orgResult, projectResult, docResult, totalCandResult, analyzedCandResult, pagesResult, recentCandResult, recentDocResult] = results;
 
-      // Check for errors in each result
-      for (const result of results) {
+      // Check for errors in each result (except RPC which may not exist yet)
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        // Skip RPC error (index 5 = pagesResult) - graceful fallback if function doesn't exist
+        if (i === 5 && result.error) {
+          console.warn('[Dashboard] RPC sum_pages_for_org not found (migration 004 may not be applied), using fallback');
+          continue;
+        }
         if (result.error) throw result.error;
       }
 

@@ -110,7 +110,7 @@ export async function DELETE(
     // First, get candidate info to delete the CV file from storage
     const { data: candidate, error: fetchError } = await supabaseAdmin
       .from('candidates')
-      .select('notes')
+      .select('notes, cv_path')
       .eq('id', candidateId)
       .eq('project_id', projectId) // Security: ensure candidate belongs to this project
       .single();
@@ -123,8 +123,9 @@ export async function DELETE(
       );
     }
 
-    // Extract file path from notes to delete from storage
-    const filePath = candidate.notes?.match(/Path: ([^|]+)/)?.[1];
+    // Extract file path to delete from storage
+    // Use cv_path column (fallback to regex for old records)
+    const filePath = candidate.cv_path || candidate.notes?.match(/Path: ([^|]+)/)?.[1];
     if (filePath) {
       const { error: deleteFileError } = await supabaseAdmin.storage
         .from('cv')

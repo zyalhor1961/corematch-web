@@ -1,11 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 import fs from 'fs';
 import path from 'path';
 
 export const maxDuration = 60;
 
-export async function POST() {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[apply-idp-schema] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[apply-idp-schema] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -25,7 +36,7 @@ export async function POST() {
     const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '007_idp_module.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
 
-    console.log('Applying IDP migration...');
+    console.log('[apply-idp-schema] Applying IDP migration...');
 
     // Split SQL into individual statements and execute them
     // Remove BEGIN/COMMIT and split by semicolon
@@ -47,14 +58,14 @@ export async function POST() {
       const statement = statements[i] + ';';
 
       try {
-        console.log(`Executing statement ${i + 1}/${statements.length}`);
+        console.log(`[apply-idp-schema] Executing statement ${i + 1}/${statements.length}`);
 
         const { data, error } = await supabase.rpc('exec_sql', {
           sql_query: statement
         });
 
         if (error) {
-          console.error(`Error in statement ${i + 1}:`, error);
+          console.error(`[apply-idp-schema] Error in statement ${i + 1}:`, error);
           errors.push({
             statement: i + 1,
             preview: statement.substring(0, 100),
@@ -67,7 +78,7 @@ export async function POST() {
           });
         }
       } catch (err: any) {
-        console.error(`Exception in statement ${i + 1}:`, err);
+        console.error(`[apply-idp-schema] Exception in statement ${i + 1}:`, err);
         errors.push({
           statement: i + 1,
           preview: statement.substring(0, 100),
@@ -91,7 +102,7 @@ export async function POST() {
     });
 
   } catch (error: any) {
-    console.error('Fatal migration error:', error);
+    console.error('[apply-idp-schema] Fatal migration error:', error);
     return NextResponse.json(
       {
         error: 'Migration failed',
@@ -106,4 +117,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

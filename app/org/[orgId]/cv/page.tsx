@@ -91,8 +91,8 @@ export default function CVScreeningPage() {
 
   const orgId = params?.orgId as string;
 
-  // Check if current user is master admin
-  const isMasterAdmin = currentUser?.email === 'admin@corematch.test';
+  // Check if current user is master admin (DEV ONLY - disabled in production)
+  const isMasterAdmin = process.env.NODE_ENV !== 'production' && currentUser?.email === 'admin@corematch.test';
 
   const loadProjects = useCallback(async () => {
     setIsLoading(true);

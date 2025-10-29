@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[quick-login] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[quick-login] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Quick login for test admin user...');
+    console.log('[quick-login] Quick login for test admin user...');
 
     const testEmail = 'admin@corematch.test';
     const testPassword = 'AdminTest123!';
@@ -17,7 +28,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (signInError) {
-      console.error('Sign in error:', signInError);
+      console.error('[quick-login] Sign in error:', signInError);
       return NextResponse.json({
         success: false,
         error: 'Failed to sign in test user',
@@ -25,7 +36,7 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    console.log('Test user signed in successfully');
+    console.log('[quick-login] Test user signed in successfully');
 
     // Create response with session cookies
     const response = NextResponse.json({
@@ -68,15 +79,24 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
-    console.error('Quick login error:', error);
+    console.error('[quick-login] Quick login error:', error);
     return NextResponse.json({
       success: false,
       error: 'Quick login failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[quick-login] ⚠️ BLOCKED: Attempted GET access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[quick-login] ⚠️ DEV ONLY: User ${session.user.id} accessing GET route`);
   return NextResponse.redirect(new URL('/org/00000000-0000-0000-0000-000000000001/cv', request.url));
-}
+});

@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[create-test-org] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[create-test-org] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Creating test organization...');
+    console.log('[create-test-org] Creating test organization...');
 
     // Try to create organization - ignore RLS errors for admin operations
     let org = null;
@@ -44,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (orgError && !orgError.message.includes('duplicate key')) {
-      console.error('Error creating organization:', orgError);
+      console.error('[create-test-org] Error creating organization:', orgError);
       return NextResponse.json({
         success: false,
         error: 'Failed to create organization',
@@ -52,7 +63,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Organization created or already exists');
+    console.log('[create-test-org] Organization created or already exists');
 
     // Now try to create a test project
     const { data: project, error: projectError } = await supabaseAdmin
@@ -69,7 +80,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (projectError) {
-      console.error('Error creating project:', projectError);
+      console.error('[create-test-org] Error creating project:', projectError);
       return NextResponse.json({
         success: false,
         error: 'Failed to create project',
@@ -77,7 +88,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Test project created successfully:', project);
+    console.log('[create-test-org] Test project created successfully:', project);
 
     return NextResponse.json({
       success: true,
@@ -87,11 +98,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Create test org error:', error);
+    console.error('[create-test-org] Create test org error:', error);
     return NextResponse.json({
       success: false,
       error: 'Test org creation failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

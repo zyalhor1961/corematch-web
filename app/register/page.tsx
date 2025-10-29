@@ -63,7 +63,7 @@ function RegisterForm() {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -72,7 +72,8 @@ function RegisterForm() {
             last_name: lastName,
             company_name: companyName,
             selected_plan: selectedPlan,
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback?onboarding=true`
         }
       });
 
@@ -81,7 +82,14 @@ function RegisterForm() {
         return;
       }
 
-      // Redirect to onboarding
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        // Email confirmation required - redirect to check-email page
+        window.location.href = '/auth/check-email';
+        return;
+      }
+
+      // Session active (auto-confirmed or confirmation disabled) - go to onboarding
       window.location.href = '/onboarding';
     } catch {
       setError('Une erreur inattendue s\'est produite');

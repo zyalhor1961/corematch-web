@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[setup-db] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[setup-db] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Setting up database tables...');
+    console.log('[setup-db] Setting up database tables...');
 
     // Create projects table first (it's the most critical for your issue)
     const createProjectsTable = `
@@ -124,10 +135,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Database setup error:', error);
+    console.error('[setup-db] Database setup error:', error);
     return NextResponse.json({
       error: 'Setup failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

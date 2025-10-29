@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  console.log(`[fix-my-orgs-view] User ${session.user.id} accessing route`);
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,7 +70,7 @@ GRANT SELECT ON public.my_orgs TO anon, authenticated;
       .limit(1);
 
     if (testError) {
-      console.error('View test error:', testError);
+      console.error('[fix-my-orgs-view] View test error:', testError);
     }
 
     return NextResponse.json({
@@ -78,7 +81,7 @@ GRANT SELECT ON public.my_orgs TO anon, authenticated;
     });
 
   } catch (error: any) {
-    console.error('Error fixing view:', error);
+    console.error('[fix-my-orgs-view] Error fixing view:', error);
     return NextResponse.json({
       success: false,
       error: error.message,
@@ -106,4 +109,4 @@ GRANT SELECT ON public.my_orgs TO anon, authenticated;
       `
     }, { status: 500 });
   }
-}
+});

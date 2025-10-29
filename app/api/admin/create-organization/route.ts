@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
   try {
-    const { name, admin_user_id, plan = 'starter', status = 'active' } = await request.json();
+    const { name, plan = 'starter', status = 'active' } = await request.json();
 
-    if (!name || !admin_user_id) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, admin_user_id' },
+        { error: 'Missing required field: name' },
         { status: 400 }
       );
     }
 
-    console.log('Creating organization:', { name, admin_user_id, plan, status });
+    // Force admin_user_id to authenticated user (security)
+    const admin_user_id = session.user.id;
 
-    // Create organization using admin client (bypasses RLS)
-    const { data: organization, error: orgError } = await supabaseAdmin
+    console.log(`[create-organization] User ${admin_user_id} creating organization:`, { name, plan, status });
+
+    // Utiliser client avec RLS
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Create organization
+    const { data: organization, error: orgError } = await supabase
       .from('organizations')
       .insert({
         name,
@@ -26,32 +34,34 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (orgError) {
-      console.error('Error creating organization:', orgError);
+      console.error('[create-organization] Error creating organization:', orgError);
       return NextResponse.json(
         { error: 'Failed to create organization', details: orgError.message },
         { status: 500 }
       );
     }
 
-    console.log('Organization created:', organization);
+    console.log('[create-organization] Organization created:', organization.id);
 
-    // Try to add user to organization_members table
+    // Add user to organization_members table as owner
     try {
-      const { error: memberError } = await supabaseAdmin
+      const { error: memberError } = await supabase
         .from('organization_members')
         .insert({
           org_id: organization.id,
           user_id: admin_user_id,
-          role: 'org_admin'
+          role: 'owner'  // Owner role for creator
         });
 
       if (memberError) {
-        console.log('Could not add to organization_members (table may not exist):', memberError);
+        console.error('[create-organization] Could not add to organization_members:', memberError);
+        // This is critical - if membership fails, we should probably rollback the org creation
+        // For now, log the error but continue
       } else {
-        console.log('User added to organization_members successfully');
+        console.log('[create-organization] User added to organization_members successfully');
       }
     } catch (membershipError) {
-      console.log('Organization membership table may not exist, continuing...', membershipError);
+      console.error('[create-organization] Organization membership error:', membershipError);
     }
 
     return NextResponse.json({
@@ -61,10 +71,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Create organization error:', error);
+    console.error('[create-organization] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: (error as Error).message },
       { status: 500 }
     );
   }
-}
+});

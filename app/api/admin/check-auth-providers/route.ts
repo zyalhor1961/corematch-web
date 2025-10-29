@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[check-auth-providers] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[check-auth-providers] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Checking authentication providers configuration...');
+    console.log('[check-auth-providers] Checking authentication providers configuration...');
 
     // Test Google OAuth configuration
     const testResults = [];
@@ -105,11 +116,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Auth providers check failed:', error);
+    console.error('[check-auth-providers] Auth providers check failed:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
       details: 'Failed to check authentication providers'
     }, { status: 500 });
   }
-}
+});

@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  // 🚨 DANGER: This route allows ARBITRARY SQL execution
+  // ONLY allow in development environment
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[execute-sql] ⚠️ BLOCKED: Attempted SQL execution in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'SQL execution is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[execute-sql] ⚠️ DEV ONLY: User ${session.user.id} executing arbitrary SQL`);
+
   try {
     const { sql } = await request.json();
 
@@ -12,14 +25,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Executing SQL:', sql);
+    console.log('[execute-sql] Executing SQL:', sql.substring(0, 100));
 
     // Execute the SQL directly using the admin client
     const { data, error } = await supabaseAdmin
       .rpc('exec_sql', { sql });
 
     if (error) {
-      console.error('SQL execution error:', error);
+      console.error('[execute-sql] SQL execution error:', error);
       return NextResponse.json(
         { error: 'SQL execution failed', details: error.message },
         { status: 500 }
@@ -33,10 +46,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Execute SQL error:', error);
+    console.error('[execute-sql] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: (error as Error).message },
       { status: 500 }
     );
   }
-}
+});

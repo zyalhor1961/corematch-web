@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[create-test-candidate] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[create-test-candidate] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Creating test candidate...');
+    console.log('[create-test-candidate] Creating test candidate...');
 
     const body = await request.json();
     let { projectId = 'a37ba429-0b7f-47f2-81bb-dcf14ccc888d' } = body;
@@ -44,7 +55,7 @@ Résumé: Profil senior avec 5 ans d'expérience en développement web`,
     } catch (error) {
       // Handle RLS errors gracefully for admin operations
       if (error instanceof Error && error.message.includes('row-level security')) {
-        console.log('RLS blocking candidate creation, trying workaround...');
+        console.log('[create-test-candidate] RLS blocking candidate creation, trying workaround...');
         candidateError = { message: 'RLS_BLOCKED_ADMIN_OPERATION' };
       } else {
         candidateError = error;
@@ -52,7 +63,7 @@ Résumé: Profil senior avec 5 ans d'expérience en développement web`,
     }
 
     if (candidateError && candidateError.message !== 'RLS_BLOCKED_ADMIN_OPERATION') {
-      console.error('Error creating candidate:', candidateError);
+      console.error('[create-test-candidate] Error creating candidate:', candidateError);
       return NextResponse.json({
         success: false,
         error: 'Failed to create candidate',
@@ -78,7 +89,7 @@ Résumé: Profil senior avec 5 ans d'expérience en développement web`,
       };
     }
 
-    console.log('Test candidate created successfully:', candidate);
+    console.log('[create-test-candidate] Test candidate created successfully:', candidate);
 
     // Create a simple PDF file as test content
     const pdfContent = `%PDF-1.4
@@ -147,12 +158,12 @@ startxref
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        console.error('[create-test-candidate] Upload error:', uploadError);
       } else {
-        console.log('Test PDF uploaded successfully:', uploadData);
+        console.log('[create-test-candidate] Test PDF uploaded successfully:', uploadData);
       }
     } catch (uploadErr) {
-      console.error('PDF upload failed:', uploadErr);
+      console.error('[create-test-candidate] PDF upload failed:', uploadErr);
     }
 
     return NextResponse.json({
@@ -162,11 +173,11 @@ startxref
     });
 
   } catch (error) {
-    console.error('Create test candidate error:', error);
+    console.error('[create-test-candidate] Create test candidate error:', error);
     return NextResponse.json({
       success: false,
       error: 'Test candidate creation failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

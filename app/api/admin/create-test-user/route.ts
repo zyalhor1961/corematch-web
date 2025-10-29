@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[create-test-user] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[create-test-user] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Creating test admin user...');
+    console.log('[create-test-user] Creating test admin user...');
 
     const testEmail = 'admin@corematch.test';
     const testPassword = 'AdminTest123!';
@@ -20,7 +31,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError) {
-      console.error('Auth user creation error:', authError);
+      console.error('[create-test-user] Auth user creation error:', authError);
 
       // If user already exists, try to get the existing user
       if (authError.message.includes('already registered')) {
@@ -28,7 +39,7 @@ export async function POST(request: NextRequest) {
         const existingUser = existingUsers.users.find(u => u.email === testEmail);
 
         if (existingUser) {
-          console.log('User already exists, using existing user:', existingUser.id);
+          console.log('[create-test-user] User already exists, using existing user:', existingUser.id);
 
           return NextResponse.json({
             success: true,
@@ -54,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authData.user.id;
-    console.log('Auth user created:', userId);
+    console.log('[create-test-user] Auth user created:', userId);
 
     // Create profile
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -69,9 +80,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profileError) {
-      console.error('Profile creation error:', profileError);
+      console.error('[create-test-user] Profile creation error:', profileError);
     } else {
-      console.log('Profile created:', profile);
+      console.log('[create-test-user] Profile created:', profile);
     }
 
     // Create or get default organization
@@ -94,10 +105,10 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (createOrgError) {
-        console.error('Organization creation error:', createOrgError);
+        console.error('[create-test-user] Organization creation error:', createOrgError);
       } else {
         defaultOrg = newOrg;
-        console.log('Organization created:', defaultOrg);
+        console.log('[create-test-user] Organization created:', defaultOrg);
       }
     }
 
@@ -113,9 +124,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (memberError) {
-      console.error('Membership creation error:', memberError);
+      console.error('[create-test-user] Membership creation error:', memberError);
     } else {
-      console.log('Membership created:', membership);
+      console.log('[create-test-user] Membership created:', membership);
     }
 
     // Create a simple login endpoint for quick access
@@ -146,11 +157,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Create test user error:', error);
+    console.error('[create-test-user] Create test user error:', error);
     return NextResponse.json({
       success: false,
       error: 'Test user creation failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { withOrgAccess } from '@/lib/api/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withOrgAccess(async (request, session, orgId, membership) => {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -13,31 +15,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Loading project details for projectId:', projectId);
+    console.log(`[get-project] User ${session.user.id} loading project ${projectId}`);
 
-    // Get project using admin client (bypasses RLS and auth checks)
-    const { data: project, error } = await supabaseAdmin
+    // Utiliser client avec RLS
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Get project and verify it belongs to user's org
+    const { data: project, error } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
+      .eq('org_id', orgId)
       .single();
 
-    if (error) {
-      console.error('Error fetching project:', error);
+    if (error || !project) {
+      console.error('[get-project] Access denied or project not found:', { userId: session.user.id, projectId, orgId, error: error?.message });
       return NextResponse.json(
-        { error: 'Failed to fetch project', details: error.message },
-        { status: 500 }
+        { error: 'Project not found or access denied' },
+        { status: 403 }
       );
     }
 
-    if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    console.log(`Found project: ${project.name}`);
+    console.log(`[get-project] Found project: ${project.name}`);
 
     return NextResponse.json({
       success: true,
@@ -45,10 +44,10 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Project fetch error:', error);
+    console.error('[get-project] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch project', details: (error as Error).message },
       { status: 500 }
     );
   }
-}
+});

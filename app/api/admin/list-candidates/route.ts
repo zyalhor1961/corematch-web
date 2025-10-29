@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { withOrgAccess } from '@/lib/api/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withOrgAccess(async (request, session, orgId, membership) => {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -13,10 +15,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Loading candidates for projectId:', projectId);
+    console.log(`[list-candidates] User ${session.user.id} loading candidates for project ${projectId}`);
 
-    // Get candidates using admin client (bypasses RLS and auth checks)
-    const { data: candidates, error } = await supabaseAdmin
+    // Utiliser client avec RLS (pas supabaseAdmin!)
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier que le projet appartient à l'org de l'utilisateur
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id, org_id')
+      .eq('id', projectId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (projectError || !project) {
+      console.error('[list-candidates] Access denied to project:', { userId: session.user.id, projectId, orgId });
+      return NextResponse.json(
+        { error: 'Access denied to this project' },
+        { status: 403 }
+      );
+    }
+
+    // Get candidates (RLS actif = seulement ceux de l'org)
+    const { data: candidates, error } = await supabase
       .from('candidates')
       .select('*')
       .eq('project_id', projectId)
@@ -41,15 +62,15 @@ export async function GET(request: NextRequest) {
           return match ? match[1].trim() : 'CV non disponible';
         })();
 
-      // Extract CV path from notes and generate signed URL
+      // Extract CV path and generate signed URL
       let cv_url = candidate.cv_url || '';
-      const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
+      // Use cv_path column (fallback to regex for old records)
+      const cvPath = candidate.cv_path || candidate.notes?.match(/Path: ([^|\n]+)/)?.[1]?.trim();
 
-      if (pathMatch) {
-        const cvPath = pathMatch[1].trim();
+      if (cvPath) {
         try {
-          // Generate signed URL valid for 1 hour
-          const { data: signedUrlData } = await supabaseAdmin.storage
+          // Generate signed URL valid for 1 hour (RLS client)
+          const { data: signedUrlData } = await supabase.storage
             .from('cv')
             .createSignedUrl(cvPath, 3600); // 3600 seconds = 1 hour
 
@@ -57,7 +78,7 @@ export async function GET(request: NextRequest) {
             cv_url = signedUrlData.signedUrl;
           }
         } catch (urlError) {
-          console.error(`Error generating signed URL for candidate ${candidate.id}:`, urlError);
+          console.error(`[list-candidates] Error generating signed URL for candidate ${candidate.id}:`, urlError);
         }
       }
 
@@ -85,10 +106,10 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Candidates fetch error:', error);
+    console.error('[list-candidates] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch candidates', details: (error as Error).message },
       { status: 500 }
     );
   }
-}
+});

@@ -31,6 +31,7 @@ export async function POST(
     }
 
     // Get candidate and project info first to get org_id
+    // Note: cv_path column is included in * selector
     const { data: candidate, error: candidateError } = await supabaseAdmin
       .from('candidates')
       .select(`
@@ -80,8 +81,8 @@ export async function POST(
 
     // Extract PDF text
     let cvText = '';
-    const pathMatch = candidate.notes?.match(/Path: ([^|\n]+)/);
-    const filePath = pathMatch?.[1]?.trim();
+    // Use cv_path column (fallback to regex for old records)
+    const filePath = candidate.cv_path || candidate.notes?.match(/Path: ([^|\n]+)/)?.[1]?.trim();
 
     console.log(`\n========== 🎯 CV ANALYSIS (Multi-Provider) ==========`);
     console.log(`Candidate ID: ${candidateId}`);

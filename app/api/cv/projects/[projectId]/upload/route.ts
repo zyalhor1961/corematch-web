@@ -109,15 +109,8 @@ export async function POST(
       );
     }
 
-    // Log file upload attempt
-    logSecurityEvent({
-      type: 'SUSPICIOUS_ACTIVITY',
-      userId: user!.id,
-      email: user!.email,
-      orgId: projectAccess.orgId,
-      route: `/api/cv/projects/${projectId}/upload [POST]`,
-      details: `Uploading ${files.length} files to project ${projectId}`
-    });
+    // Normal activity log (not suspicious)
+    console.log(`[upload] User ${user!.id} uploading ${files.length} files to project ${projectId}`);
 
     if (!files.length) {
       throw new AppError(ErrorType.MISSING_REQUIRED_FIELD, 'No files provided', 'files');
@@ -237,6 +230,7 @@ export async function POST(
             name: candidateName, // Full name from filename
             cv_filename: file.name, // Original filename
             cv_url: cvPublicUrl, // Public URL to access the CV
+            cv_path: uploadPath, // ✅ Dedicated column for CV storage path
             status: 'pending',
             notes: `CV file: ${file.name} | Path: ${uploadPath} | Original file: ${file.name}`,
           })

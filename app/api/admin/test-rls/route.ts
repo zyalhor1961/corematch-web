@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[test-rls] ⚠️ BLOCKED: Attempted access in production by user', session.user.id);
+    return NextResponse.json(
+      { error: 'FORBIDDEN', message: 'This route is disabled in production for security' },
+      { status: 403 }
+    );
+  }
+
+  console.warn(`[test-rls] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
+
   try {
-    console.log('Starting RLS validation tests...');
+    console.log('[test-rls] Starting RLS validation tests...');
 
     const testResults = [];
 
@@ -151,16 +162,16 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('RLS validation tests completed:', response);
+    console.log('[test-rls] RLS validation tests completed:', response);
 
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('RLS validation tests failed:', error);
+    console.error('[test-rls] RLS validation tests failed:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
       details: 'Failed to run RLS validation tests'
     }, { status: 500 });
   }
-}
+});

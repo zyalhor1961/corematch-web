@@ -66,8 +66,12 @@ export async function verifyAuth(request: NextRequest): Promise<AuthResult> {
       };
     }
 
-    // Check if user is master admin
-    const isMasterAdmin = user.email === 'admin@corematch.test';
+    // Check if user is master admin (DEV ONLY - disabled in production for security)
+    const isMasterAdmin = process.env.NODE_ENV !== 'production' && user.email === 'admin@corematch.test';
+
+    if (isMasterAdmin) {
+      console.warn(`⚠️ Master admin bypass active for ${user.email} - DEV MODE ONLY`);
+    }
 
     return {
       user: {

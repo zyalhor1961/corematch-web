@@ -92,6 +92,7 @@ export async function POST(
     const customJobSpec = body.customJobSpec as JobSpec | undefined;
 
     // Get all pending candidates
+    // Note: cv_path column is included in * selector
     const { data: candidates, error: candidatesError } = await supabaseAdmin
       .from('candidates')
       .select(`
@@ -161,8 +162,8 @@ export async function POST(
           .eq('id', candidate.id);
 
         // Extract CV text
-        const pathMatch = candidate.notes?.match(/Path: ([^|]+)/);
-        const cvPath = pathMatch ? pathMatch[1].trim() : null;
+        // Use cv_path column (fallback to regex for old records)
+        const cvPath = candidate.cv_path || candidate.notes?.match(/Path: ([^|]+)/)?.[1]?.trim();
         let cvText = '';
 
         if (cvPath) {

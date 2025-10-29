@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request, session) => {
+  console.log(`[check-cv-bucket] User ${session.user.id} accessing route`);
+
   try {
-    console.log('Checking CV bucket configuration...');
+    console.log('[check-cv-bucket] Checking CV bucket configuration...');
 
     // Test bucket access
     const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets();
@@ -77,18 +80,20 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('CV bucket check error:', error);
+    console.error('[check-cv-bucket] CV bucket check error:', error);
     return NextResponse.json({
       success: false,
       error: 'Bucket check failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
+  console.log(`[check-cv-bucket] User ${session.user.id} making bucket public`);
+
   try {
-    console.log('Making CV bucket public...');
+    console.log('[check-cv-bucket] Making CV bucket public...');
 
     // Try to make CV bucket public
     const { data, error } = await supabaseAdmin.storage
@@ -109,11 +114,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Make bucket public error:', error);
+    console.error('[check-cv-bucket] Make bucket public error:', error);
     return NextResponse.json({
       success: false,
       error: 'Failed to update bucket',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

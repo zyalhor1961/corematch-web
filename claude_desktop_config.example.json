@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "corematch": {
+      "command": "node",
+      "args": [
+        "F:\\corematch\\node_modules\\tsx\\dist\\cli.mjs",
+        "F:\\corematch\\bin\\mcp-server.ts"
+      ],
+      "env": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "YOUR_SERVICE_ROLE_KEY_HERE",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

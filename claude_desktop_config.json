@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "corematch": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "F:\\corematch\\start-mcp-server.bat"
+      ]
+    }
+  }
+}

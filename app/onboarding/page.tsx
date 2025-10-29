@@ -120,18 +120,8 @@ export default function OnboardingPage() {
         throw new Error("La création de l'organisation a échoué: ID manquant.");
       }
 
-      // Step 1.5: Add user as organization admin (if organization_members table exists)
-      try {
-        await supabase
-          .from('organization_members')
-          .insert({
-            org_id: orgId,
-            user_id: user.id,
-            role: 'org_admin'
-          });
-      } catch (memberError) {
-        console.log('Could not add to organization_members, continuing...', memberError);
-      }
+      // Note: User is already added to organization_members by the API
+      // with role 'owner' in /api/admin/create-organization
 
       // Step 2: Update user metadata with selected modules
       const { error: updateError } = await supabase.auth.updateUser({
@@ -143,23 +133,36 @@ export default function OnboardingPage() {
 
       if (updateError) throw updateError;
 
-      // Step 3: Send invites
+      // Step 3: Send invites via secure API
       const validEmails = inviteEmails.filter(email => email.trim() && validateEmail(email));
       if (validEmails.length > 0) {
-        const invites = validEmails.map(email => ({
-          org_id: orgId,
-          invited_email: email,
-          role: 'org_viewer' // Default role for invites
-        }));
-        
-        const { error: inviteError } = await supabase
-          .from('organization_members')
-          .insert(invites);
+        try {
+          const inviteResponse = await fetch('/api/admin/send-invitations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orgId,
+              emails: validEmails,
+              role: 'org_viewer', // Default role for invitations
+            }),
+          });
 
-        if (inviteError) throw inviteError;
+          if (!inviteResponse.ok) {
+            const inviteError = await inviteResponse.json();
+            console.error('[Onboarding] Failed to send invitations:', inviteError);
+            // Don't block onboarding if invitations fail - just log
+          } else {
+            console.log(`[Onboarding] Successfully sent ${validEmails.length} invitations`);
+          }
+        } catch (inviteError) {
+          console.error('[Onboarding] Invitation error:', inviteError);
+          // Don't block onboarding if invitations fail
+        }
       }
 
-      router.push('/dashboard');
+      router.push(`/org/${orgId}`);
     } catch (err: any) {
       console.error('Onboarding error:', err);
       setError(err.message || 'Erreur lors de la configuration. Veuillez réessayer.');

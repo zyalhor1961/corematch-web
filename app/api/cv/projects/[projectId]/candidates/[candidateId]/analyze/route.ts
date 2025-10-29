@@ -5,6 +5,7 @@ import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
 import { handleApiError, AppError, ErrorCode } from '@/lib/utils/error-handler';
 import { orchestrateAnalysis } from '@/lib/cv-analysis';
 import { generateJobSpec } from '@/lib/cv-analysis/utils/jobspec-generator';
+import { maskPII } from '@/lib/utils/data-normalization';
 import type { JobSpec } from '@/lib/cv-analysis/types';
 
 export async function POST(
@@ -30,9 +31,23 @@ export async function POST(
       );
     }
 
-    // Get candidate and project info first to get org_id
+    // SECURITY: Get user's org_id first for defense-in-depth filtering
+    const { data: userOrgs } = await supabaseAdmin
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', user.id);
+
+    const userOrgIds = userOrgs?.map(m => m.org_id) || [];
+    if (userOrgIds.length === 0) {
+      return NextResponse.json(
+        { error: 'User has no organization access' },
+        { status: 403 }
+      );
+    }
+
+    // Get candidate and project info with org_id filter (defense-in-depth)
     // Note: cv_path column is included in * selector
-    const { data: candidate, error: candidateError } = await supabaseAdmin
+    const { data: candidate, error: candidateError} = await supabaseAdmin
       .from('candidates')
       .select(`
         *,
@@ -48,6 +63,18 @@ export async function POST(
       .eq('id', candidateId)
       .eq('project_id', projectId)
       .single();
+
+    // SECURITY: Verify candidate belongs to user's organization (defense-in-depth)
+    if (candidate && !(candidate.project as any)?.org_id) {
+      console.error(`[analyze] SECURITY: No org_id in project for candidate ${candidateId}`);
+      return NextResponse.json({ error: 'Invalid project data' }, { status: 500 });
+    }
+
+    const projectOrgId = (candidate.project as any)?.org_id;
+    if (candidate && !userOrgIds.includes(projectOrgId)) {
+      console.error(`[analyze] SECURITY: Access attempt to org ${projectOrgId} by user ${user.id} (allowed: ${userOrgIds.join(', ')})`);
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
     if (candidateError || !candidate) {
       return NextResponse.json(
@@ -86,7 +113,7 @@ export async function POST(
 
     console.log(`\n========== 🎯 CV ANALYSIS (Multi-Provider) ==========`);
     console.log(`Candidate ID: ${candidateId}`);
-    console.log(`Candidate Name: ${candidate.first_name} ${candidate.last_name}`);
+    console.log(`Candidate Name: ${maskPII(candidate.first_name || '')} ${maskPII(candidate.last_name || '')}`);
     console.log(`Extracted filePath: ${filePath}`);
 
     if (filePath) {

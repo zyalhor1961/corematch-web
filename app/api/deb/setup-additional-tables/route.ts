@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     console.log('🗄️ Setting up additional DEB tables...');
 
     // 1. Create notifications table if it doesn't exist

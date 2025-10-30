@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ documentId: string }> }) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
     const data = await request.json();
     

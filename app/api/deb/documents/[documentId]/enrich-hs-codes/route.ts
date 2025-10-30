@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { enrichHSCodes, getEnrichmentSuggestions } from '@/lib/services/deb/hs-code-enrichment';
 
 export async function POST(
@@ -7,6 +7,8 @@ export async function POST(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
     const body = await request.json().catch(() => ({}));
     const { forceRefresh = false } = body;
@@ -103,6 +105,8 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
 
     const suggestions = await getEnrichmentSuggestions(documentId);

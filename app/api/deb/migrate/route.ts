@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/middleware';
 
 /**
@@ -11,6 +11,8 @@ import { verifyAuth } from '@/lib/auth/middleware';
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // SECURITY FIX: Verify authentication and require MASTER ADMIN
     const { user, error: authError } = await verifyAuth(request);
 

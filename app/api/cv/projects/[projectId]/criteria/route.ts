@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
 
 export async function GET(
@@ -7,6 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {
@@ -64,6 +66,8 @@ export async function PUT(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {

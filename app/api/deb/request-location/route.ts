@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const data = await request.json();
     
     console.log('📍 Location request received for document:', data.document_id);

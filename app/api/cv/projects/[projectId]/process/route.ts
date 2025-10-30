@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { analyzeCV } from '@/lib/openai/client';
 import { incrementUsage } from '@/lib/utils/quotas';
 
@@ -8,6 +8,8 @@ export async function POST(
   { params }: { params: { projectId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const projectId = params.projectId;
 
     // Get project details

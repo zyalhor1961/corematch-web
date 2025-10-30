@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { DocumentLine } from '@/lib/types';
 
 export async function GET(
@@ -7,6 +7,8 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';

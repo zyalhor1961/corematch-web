@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
 
     // Get all links for this document (both directions)
@@ -45,6 +47,8 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const { linkedDocumentId, linkType = 'manual', confidence = 0.5, notes } = await request.json();
 
@@ -115,6 +119,8 @@ export async function DELETE(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const { searchParams } = new URL(request.url);
     const linkId = searchParams.get('linkId');

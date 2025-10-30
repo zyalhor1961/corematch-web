@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { performVATControls } from '@/lib/services/deb/vat-control';
 
 export async function POST(
@@ -7,6 +7,8 @@ export async function POST(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
 
     console.log('🔍 Running VAT controls for document:', documentId);
@@ -64,6 +66,8 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
 
     // Fetch stored VAT control results

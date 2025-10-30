@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -11,6 +11,8 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
     const { maxCandidates = 5 } = await request.json();
 
@@ -207,6 +209,8 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
 
     // Get shortlisted candidates

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     console.log('Test project creation without auth...');
 
     const body = await request.json();
@@ -52,6 +54,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     console.log('Test projects fetch...');
 
     const { data: projects, error } = await supabaseAdmin

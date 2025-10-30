@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { recordValidation } from '@/lib/services/deb/auto-learning';
 
 export async function POST(
@@ -7,6 +7,8 @@ export async function POST(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
     const body = await request.json();
 
@@ -110,6 +112,8 @@ export async function PUT(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
     const body = await request.json();
     const { validations } = body;

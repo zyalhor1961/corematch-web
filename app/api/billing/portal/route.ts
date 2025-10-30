@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const portalSchema = z.object({
@@ -10,6 +10,8 @@ const portalSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const body = await request.json();
     const { orgId, returnUrl } = portalSchema.parse(body);
 

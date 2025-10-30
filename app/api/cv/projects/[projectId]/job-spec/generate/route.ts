@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth, verifyProjectAccess } from '@/lib/auth/verify-auth';
 import { generateJobSpec } from '@/lib/cv-analysis/jobspec-generator';
 
@@ -8,6 +8,8 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const user = await verifyAuth(request);
     if (!user) {
       return NextResponse.json(

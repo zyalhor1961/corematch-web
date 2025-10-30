@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../_helpers';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const formData = await request.formData();
     const file = formData.get('file');
     const orgId = formData.get('orgId');
@@ -139,6 +141,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const url = new URL(request.url);
     const orgId = url.searchParams.get('orgId');
 

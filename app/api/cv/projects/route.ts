@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { secureApiRoute, logSecurityEvent, verifyAuth, verifyAuthAndOrgAccess } from '@/lib/auth/middleware';
 
@@ -14,6 +14,8 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { user, error } = await verifyAuth(request);
 
     if (!user || error) {
@@ -85,6 +87,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Security check with organization access verification
     const securityResult = await secureApiRoute(request, {
       requireOrgAccess: true,

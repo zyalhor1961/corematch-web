@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 
 /**
@@ -7,6 +7,8 @@ import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
  */
 async function verifyProjectAccess(userId: string, projectId: string, isMasterAdmin: boolean = false): Promise<{ hasAccess: boolean; orgId?: string }> {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Master admin has access to all projects
     if (isMasterAdmin) {
       const { data: project } = await supabaseAdmin
@@ -61,6 +63,8 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string; candidateId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Security check
     const securityResult = await secureApiRoute(request);
     if (!securityResult.success) {

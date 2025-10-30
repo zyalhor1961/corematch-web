@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 
 export async function GET(
@@ -7,6 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';

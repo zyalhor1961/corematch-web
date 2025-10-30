@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../_helpers';
 
 export async function POST() {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   return NextResponse.json(
     { error: 'Upload via /api/deb/batches' },
     { status: 405 }
@@ -11,6 +13,8 @@ export async function POST() {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const url = new URL(request.url);
     const orgId = url.searchParams.get('orgId');
     const batchId = url.searchParams.get('batchId');

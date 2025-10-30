@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
 
     const { data: lines, error } = await supabaseAdmin
@@ -41,6 +43,8 @@ export async function PATCH(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const body = await request.json();
     const { lineId, updates } = body;
@@ -122,6 +126,8 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const body = await request.json();
     
@@ -164,6 +170,8 @@ export async function DELETE(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const documentId = params.documentId;
     const { searchParams } = new URL(request.url);
     const lineId = searchParams.get('lineId');

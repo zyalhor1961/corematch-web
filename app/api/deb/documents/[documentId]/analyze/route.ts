@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -11,6 +11,8 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
 
     // Get document details
@@ -260,6 +262,8 @@ Analysez maintenant ce document et retournez uniquement le JSON:`;
 
 async function findAndLinkRelatedDocuments(documentId: string, extractedData: any) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Search for related documents based on:
     // 1. Same supplier
     // 2. Similar dates (±30 days)

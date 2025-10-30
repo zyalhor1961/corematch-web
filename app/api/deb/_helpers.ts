@@ -13,6 +13,8 @@ export async function requireOrgMembership(orgId: string, allowedRoles?: Members
   } = await supabase.auth.getUser();
 
   if (!user) {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     console.error('No user session found');
     return { error: 'Utilisateur non authentifie', status: 401 };
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../_helpers';
 
 export async function DELETE(
@@ -7,6 +7,8 @@ export async function DELETE(
   { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { batchId } = await params;
 
     if (!batchId) {

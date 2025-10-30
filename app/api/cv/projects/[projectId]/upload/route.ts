@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { checkQuota } from '@/lib/utils/quotas';
 import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 import { ApiErrorHandler, ValidationHelper } from '@/lib/errors/api-error-handler';
@@ -10,6 +10,8 @@ import { AppError, ErrorType } from '@/lib/errors/error-types';
  */
 async function verifyProjectAccess(userId: string, projectId: string, isMasterAdmin: boolean = false): Promise<{ hasAccess: boolean; orgId?: string }> {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Master admin has access to all projects
     if (isMasterAdmin) {
       const { data: project } = await supabaseAdmin
@@ -64,6 +66,8 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // ⚠️ SECURITY CHECK: Verify authentication before allowing file uploads
     const securityResult = await secureApiRoute(request);
     if (!securityResult.success) {

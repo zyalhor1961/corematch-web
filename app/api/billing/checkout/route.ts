@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, STRIPE_PLANS } from '@/lib/stripe/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const checkoutSchema = z.object({
@@ -12,6 +12,8 @@ const checkoutSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const body = await request.json();
     const { orgId, plan, successUrl, cancelUrl } = checkoutSchema.parse(body);
 

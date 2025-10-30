@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 
 /**
@@ -9,6 +9,8 @@ async function verifyProjectAccess(userId: string, projectId: string, isMasterAd
   try {
     // Master admin has access to all projects
     if (isMasterAdmin) {
+      const supabaseAdmin = await getSupabaseAdmin();
+
       const { data: project } = await supabaseAdmin
         .from('projects')
         .select('org_id')
@@ -61,6 +63,8 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Security check
     const securityResult = await secureApiRoute(request);
     if (!securityResult.success) {
@@ -148,6 +152,8 @@ export async function PATCH(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Security check
     const securityResult = await secureApiRoute(request);
     if (!securityResult.success) {

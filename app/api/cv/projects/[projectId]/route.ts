@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const updateProjectSchema = z.object({
@@ -14,6 +14,8 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
 
     if (!projectId) {
@@ -64,6 +66,8 @@ export async function PUT(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
     const body = await request.json();
     const updateData = updateProjectSchema.parse(body);
@@ -110,6 +114,8 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { projectId } = await params;
 
     if (!projectId) {

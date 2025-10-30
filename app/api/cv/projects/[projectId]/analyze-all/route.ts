@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
 import { orchestrateAnalysis } from '@/lib/cv-analysis';
 import { generateJobSpec } from '@/lib/cv-analysis/utils/jobspec-generator';
@@ -78,6 +78,7 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     const { projectId } = await params;
 
     if (!projectId) {

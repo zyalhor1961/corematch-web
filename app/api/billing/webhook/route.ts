@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_placeholder_webhook_secret';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');
 
@@ -69,6 +71,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const orgId = session.metadata?.org_id;
   const plan = session.metadata?.plan;
 
@@ -106,6 +110,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const subscriptionId = invoice.subscription as string;
   
   if (!subscriptionId) return;
@@ -141,6 +147,8 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const subscriptionId = invoice.subscription as string;
   
   if (!subscriptionId) return;
@@ -169,6 +177,8 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const orgId = subscription.metadata?.org_id;
   
   if (!orgId) return;
@@ -211,6 +221,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const orgId = subscription.metadata?.org_id;
   
   if (!orgId) return;

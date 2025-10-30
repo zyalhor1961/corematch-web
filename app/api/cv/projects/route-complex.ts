@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
 import { z } from 'zod';
 
@@ -14,6 +14,8 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {
@@ -73,6 +75,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {

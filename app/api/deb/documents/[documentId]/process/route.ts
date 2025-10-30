@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { checkQuota } from '@/lib/utils/quotas';
 
 export async function POST(
@@ -7,6 +7,8 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { documentId } = await params;
 
     // Get document details
@@ -165,6 +167,8 @@ export async function POST(
 // Simulation function for demo purposes
 async function simulateProcessing(documentId: string) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     // Simulate OCR stage
     await supabaseAdmin
       .from('jobs')

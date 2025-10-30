@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireOrgMembership } from '../../../_helpers';
 
 const EDITABLE_FIELDS = [
@@ -30,6 +30,8 @@ type LineUpdate = {
 };
 
 async function loadBatchOrg(batchId: string) {
+  const supabaseAdmin = await getSupabaseAdmin();
+
   const { data, error } = await supabaseAdmin
     .from('deb_batches')
     .select('org_id')
@@ -49,6 +51,8 @@ export async function GET(
   { params }: { params: { batchId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { batchId } = params;
     if (!batchId) {
       return NextResponse.json({ error: 'batchId requis' }, { status: 400 });
@@ -154,6 +158,8 @@ export async function PATCH(
   { params }: { params: { batchId: string } }
 ) {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
+
     const { batchId } = params;
     if (!batchId) {
       return NextResponse.json({ error: 'batchId requis' }, { status: 400 });

@@ -123,7 +123,8 @@
       "Bash(cipher /c:*)",
       "Bash(git diff:*)",
       "Bash(git remote add:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

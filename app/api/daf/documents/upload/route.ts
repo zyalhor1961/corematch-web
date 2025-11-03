@@ -4,6 +4,7 @@ import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 import { ApiErrorHandler, ValidationHelper } from '@/lib/errors/api-error-handler';
 import { AppError, ErrorType } from '@/lib/errors/error-types';
 import { classifyDocument } from '@/lib/daf-docs/classifier';
+import { extractDAFDocument } from '@/lib/daf-docs/extraction';
 import type { DAFDocument } from '@/lib/daf-docs/types';
 
 /**
@@ -160,6 +161,57 @@ export async function POST(request: NextRequest) {
             type: ErrorType.INTERNAL_ERROR,
           });
           continue;
+        }
+
+        // ===== EXTRACTION LANDING AI + AZURE FALLBACK =====
+        console.log(`[DAF Upload] Starting extraction for document ${document.id}...`);
+
+        try {
+          const extractionResult = await extractDAFDocument(buffer, file.name, {
+            primaryProvider: 'landing-ai',
+            fallbackProvider: 'azure-di',
+            timeout: 30000,
+          });
+
+          if (extractionResult.success) {
+            console.log(`[DAF Upload] ✓ Extraction succeeded with ${extractionResult.provider} (confidence: ${extractionResult.confidence})`);
+
+            // Update document with extracted fields
+            const { error: updateError } = await supabaseAdmin
+              .from('daf_documents')
+              .update({
+                montant_ht: extractionResult.montant_ht,
+                montant_ttc: extractionResult.montant_ttc,
+                taux_tva: extractionResult.taux_tva,
+                date_document: extractionResult.date_document,
+                date_echeance: extractionResult.date_echeance,
+                numero_facture: extractionResult.numero_facture,
+                fournisseur: extractionResult.fournisseur || classification.fournisseur_detecte,
+                status: 'extracted',
+                extraction_raw: extractionResult.raw_response,
+                notes: `${document.notes || ''}\nExtraction ${extractionResult.provider}: ${extractionResult.confidence.toFixed(2)} confidence`,
+              })
+              .eq('id', document.id);
+
+            if (updateError) {
+              console.error('[DAF Upload] Failed to update document with extraction:', updateError);
+            } else {
+              // Update local document object
+              document.montant_ht = extractionResult.montant_ht;
+              document.montant_ttc = extractionResult.montant_ttc;
+              document.taux_tva = extractionResult.taux_tva;
+              document.date_document = extractionResult.date_document;
+              document.date_echeance = extractionResult.date_echeance;
+              document.numero_facture = extractionResult.numero_facture;
+              document.fournisseur = extractionResult.fournisseur || classification.fournisseur_detecte;
+              document.status = 'extracted';
+            }
+          } else {
+            console.warn(`[DAF Upload] Extraction failed: ${extractionResult.error}`);
+          }
+        } catch (extractionError) {
+          console.error('[DAF Upload] Extraction error:', extractionError);
+          // Continue sans bloquer l'upload
         }
 
         uploadedDocuments.push(document as DAFDocument);

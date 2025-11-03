@@ -18,6 +18,8 @@ import type { DAFDocument } from '@/lib/daf-docs/types';
  * - offset: pagination offset
  */
 export async function GET(request: NextRequest) {
+  let userId: string | undefined;
+
   try {
     const supabaseAdmin = await getSupabaseAdmin();
 
@@ -28,6 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { user } = securityResult;
+    userId = user?.id;
 
     // Get user's org
     const { data: userOrg } = await supabaseAdmin
@@ -78,10 +81,26 @@ export async function GET(request: NextRequest) {
       throw new AppError(ErrorType.INTERNAL_ERROR, 'Failed to fetch documents');
     }
 
-    // Get stats
-    const { data: stats } = await supabaseAdmin
-      .rpc('get_daf_stats', { p_org_id: orgId })
-      .single();
+    // Get stats (fallback si fonction pas créée)
+    let stats = null;
+    try {
+      const { data } = await supabaseAdmin
+        .rpc('get_daf_stats', { p_org_id: orgId })
+        .single();
+      stats = data;
+    } catch (statsError) {
+      console.warn('[DAF Documents] Stats function not available, using fallback');
+      // Fallback: calculer les stats manuellement
+      const allDocs = documents || [];
+      stats = {
+        total_documents: allDocs.length,
+        total_factures: allDocs.filter(d => d.doc_type === 'facture').length,
+        total_valides: allDocs.filter(d => d.status === 'validated').length,
+        total_en_attente: allDocs.filter(d => ['uploaded', 'extracted'].includes(d.status)).length,
+        montant_total_ttc: 0,
+        nombre_fournisseurs: new Set(allDocs.map(d => d.fournisseur).filter(Boolean)).size,
+      };
+    }
 
     return NextResponse.json({
       success: true,
@@ -106,7 +125,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('[DAF Documents] Error:', error);
-    return ApiErrorHandler.handleError(error, user?.id, '/api/daf/documents [GET]');
+    return ApiErrorHandler.handleError(error, userId, '/api/daf/documents [GET]');
   }
 }
 

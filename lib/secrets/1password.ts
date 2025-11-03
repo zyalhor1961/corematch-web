@@ -68,6 +68,24 @@ export const SECRETS_CONFIG = {
     item: 'Anthropic API Key',
     field: 'password',
   },
+  VISION_AGENT_API_KEY: {
+    reference: 'op://CoreMatch/Landing AI Vision Agent/password',
+    vault: 'CoreMatch',
+    item: 'Landing AI Vision Agent',
+    field: 'password',
+  },
+  AZURE_DI_ENDPOINT: {
+    reference: 'op://CoreMatch/Azure Document Intelligence/endpoint',
+    vault: 'CoreMatch',
+    item: 'Azure Document Intelligence',
+    field: 'endpoint',
+  },
+  AZURE_DI_API_KEY: {
+    reference: 'op://CoreMatch/Azure Document Intelligence/api_key',
+    vault: 'CoreMatch',
+    item: 'Azure Document Intelligence',
+    field: 'api_key',
+  },
 } as const;
 
 export type SecretKey = keyof typeof SECRETS_CONFIG;

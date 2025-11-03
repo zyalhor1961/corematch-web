@@ -129,9 +129,9 @@ export async function check1PasswordCLI(): Promise<{ installed: boolean; authent
  */
 export async function getSecret(
   secretKey: SecretKey,
-  options: { skipCache?: boolean; fallbackToEnv?: boolean } = {}
+  options: { skipCache?: boolean; preferEnv?: boolean } = {}
 ): Promise<string> {
-  const { skipCache = false, fallbackToEnv = process.env.NODE_ENV !== 'production' } = options;
+  const { skipCache = false, preferEnv = true } = options;
 
   // Vérifier le cache
   if (!skipCache) {
@@ -146,8 +146,16 @@ export async function getSecret(
     throw new Error(`Unknown secret: ${secretKey}`);
   }
 
+  // 1. Essayer d'abord les variables d'environnement (Vercel/production)
+  if (preferEnv && process.env[secretKey]) {
+    const value = process.env[secretKey]!;
+    // Mettre en cache
+    secretsCache.set(secretKey, { value, timestamp: Date.now() });
+    return value;
+  }
+
+  // 2. Fallback vers 1Password CLI (dev local)
   try {
-    // Récupérer depuis 1Password CLI
     const { stdout } = await execAsync(`op read "${config.reference}"`);
     const value = stdout.trim();
 
@@ -160,14 +168,8 @@ export async function getSecret(
 
     return value;
   } catch (error) {
-    // Fallback vers variables d'environnement (dev seulement)
-    if (fallbackToEnv && process.env[secretKey]) {
-      console.warn(`[1Password] Failed to get ${secretKey} from 1Password, using env fallback`);
-      return process.env[secretKey]!;
-    }
-
     throw new Error(
-      `Failed to get secret ${secretKey} from 1Password: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to get secret ${secretKey}: Not found in environment variables and 1Password failed (${error instanceof Error ? error.message : 'Unknown error'})`
     );
   }
 }

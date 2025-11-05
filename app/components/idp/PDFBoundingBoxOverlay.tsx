@@ -11,6 +11,7 @@ import React from 'react';
 
 interface BoundingBox {
   fieldId: string;
+  fieldName?: string; // For synchronized hover by field name
   polygon: number[]; // [x1, y1, x2, y2, x3, y3, x4, y4] or [x1, y1, x2, y2]
   color: string;
   label: string;
@@ -19,6 +20,7 @@ interface BoundingBox {
 interface PDFBoundingBoxOverlayProps {
   boundingBoxes: BoundingBox[];
   hoveredFieldId: string | null;
+  hoveredFieldName?: string | null; // For synchronized hover by field name
   onFieldHover: (fieldId: string | null) => void;
   scale: number;
   pageWidth: number;
@@ -28,6 +30,7 @@ interface PDFBoundingBoxOverlayProps {
 export const PDFBoundingBoxOverlay: React.FC<PDFBoundingBoxOverlayProps> = ({
   boundingBoxes,
   hoveredFieldId,
+  hoveredFieldName,
   onFieldHover,
   scale,
   pageWidth,
@@ -68,14 +71,17 @@ export const PDFBoundingBoxOverlay: React.FC<PDFBoundingBoxOverlayProps> = ({
       className="absolute inset-0 pointer-events-none"
       style={{
         width: pageWidth * scale,
-        height: pageHeight * scale
+        height: pageHeight * scale,
+        zIndex: 10
       }}
     >
       {boundingBoxes.map((bbox) => {
         const rect = getRectFromPolygon(bbox.polygon);
         if (!rect) return null;
 
-        const isHovered = hoveredFieldId === bbox.fieldId;
+        // Hover is active if either the specific fieldId matches OR the fieldName matches
+        const isHovered = hoveredFieldId === bbox.fieldId ||
+                          (hoveredFieldName && bbox.fieldName === hoveredFieldName);
 
         return (
           <div
@@ -86,10 +92,10 @@ export const PDFBoundingBoxOverlay: React.FC<PDFBoundingBoxOverlayProps> = ({
               top: `${rect.y}px`,
               width: `${rect.width}px`,
               height: `${rect.height}px`,
-              border: `2px solid ${bbox.color}`,
-              backgroundColor: isHovered ? `${bbox.color}30` : `${bbox.color}10`,
-              boxShadow: isHovered ? `0 0 12px ${bbox.color}80` : 'none',
-              zIndex: isHovered ? 10 : 1
+              border: `1px solid ${bbox.color}`,
+              backgroundColor: isHovered ? `${bbox.color}40` : `${bbox.color}15`,
+              boxShadow: isHovered ? `0 0 16px ${bbox.color}` : 'none',
+              zIndex: isHovered ? 30 : 20
             }}
             onMouseEnter={() => onFieldHover(bbox.fieldId)}
             onMouseLeave={() => onFieldHover(null)}

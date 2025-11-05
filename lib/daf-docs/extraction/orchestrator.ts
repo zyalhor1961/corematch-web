@@ -1,10 +1,17 @@
 /**
- * Orchestrateur d'extraction DAF
- * Try Landing AI → Fallback to Azure DI
+ * Orchestrateur d'extraction DAF - Version Intelligente
+ *
+ * Stratégie d'optimisation des coûts :
+ * 1. Analyse du PDF (natif vs scanné)
+ * 2. Si natif → Simple text parser (GRATUIT)
+ * 3. Si scanné → Landing AI (CHER mais puissant)
+ * 4. Fallback → Azure DI
  */
 
 import { LandingAIExtractor } from './landing-ai-extractor';
 import { AzureDIExtractor } from './azure-di-extractor';
+import { SimpleTextExtractor } from './simple-text-extractor';
+import { analyzePDFType } from './pdf-detector';
 import type { DAFExtractionResult, DAFExtractionConfig } from './types';
 
 const DEFAULT_CONFIG: DAFExtractionConfig = {
@@ -16,28 +23,98 @@ const DEFAULT_CONFIG: DAFExtractionConfig = {
 export class DAFExtractionOrchestrator {
   private landingAI: LandingAIExtractor;
   private azureDI: AzureDIExtractor;
+  private simpleText: SimpleTextExtractor;
   private config: DAFExtractionConfig;
 
   constructor(config?: Partial<DAFExtractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.landingAI = new LandingAIExtractor();
     this.azureDI = new AzureDIExtractor();
+    this.simpleText = new SimpleTextExtractor();
   }
 
   /**
-   * Extract document data using primary provider with fallback
+   * Extract document data using intelligent provider selection
    */
   async extractDocument(
     fileBuffer: ArrayBuffer,
     fileName: string
   ): Promise<DAFExtractionResult> {
     console.log(`[DAF Extraction] Starting extraction for: ${fileName}`);
-    console.log(`[DAF Extraction] Primary: ${this.config.primaryProvider}, Fallback: ${this.config.fallbackProvider || 'none'}`);
 
-    // Try primary provider
+    // ÉTAPE 1: Analyser le type de PDF
+    const pdfAnalysis = await analyzePDFType(fileBuffer);
+
+    console.log(`[DAF Extraction] PDF Analysis: ${pdfAnalysis.type} (${(pdfAnalysis.confidence * 100).toFixed(0)}% confidence)`);
+    console.log(`[DAF Extraction] Recommendation: ${pdfAnalysis.recommendation}`);
+    console.log(`[DAF Extraction] Text density: ${pdfAnalysis.avgTextPerPage.toFixed(0)} chars/page`);
+
+    // ÉTAPE 2: Choisir la stratégie d'extraction selon le type
+    let result: DAFExtractionResult;
+
+    if (pdfAnalysis.recommendation === 'simple-parser') {
+      // PDF NATIF → Utiliser le parser simple (GRATUIT!)
+      console.log(`[DAF Extraction] 💰 Using FREE simple text parser (native PDF detected)`);
+
+      try {
+        result = await this.executeWithTimeout(
+          this.simpleText.extractDocument(fileBuffer, fileName),
+          this.config.timeout
+        );
+
+        // Si le parser simple fonctionne bien, on le garde!
+        if (result.success && result.confidence > 0.6) {
+          console.log(`[DAF Extraction] ✓ Simple parser succeeded with confidence ${result.confidence}`);
+          return result;
+        }
+
+        console.warn(`[DAF Extraction] Simple parser failed or low confidence (${result.confidence}), falling back to OCR...`);
+
+      } catch (error) {
+        console.error('[DAF Extraction] Simple parser error:', error);
+      }
+    }
+
+    // ÉTAPE 3: Fallback vers OCR (Azure DI prioritaire)
+    console.log(`[DAF Extraction] 🔍 Using Azure Document Intelligence for extraction`);
+
     try {
+      result = await this.executeWithTimeout(
+        this.azureDI.extractDocument(fileBuffer, fileName),
+        this.config.timeout
+      );
+
+      if (result.success) {
+        console.log(`[DAF Extraction] ✓ Azure DI succeeded with confidence ${result.confidence}`);
+        return result;
+      }
+
+      console.warn(`[DAF Extraction] Azure DI failed, using simple parser result as fallback`);
+
+    } catch (error) {
+      console.error('[DAF Extraction] Azure DI error:', error);
+      console.log('[DAF Extraction] Falling back to simple parser result');
+    }
+
+    // Fallback: retourner le résultat du simple parser si Azure échoue
+    if (result && result.success) {
+      console.log(`[DAF Extraction] Using simple parser result (confidence: ${result.confidence})`);
+      return result;
+    }
+
+    // Aucun extracteur n'a fonctionné
+    return {
+      success: false,
+      provider: 'azure-di',
+      confidence: 0,
+      extraction_duration_ms: 0,
+      error: 'All extraction methods failed',
+    };
+
+    // Try primary provider (Landing AI) - DÉSACTIVÉ
+    /* try {
       const primaryExtractor = this.getExtractor(this.config.primaryProvider);
-      const result = await this.executeWithTimeout(
+      result = await this.executeWithTimeout(
         primaryExtractor.extractDocument(fileBuffer, fileName),
         this.config.timeout
       );
@@ -73,7 +150,7 @@ export class DAFExtractionOrchestrator {
         extraction_duration_ms: 0,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
-    }
+    } */
   }
 
   /**

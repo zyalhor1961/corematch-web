@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DocumentUpload } from '@/components/daf/DocumentUpload';
 import { DocumentInbox } from '@/components/daf/DocumentInbox';
 import { FileText, Upload, List, Sparkles, Shield, Zap } from 'lucide-react';
@@ -12,8 +13,17 @@ import { FileText, Upload, List, Sparkles, Shield, Zap } from 'lucide-react';
  * Phase 1+: Extraction, Validation, Export
  */
 export default function DAFDemoPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'upload' | 'inbox'>('upload');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Lire le paramètre tab de l'URL au chargement
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'inbox') {
+      setActiveTab('inbox');
+    }
+  }, [searchParams]);
 
   const handleUploadComplete = () => {
     // Refresh inbox après upload
@@ -110,7 +120,7 @@ export default function DAFDemoPage() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === 'upload' && (
-          <div className="max-w-3xl">
+          <div className="max-w-3xl mx-auto">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
                 Uploader vos documents

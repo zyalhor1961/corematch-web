@@ -16,6 +16,8 @@ import type { DAFDocument } from '@/lib/daf-docs/types';
  * Réutilise la logique de app/api/cv/projects/[projectId]/upload/route.ts
  */
 export async function POST(request: NextRequest) {
+  let userId: string | undefined;
+
   try {
     const supabaseAdmin = await getSupabaseAdmin();
 
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { user } = securityResult;
+    userId = user?.id;
 
     // Get user's org
     const { data: userOrg } = await supabaseAdmin
@@ -176,6 +179,30 @@ export async function POST(request: NextRequest) {
           if (extractionResult.success) {
             console.log(`[DAF Upload] ✓ Extraction succeeded with ${extractionResult.provider} (confidence: ${extractionResult.confidence})`);
 
+            // Deep clean function to recursively remove unicode null characters
+            function deepCleanObject(obj: any): any {
+              if (typeof obj === 'string') {
+                return obj.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+              }
+              if (Array.isArray(obj)) {
+                return obj.map(deepCleanObject);
+              }
+              if (obj && typeof obj === 'object') {
+                const cleaned: any = {};
+                for (const key in obj) {
+                  cleaned[key] = deepCleanObject(obj[key]);
+                }
+                return cleaned;
+              }
+              return obj;
+            }
+
+            // Clean the extraction result to remove unicode null characters
+            const cleanedExtractionResult = deepCleanObject(extractionResult);
+            const cleanedRawResponse = deepCleanObject(extractionResult.raw_response);
+
+            console.log(`[DAF Upload] Cleaned extraction result for database storage`);
+
             // Update document with extracted fields
             const { error: updateError } = await supabaseAdmin
               .from('daf_documents')
@@ -188,7 +215,8 @@ export async function POST(request: NextRequest) {
                 numero_facture: extractionResult.numero_facture,
                 fournisseur: extractionResult.fournisseur || classification.fournisseur_detecte,
                 status: 'extracted',
-                extraction_raw: extractionResult.raw_response,
+                extraction_raw: cleanedRawResponse,
+                extraction_result: cleanedExtractionResult, // Store cleaned complete result with field_positions
                 notes: `${document.notes || ''}\nExtraction ${extractionResult.provider}: ${extractionResult.confidence.toFixed(2)} confidence`,
               })
               .eq('id', document.id);
@@ -247,6 +275,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[DAF Upload] Error:', error);
-    return ApiErrorHandler.handleError(error, user?.id, '/api/daf/documents/upload [POST]');
+    return ApiErrorHandler.handleError(error, userId, '/api/daf/documents/upload [POST]');
   }
 }

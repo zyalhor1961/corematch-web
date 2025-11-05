@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FileText, Clock, CheckCircle, Archive, Filter } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { FileText, Clock, CheckCircle, Archive, Filter, Eye, Download } from 'lucide-react';
 import type { DAFDocument } from '@/lib/daf-docs/types';
 
 interface InboxProps {
@@ -17,15 +18,16 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   autre: 'Autre',
 };
 
-const STATUS_LABELS: Record<string, { label: string; icon: any; color: string }> = {
-  uploaded: { label: 'Uploadé', icon: Clock, color: 'text-yellow-600' },
-  extracted: { label: 'Extrait', icon: CheckCircle, color: 'text-blue-600' },
-  validated: { label: 'Validé', icon: CheckCircle, color: 'text-green-600' },
-  exported: { label: 'Exporté', icon: Archive, color: 'text-cyan-600' },
-  archived: { label: 'Archivé', icon: Archive, color: 'text-gray-600' },
+const STATUS_LABELS: Record<string, { label: string; icon: any; bgColor: string; textColor: string; badgeColor: string }> = {
+  uploaded: { label: 'Uploadé', icon: Clock, bgColor: 'bg-amber-100', textColor: 'text-amber-700', badgeColor: 'text-amber-600' },
+  extracted: { label: 'Extrait', icon: CheckCircle, bgColor: 'bg-blue-100', textColor: 'text-blue-800', badgeColor: 'text-blue-600' },
+  validated: { label: 'Validé', icon: CheckCircle, bgColor: 'bg-green-100', textColor: 'text-green-800', badgeColor: 'text-green-600' },
+  exported: { label: 'Exporté', icon: Archive, bgColor: 'bg-cyan-100', textColor: 'text-cyan-800', badgeColor: 'text-cyan-600' },
+  archived: { label: 'Archivé', icon: Archive, bgColor: 'bg-slate-100', textColor: 'text-slate-700', badgeColor: 'text-slate-600' },
 };
 
 export function DocumentInbox({ refreshTrigger }: InboxProps) {
+  const router = useRouter();
   const [documents, setDocuments] = useState<DAFDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -98,18 +100,20 @@ export function DocumentInbox({ refreshTrigger }: InboxProps) {
       )}
 
       {/* Filters */}
-      <div className="bg-white border rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <span className="text-sm font-medium">Filtrer par type:</span>
+      <div className="bg-gradient-to-r from-white to-slate-50 border-2 border-slate-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+            <Filter className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-sm font-bold text-gray-900 uppercase tracking-wide">Filtrer par type</span>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 py-1 text-sm rounded ${
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
               filter === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
             }`}
           >
             Tous ({documents.length})
@@ -118,10 +122,10 @@ export function DocumentInbox({ refreshTrigger }: InboxProps) {
             <button
               key={type}
               onClick={() => setFilter(type)}
-              className={`px-3 py-1 text-sm rounded ${
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
                 filter === type
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                  : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
               }`}
             >
               {label} ({docTypeCounts[type] || 0})
@@ -170,31 +174,37 @@ export function DocumentInbox({ refreshTrigger }: InboxProps) {
               </thead>
               <tbody className="divide-y">
                 {filteredDocuments.map(doc => {
-                  const StatusIcon = STATUS_LABELS[doc.status]?.icon || Clock;
-                  const statusColor = STATUS_LABELS[doc.status]?.color || 'text-gray-600';
+                  const statusInfo = STATUS_LABELS[doc.status] || {
+                    icon: Clock,
+                    bgColor: 'bg-gray-100',
+                    textColor: 'text-gray-700',
+                    badgeColor: 'text-gray-600',
+                    label: doc.status
+                  };
+                  const StatusIcon = statusInfo.icon;
 
                   return (
-                    <tr key={doc.id} className="hover:bg-gray-50">
+                    <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span className="text-sm font-medium truncate max-w-xs">
+                          <span className="text-sm font-medium text-gray-900 truncate max-w-xs">
                             {doc.file_name}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
                           {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-gray-700">
+                        <span className="text-sm font-medium text-gray-900">
                           {doc.fournisseur || '-'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-gray-700">
+                        <span className="text-sm font-medium text-gray-900">
                           {doc.date_document
                             ? new Date(doc.date_document).toLocaleDateString('fr-FR')
                             : '-'}
@@ -202,7 +212,7 @@ export function DocumentInbox({ refreshTrigger }: InboxProps) {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {doc.montant_ttc ? (
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-sm font-bold text-gray-900">
                             {doc.montant_ttc.toLocaleString('fr-FR', {
                               style: 'currency',
                               currency: 'EUR',
@@ -213,20 +223,32 @@ export function DocumentInbox({ refreshTrigger }: InboxProps) {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1">
-                          <StatusIcon className={`h-4 w-4 ${statusColor}`} />
-                          <span className={`text-xs ${statusColor}`}>
-                            {STATUS_LABELS[doc.status]?.label || doc.status}
+                        <div className="flex items-center justify-center">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusInfo.bgColor} ${statusInfo.textColor} border-2 ${statusInfo.bgColor.replace('bg-', 'border-')}`}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            {statusInfo.label}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => window.open(doc.file_url, '_blank')}
-                          className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          Voir
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => router.push(`/daf/documents/${doc.id}/viewer`)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-bold shadow-md hover:shadow-lg transition-all"
+                            title="Voir avec analyse"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Analyse
+                          </button>
+                          <button
+                            onClick={() => window.open(doc.file_url, '_blank')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border-2 border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-400 font-bold transition-all"
+                            title="Télécharger PDF"
+                          >
+                            <Download className="h-4 w-4" />
+                            PDF
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

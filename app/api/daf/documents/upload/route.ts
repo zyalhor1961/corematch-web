@@ -4,7 +4,7 @@ import { secureApiRoute, logSecurityEvent } from '@/lib/auth/middleware';
 import { ApiErrorHandler, ValidationHelper } from '@/lib/errors/api-error-handler';
 import { AppError, ErrorType } from '@/lib/errors/error-types';
 import { classifyDocument } from '@/lib/daf-docs/classifier';
-import { extractDAFDocument } from '@/lib/daf-docs/extraction';
+import { AzureDIExtractor } from '@/lib/daf-docs/extraction';
 import type { DAFDocument } from '@/lib/daf-docs/types';
 
 /**
@@ -166,15 +166,12 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // ===== EXTRACTION LANDING AI + AZURE FALLBACK =====
+        // ===== EXTRACTION AZURE DI + GPT ENRICHMENT =====
         console.log(`[DAF Upload] Starting extraction for document ${document.id}...`);
 
         try {
-          const extractionResult = await extractDAFDocument(buffer, file.name, {
-            primaryProvider: 'landing-ai',
-            fallbackProvider: 'azure-di',
-            timeout: 30000,
-          });
+          const azureExtractor = new AzureDIExtractor();
+          const extractionResult = await azureExtractor.extractDocument(arrayBuffer, file.name);
 
           if (extractionResult.success) {
             console.log(`[DAF Upload] ✓ Extraction succeeded with ${extractionResult.provider} (confidence: ${extractionResult.confidence})`);

@@ -6,6 +6,7 @@ import { AppError, ErrorType } from '@/lib/errors/error-types';
 import { classifyDocument } from '@/lib/daf-docs/classifier';
 import { AzureDIExtractor } from '@/lib/daf-docs/extraction';
 import type { DAFDocument } from '@/lib/daf-docs/types';
+import { ingestDocument } from '@/lib/rag';
 
 /**
  * Upload de documents DAF
@@ -230,6 +231,34 @@ export async function POST(request: NextRequest) {
               document.numero_facture = extractionResult.numero_facture;
               document.fournisseur = extractionResult.fournisseur || classification.fournisseur_detecte;
               document.status = 'extracted';
+
+              // ===== RAG EMBEDDING GENERATION =====
+              // Generate embeddings for semantic search (non-blocking)
+              const pdfText = extractionResult.raw_response?.content;
+              if (pdfText && typeof pdfText === 'string' && pdfText.length > 0) {
+                try {
+                  await ingestDocument(
+                    pdfText,
+                    {
+                      org_id: orgId,
+                      source_id: document.id,
+                      content_type: 'daf_document',
+                      source_table: 'daf_documents',
+                      source_metadata: {
+                        file_name: file.name,
+                        doc_type: classification.doc_type,
+                        fournisseur: extractionResult.fournisseur || classification.fournisseur_detecte,
+                        date_document: extractionResult.date_document,
+                        montant_ttc: extractionResult.montant_ttc,
+                        numero_facture: extractionResult.numero_facture,
+                      },
+                    }
+                  );
+                } catch (ragError) {
+                  console.error('[DAF Upload] RAG embedding error:', ragError);
+                  // Non-blocking - continue even if embedding fails
+                }
+              }
             }
           } else {
             console.warn(`[DAF Upload] Extraction failed: ${extractionResult.error}`);

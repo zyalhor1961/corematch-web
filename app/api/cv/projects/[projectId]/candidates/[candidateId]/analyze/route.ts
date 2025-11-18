@@ -3,10 +3,11 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { verifyAuth, verifyOrgAccess } from '@/lib/auth/verify-auth';
 import { extractTextFromPDF, cleanPDFText } from '@/lib/utils/pdf-extractor';
 import { handleApiError, AppError, ErrorCode } from '@/lib/utils/error-handler';
-import { orchestrateAnalysis } from '@/lib/cv-analysis';
+import { analyzeCVWithGraph } from '@/lib/cv-analysis';
 import { generateJobSpec } from '@/lib/cv-analysis/utils/jobspec-generator';
 import { maskPII } from '@/lib/utils/data-normalization';
 import type { JobSpec } from '@/lib/cv-analysis/types';
+import { ingestDocument } from '@/lib/rag';
 
 export async function POST(
   request: NextRequest,
@@ -147,6 +148,32 @@ export async function POST(
 
         // SECURITY: Only log metadata, never actual CV content (PII)
         console.log(`✅ PDF extraction successful: ${cvText.length} characters extracted`);
+
+        // ===== RAG EMBEDDING GENERATION =====
+        // Generate embeddings for semantic search (non-blocking)
+        if (cvText && cvText.length > 0) {
+          try {
+            await ingestDocument(
+              cvText,
+              {
+                org_id: orgId,
+                source_id: candidateId,
+                content_type: 'cv',
+                source_table: 'candidates',
+                source_metadata: {
+                  file_name: candidate.cv_filename || 'unknown.pdf',
+                  first_name: candidate.first_name,
+                  last_name: candidate.last_name,
+                  project_id: projectId,
+                  project_name: (candidate.project as any)?.name,
+                },
+              }
+            );
+          } catch (ragError) {
+            console.error('[CV Analysis] RAG embedding error:', ragError);
+            // Non-blocking - continue even if embedding fails
+          }
+        }
       } catch (pdfError) {
         // SECURITY: Sanitize error messages - don't expose internal details
         const sanitizedError = pdfError instanceof Error
@@ -193,11 +220,13 @@ export async function POST(
     console.log(`[CV Analysis] Must-have rules: ${jobSpec.must_have.length}`);
     console.log(`[CV Analysis] Using mode: BALANCED (multi-provider)`);
 
-    // Analyze with multi-provider system
+    // Analyze with multi-provider system (Graph-based orchestration)
     let result;
     try {
-      result = await orchestrateAnalysis(cvText, jobSpec, {
+      result = await analyzeCVWithGraph(cvText, jobSpec, {
         mode: 'balanced', // Use BALANCED mode by default
+        projectId, // Required for graph-based orchestration
+        candidateId, // For compliance tracking
         enablePrefilter: true,
         enablePacking: true,
       });

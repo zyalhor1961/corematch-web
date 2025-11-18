@@ -47,36 +47,40 @@ export async function POST(request: NextRequest) {
     const { user } = securityResult;
     userId = user?.id;
 
-    // Get user's organization
-    const { getSupabaseAdmin } = await import('@/lib/supabase/server');
-    const supabaseAdmin = await getSupabaseAdmin();
-
-    const { data: userOrg } = await supabaseAdmin
-      .from('organization_members')
-      .select('org_id')
-      .eq('user_id', user!.id)
-      .single();
-
-    if (!userOrg) {
-      throw new AppError(ErrorType.ACCESS_DENIED, 'No organization access');
-    }
-
-    const orgId = userOrg.org_id;
-
     // Parse request body
     const body = await request.json();
 
     const {
       query,
+      org_id,
       content_type,
       limit = 10,
       mode = 'hybrid',
       metadata_filters,
     } = body;
 
-    // Validate query
+    // Validate required fields
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new AppError(ErrorType.MISSING_REQUIRED_FIELD, 'Query is required', 'query');
+    }
+
+    if (!org_id || typeof org_id !== 'string') {
+      throw new AppError(ErrorType.MISSING_REQUIRED_FIELD, 'Organization ID is required', 'org_id');
+    }
+
+    // Verify user has access to this organization
+    const { getSupabaseAdmin } = await import('@/lib/supabase/server');
+    const supabaseAdmin = await getSupabaseAdmin();
+
+    const { data: membership } = await supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user!.id)
+      .eq('org_id', org_id)
+      .single();
+
+    if (!membership) {
+      throw new AppError(ErrorType.ACCESS_DENIED, 'No access to this organization');
     }
 
     if (query.length > 500) {
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest) {
     // Execute search with context generation
     const context = await rag.query({
       query,
-      org_id: orgId,
+      org_id,
       content_type: content_type as ContentType | undefined,
       limit,
       mode: mode as 'vector' | 'fts' | 'hybrid',
@@ -99,15 +103,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      success: true,
-      data: {
-        chunks: context.chunks,
-        context_text: context.context_text,
-        citations: context.citations,
-        total_tokens: context.total_tokens,
-        execution_time_ms: 0, // TODO: track actual time
-      },
-      message: `Found ${context.citations.length} relevant documents`,
+      results: context.chunks,
+      total: context.chunks.length,
+      execution_time_ms: 0, // TODO: track actual time
+      context_text: context.context_text,
+      citations: context.citations,
+      total_tokens: context.total_tokens,
     });
   } catch (error) {
     console.error('[RAG Search] Error:', error);

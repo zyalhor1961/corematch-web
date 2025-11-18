@@ -84,8 +84,8 @@ export default function OrganizationLayout({
   const navigation = [
     { name: 'Vue d\'ensemble', href: `/org/${orgId}`, icon: BarChart3 },
     { name: 'CV Screening', href: `/org/${orgId}/cv`, icon: Users },
+    { name: 'Documents DAF', href: `/org/${orgId}/daf`, icon: FileText },
     { name: 'DEB Assistant', href: `/org/${orgId}/deb`, icon: FileText },
-    { name: 'Recherche DAF', href: `/org/${orgId}/daf/search`, icon: Search },
     // { name: 'Membres', href: `/org/${orgId}/members`, icon: Users }, // TODO: Create members page
     { name: 'Facturation', href: `/org/${orgId}/billing`, icon: CreditCard },
     { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },

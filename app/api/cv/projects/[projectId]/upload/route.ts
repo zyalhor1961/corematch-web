@@ -65,6 +65,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  let projectId: string | undefined;
+  let user: any;
+
   try {
     const supabaseAdmin = await getSupabaseAdmin();
 
@@ -74,8 +77,9 @@ export async function POST(
       return securityResult.response!;
     }
 
-    const { user } = securityResult;
-    const { projectId } = await params;
+    user = securityResult.user;
+    const paramsData = await params;
+    projectId = paramsData.projectId;
 
     // Verify user has access to this project
     const projectAccess = await verifyProjectAccess(user!.id, projectId, user!.isMasterAdmin);
@@ -289,6 +293,6 @@ export async function POST(
 
   } catch (error) {
     console.error('Upload error:', error);
-    return ApiErrorHandler.handleError(error, user?.id, `/api/cv/projects/${projectId}/upload [POST]`);
+    return ApiErrorHandler.handleError(error, user?.id, `/api/cv/projects/${projectId || 'unknown'}/upload [POST]`);
   }
 }

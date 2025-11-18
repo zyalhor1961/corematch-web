@@ -1,18 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DocumentUpload } from '@/components/daf/DocumentUpload';
 import { DocumentInbox } from '@/components/daf/DocumentInbox';
 import { FileText, Upload, List, Sparkles, Shield, Zap } from 'lucide-react';
 
 /**
- * Page de démo DAF Docs Assistant - PREMIUM DESIGN
- *
- * Phase 0: Upload + Classification automatique
- * Phase 1+: Extraction, Validation, Export
+ * Inner component that uses useSearchParams
  */
-export default function DAFDemoPage() {
+function DAFDemoContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'upload' | 'inbox'>('upload');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -130,7 +127,10 @@ export default function DAFDemoPage() {
                 L'IA les classera automatiquement.
               </p>
             </div>
-            <DocumentUpload onUploadComplete={handleUploadComplete} />
+            <DocumentUpload
+              orgId="75322f8c-4741-4e56-a973-92d68a261e4e"
+              onUploadComplete={handleUploadComplete}
+            />
 
             {/* Premium AI Features Card */}
             <div className="mt-8 relative overflow-hidden bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-700 rounded-2xl shadow-2xl">
@@ -263,5 +263,26 @@ export default function DAFDemoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Page de démo DAF Docs Assistant - PREMIUM DESIGN
+ *
+ * Phase 0: Upload + Classification automatique
+ * Phase 1+: Extraction, Validation, Export
+ */
+export default function DAFDemoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Chargement...</p>
+        </div>
+      </div>
+    }>
+      <DAFDemoContent />
+    </Suspense>
   );
 }

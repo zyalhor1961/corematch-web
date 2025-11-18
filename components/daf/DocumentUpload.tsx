@@ -11,7 +11,12 @@ interface UploadResult {
   error?: string;
 }
 
-export function DocumentUpload({ onUploadComplete }: { onUploadComplete?: () => void }) {
+interface DocumentUploadProps {
+  orgId: string;
+  onUploadComplete?: () => void;
+}
+
+export function DocumentUpload({ orgId, onUploadComplete }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -55,6 +60,7 @@ export function DocumentUpload({ onUploadComplete }: { onUploadComplete?: () => 
     setResults([]);
 
     const formData = new FormData();
+    formData.append('orgId', orgId);
     selectedFiles.forEach(file => {
       formData.append('files', file);
     });

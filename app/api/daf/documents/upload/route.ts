@@ -31,22 +31,27 @@ export async function POST(request: NextRequest) {
     const { user } = securityResult;
     userId = user?.id;
 
-    // Get user's org
-    const { data: userOrg } = await supabaseAdmin
-      .from('organization_members')
-      .select('org_id, role')
-      .eq('user_id', user!.id)
-      .single();
-
-    if (!userOrg) {
-      throw new AppError(ErrorType.ACCESS_DENIED, 'No organization access');
-    }
-
-    const orgId = userOrg.org_id;
-
     // Parse form data
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
+    const orgId = formData.get('orgId') as string;
+
+    // Validate orgId
+    if (!orgId || typeof orgId !== 'string') {
+      throw new AppError(ErrorType.MISSING_REQUIRED_FIELD, 'Organization ID is required', 'orgId');
+    }
+
+    // Verify user has access to this organization
+    const { data: membership } = await supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user!.id)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!membership) {
+      throw new AppError(ErrorType.ACCESS_DENIED, 'No access to this organization');
+    }
 
     // ===== SECURITY: Limit number of files =====
     const MAX_FILES_PER_UPLOAD = 20;

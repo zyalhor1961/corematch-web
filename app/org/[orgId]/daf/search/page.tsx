@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { Search, FileText, Calendar, DollarSign, Building2, Sparkles, Loader2 } from 'lucide-react';
 
 interface SearchResult {
@@ -24,23 +25,30 @@ interface SearchResponse {
   execution_time_ms: number;
 }
 
-export default function DAFSearchPage({ params }: { params: Promise<{ orgId: string }> }) {
+export default function DAFSearchPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchTime, setSearchTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const params = useParams<{ orgId: string }>();
+
+  const orgId = params?.orgId;
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!query.trim()) return;
 
+    if (!orgId) {
+      setError('Organisation introuvable.');
+      return;
+    }
+
     setIsSearching(true);
     setError(null);
 
     try {
-      const { orgId } = await params;
       const response = await fetch('/api/rag/search', {
         method: 'POST',
         headers: {

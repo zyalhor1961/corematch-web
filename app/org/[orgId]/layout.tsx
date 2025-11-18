@@ -8,18 +8,19 @@ import type { User } from '@supabase/supabase-js';
 import { MyOrg } from '@/lib/types';
 import { useTheme } from '@/app/components/ThemeProvider';
 import { AlertTriangle } from 'lucide-react';
-import { 
-  Building2, 
-  BarChart3, 
-  Users, 
-  FileText, 
-  Settings, 
+import {
+  Building2,
+  BarChart3,
+  Users,
+  FileText,
+  Settings,
   CreditCard,
   LogOut,
   Menu,
   X,
   Sun,
-  Moon
+  Moon,
+  Search
 } from 'lucide-react';
 
 export default function OrganizationLayout({
@@ -84,6 +85,7 @@ export default function OrganizationLayout({
     { name: 'Vue d\'ensemble', href: `/org/${orgId}`, icon: BarChart3 },
     { name: 'CV Screening', href: `/org/${orgId}/cv`, icon: Users },
     { name: 'DEB Assistant', href: `/org/${orgId}/deb`, icon: FileText },
+    { name: 'Recherche DAF', href: `/org/${orgId}/daf/search`, icon: Search },
     // { name: 'Membres', href: `/org/${orgId}/members`, icon: Users }, // TODO: Create members page
     { name: 'Facturation', href: `/org/${orgId}/billing`, icon: CreditCard },
     { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },

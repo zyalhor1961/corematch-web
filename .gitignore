@@ -54,3 +54,4 @@ check-*.js
 debug-*.js
 test-*.js
 fix-*.js
+replace-secrets.txt

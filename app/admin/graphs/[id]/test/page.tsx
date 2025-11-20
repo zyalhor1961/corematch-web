@@ -212,7 +212,7 @@ SKILLS:
               <h2 className="text-xl font-semibold text-gray-900">Test Input</h2>
               <button
                 onClick={handleLoadSample}
-                className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                className="px-3 py-1 text-sm bg-gray-200 text-gray-900 rounded hover:bg-gray-300"
               >
                 Load Sample Data
               </button>

@@ -186,7 +186,7 @@ export default function AdminGraphEditorPage({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
               />
             </div>
 
@@ -198,7 +198,7 @@ export default function AdminGraphEditorPage({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
               />
             </div>
 
@@ -209,7 +209,7 @@ export default function AdminGraphEditorPage({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2"
+                className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
               >
                 <option value="draft">Draft</option>
                 <option value="active">Active</option>

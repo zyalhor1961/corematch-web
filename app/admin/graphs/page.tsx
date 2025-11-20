@@ -114,7 +114,7 @@ export default function AdminGraphsPage() {
             <select
               value={filter.type}
               onChange={(e) => setFilter({ ...filter, type: e.target.value })}
-              className="border border-gray-300 rounded-md px-3 py-2"
+              className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
             >
               <option value="">All Types</option>
               <option value="cv_analysis">CV Analysis</option>
@@ -130,7 +130,7 @@ export default function AdminGraphsPage() {
             <select
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value })}
-              className="border border-gray-300 rounded-md px-3 py-2"
+              className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
             >
               <option value="">All Statuses</option>
               <option value="draft">Draft</option>
@@ -182,7 +182,7 @@ export default function AdminGraphsPage() {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-xl font-semibold">{graph.name}</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">{graph.name}</h2>
                     {graph.is_default && (
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
                         DEFAULT

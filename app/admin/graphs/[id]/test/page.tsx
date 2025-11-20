@@ -227,7 +227,7 @@ SKILLS:
                   value={cvText}
                   onChange={(e) => setCvText(e.target.value)}
                   rows={10}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm text-gray-900 bg-white"
                   placeholder="Paste CV text here..."
                 />
               </div>
@@ -240,7 +240,7 @@ SKILLS:
                   value={jobSpec}
                   onChange={(e) => setJobSpec(e.target.value)}
                   rows={8}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm text-gray-900 bg-white"
                   placeholder='{"title": "Developer", "skills_required": [...], ...}'
                 />
               </div>
@@ -252,7 +252,7 @@ SKILLS:
                 <select
                   value={executionMode}
                   onChange={(e) => setExecutionMode(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white"
                 >
                   <option value="balanced">Balanced (Quality + Cost)</option>
                   <option value="cost_optimized">Cost Optimized (Cheapest)</option>

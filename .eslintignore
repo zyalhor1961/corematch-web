@@ -1,11 +1,9 @@
-*.ts
-*.tsx
-*.js
-*.jsx
+# ESLint ignore file (deprecated - use ignores in eslint.config.mjs instead)
+# Keeping minimal ignores for backwards compatibility
+
 .next/
 node_modules/
 out/
-app/
-lib/
-components/
-pages/
+.netlify/
+dist/
+build/

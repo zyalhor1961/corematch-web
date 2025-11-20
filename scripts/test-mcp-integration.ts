@@ -21,9 +21,11 @@ console.log('\n🧪 TEST D\'INTÉGRATION MCP - Cache + Context Snapshot\n');
 console.log('═══════════════════════════════════════════════════════════\n');
 
 async function runIntegrationTest() {
-  // Vérifier la clé API
+  // Vérifier la clé API - skip gracefully if not available
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error('❌ OPENAI_API_KEY not found in .env.local');
+    console.log('⚠️  OPENAI_API_KEY not found in .env.local');
+    console.log('⏭️  Skipping test (API key required for multi-provider test)\n');
+    return { skipped: true, reason: 'Missing OPENAI_API_KEY' };
   }
 
   console.log('✅ OpenAI API key loaded\n');
@@ -269,9 +271,14 @@ DevOps : Docker, Kubernetes, AWS, CI/CD
 
 // Exécution
 runIntegrationTest()
-  .then(() => {
-    console.log('✅ Test terminé avec succès!\n');
-    process.exit(0);
+  .then((result) => {
+    if (result?.skipped) {
+      console.log(`⏭️  Test skipped: ${result.reason}\n`);
+      process.exit(0); // Exit successfully (not an error)
+    } else {
+      console.log('✅ Test terminé avec succès!\n');
+      process.exit(0);
+    }
   })
   .catch((error) => {
     console.error('\n❌ ERREUR DURANT LE TEST:\n');

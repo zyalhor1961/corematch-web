@@ -26,7 +26,7 @@ export default function BillingPage() {
     if (orgId) {
       loadBillingData();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadBillingData = async () => {
     try {

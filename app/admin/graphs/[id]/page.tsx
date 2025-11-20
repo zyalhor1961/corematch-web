@@ -288,7 +288,7 @@ export default function AdminGraphEditorPage({
               Active Configuration (v{data.active_config.version_number})
             </h2>
 
-            <pre className="bg-gray-50 rounded p-4 overflow-x-auto text-sm">
+            <pre className="bg-gray-50 rounded p-4 overflow-x-auto text-sm text-gray-900">
               {JSON.stringify(data.active_config.config_json, null, 2)}
             </pre>
           </div>

@@ -153,7 +153,7 @@ export default function AdminGraphEditorPage({
       {/* Tabs */}
       <div className="border-b mb-6">
         <div className="flex gap-4">
-          <button className="px-4 py-2 border-b-2 border-blue-600 font-medium">
+          <button className="px-4 py-2 border-b-2 border-blue-600 font-medium text-gray-900">
             Overview
           </button>
           <button className="px-4 py-2 text-gray-600 hover:text-gray-800">

@@ -72,11 +72,11 @@ export async function prefilterCV(
 
   const cvKeywords = extractKeywords(cvText, 3);
 
-  // Mots-clés du poste (relevance rules + skills)
+  // Mots-clés du poste (relevance rules + skills) - avec fallback si non définis
   const jobKeywords = [
-    ...jobSpec.relevance_rules.direct,
-    ...jobSpec.relevance_rules.adjacent,
-    ...jobSpec.skills_required,
+    ...(jobSpec.relevance_rules?.direct || []),
+    ...(jobSpec.relevance_rules?.adjacent || []),
+    ...(jobSpec.skills_required || []),
   ].flatMap((term) => extractKeywords(term, 3));
 
   // Similarité Jaccard
@@ -96,7 +96,7 @@ export async function prefilterCV(
   // =========================================================================
 
   const cvSkillsNormalized = cv.competences.map((s) => normalizeText(s));
-  const requiredSkillsNormalized = jobSpec.skills_required.map((s) => normalizeText(s));
+  const requiredSkillsNormalized = (jobSpec.skills_required || []).map((s) => normalizeText(s));
 
   let matchedSkillsCount = 0;
   for (const reqSkill of requiredSkillsNormalized) {
@@ -109,7 +109,7 @@ export async function prefilterCV(
 
   const skillsMatchRatio = requiredSkillsNormalized.length > 0
     ? matchedSkillsCount / requiredSkillsNormalized.length
-    : 0;
+    : 1.0; // Si aucune compétence requise, considérer comme match parfait
 
   if (skillsMatchRatio < PREFILTER_CONFIG.weak_skills_threshold) {
     softFlags.missing_key_skills = 1 - (skillsMatchRatio / PREFILTER_CONFIG.weak_skills_threshold);

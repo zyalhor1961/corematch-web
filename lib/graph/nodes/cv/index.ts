@@ -52,13 +52,19 @@ export const checkCache: NodeFunction<
   { cached: boolean; result?: any }
 > = async (state, input) => {
   try {
-    const cvTextHash = hashCVText(input.cvText);
+    // Get data from state
+    const cvText = state.data.cvText as string;
+    const jobSpec = state.data.jobSpec as JobSpec;
+    const projectId = state.data.projectId as string;
+    const mode = state.data.mode as AnalysisMode;
+
+    const cvTextHash = hashCVText(cvText);
     const cache = getCacheStore();
     const cacheKey = generateCacheKey({
       cvTextHash,
-      projectId: input.projectId,
-      jobSpec: input.jobSpec,
-      mode: input.mode,
+      projectId,
+      jobSpec,
+      mode,
     });
 
     console.log(`📦 Cache key: ${cacheKey.substring(0, 60)}...`);
@@ -115,8 +121,15 @@ export const extractCV: NodeFunction<
   try {
     console.log('📄 Extracting CV...');
 
+    // Get cvText from state (passed during graph initialization)
+    const cvText = state.data.cvText as string;
+
+    if (!cvText) {
+      throw new Error('CV text not found in state');
+    }
+
     const provider = createOpenAIProvider();
-    const cvJson = await provider.extract!(input.cvText);
+    const cvJson = await provider.extract!(cvText);
 
     const extractionTime = Date.now() - startTime;
     console.log(`✅ CV extracted in ${extractionTime}ms\n`);
@@ -147,7 +160,14 @@ export const validateCV: NodeFunction<{ cvJson: CV_JSON }, { valid: boolean }> =
   try {
     console.log('✅ Validating CV data...');
 
-    const validation = validateCVData(input.cvJson);
+    // Get cvJson from state (set by previous extract node)
+    const cvJson = state.data.cvJson as CV_JSON;
+
+    if (!cvJson) {
+      throw new Error('CV JSON not found in state');
+    }
+
+    const validation = validateCVData(cvJson);
 
     if (!validation.valid) {
       const errorMessage = `CV validation failed: ${validation.errorMessage}`;
@@ -188,7 +208,15 @@ export const prefilterCVNode: NodeFunction<
   try {
     console.log('🔍 Running Stage 0 Prefilter...');
 
-    const result = await prefilterCV(input.cvJson, input.jobSpec);
+    // Get data from state
+    const cvJson = state.data.cvJson as CV_JSON;
+    const jobSpec = state.data.jobSpec as JobSpec;
+
+    if (!cvJson || !jobSpec) {
+      throw new Error('CV JSON or JobSpec not found in state');
+    }
+
+    const result = await prefilterCV(cvJson, jobSpec);
     const prefilterTime = Date.now() - startTime;
 
     console.log(`   Confidence: ${(result.confidence * 100).toFixed(0)}%`);
@@ -260,9 +288,11 @@ export const prefilterCVNode: NodeFunction<
       },
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Prefilter failed';
+    console.error(`❌ Prefilter exception: ${errorMessage}`);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Prefilter failed',
+      error: errorMessage,
     };
   }
 };
@@ -279,15 +309,23 @@ export const packContextNode: NodeFunction<
   try {
     console.log('📦 Packing context...');
 
-    const packedContext = await packContext(input.cvJson, input.jobSpec);
-    let compactedCV = input.cvJson;
+    // Get data from state
+    const cvJson = state.data.cvJson as CV_JSON;
+    const jobSpec = state.data.jobSpec as JobSpec;
+
+    if (!cvJson || !jobSpec) {
+      throw new Error('CV JSON or JobSpec not found in state');
+    }
+
+    const packedContext = await packContext(cvJson, jobSpec);
+    let compactedCV = cvJson;
 
     if (!packedContext.fallback_to_full) {
       const savings = estimateTokenSavings(packedContext);
       console.log(`   Compression: ${(packedContext.compression_ratio * 100).toFixed(0)}%`);
       console.log(`   Saved tokens: ~${savings.savedTokensEstimate}`);
 
-      compactedCV = buildCompactedCV(input.cvJson, packedContext) as CV_JSON;
+      compactedCV = buildCompactedCV(cvJson, packedContext) as CV_JSON;
     } else {
       console.log(`   CV too small, using full version`);
     }
@@ -309,11 +347,12 @@ export const packContextNode: NodeFunction<
   } catch (error) {
     // Non-blocking - fallback to full CV
     console.warn('[packContext] Packing failed, using full CV:', error);
+    const cvJson = state.data.cvJson as CV_JSON;
     return {
       success: true,
-      data: { compactedCV: input.cvJson, compressionRatio: 1.0 },
+      data: { compactedCV: cvJson, compressionRatio: 1.0 },
       stateUpdates: {
-        compactedCV: input.cvJson,
+        compactedCV: cvJson,
         packingError: error instanceof Error ? error.message : 'Packing failed',
       },
     };
@@ -332,8 +371,16 @@ export const analyzeMainProvider: NodeFunction<
   try {
     console.log('🤖 Analyzing with main provider (OpenAI)...');
 
+    // Get data from state
+    const compactedCV = state.data.compactedCV as CV_JSON;
+    const jobSpec = state.data.jobSpec as JobSpec;
+
+    if (!compactedCV || !jobSpec) {
+      throw new Error('Compacted CV or JobSpec not found in state');
+    }
+
     const provider = createOpenAIProvider();
-    const providerResult = await provider.analyze(input.compactedCV, input.jobSpec);
+    const providerResult = await provider.analyze(compactedCV, jobSpec);
 
     if (!providerResult.result) {
       throw new Error(`Main provider failed: ${providerResult.error}`);
@@ -376,8 +423,18 @@ export const evaluateNeedsMore: NodeFunction<
   try {
     console.log('🔄 Evaluating need for additional providers...');
 
+    // Get data from state
+    const mainResult = state.data.mainResult as EvaluationResult;
+    const jobSpec = state.data.jobSpec as JobSpec;
+    const mode = state.data.mode as AnalysisMode;
+    const forceSingleProvider = state.data.forceSingleProvider as boolean | undefined;
+
+    if (!mainResult || !jobSpec) {
+      throw new Error('Main result or JobSpec not found in state');
+    }
+
     // In eco mode, never call additional providers
-    if (input.mode === 'eco' || input.forceSingleProvider) {
+    if (mode === 'eco' || forceSingleProvider) {
       console.log('   Mode: eco or forced single provider - skipping additional providers\n');
       return {
         success: true,
@@ -395,6 +452,16 @@ export const evaluateNeedsMore: NodeFunction<
         },
         stateUpdates: {
           needsMore: false,
+          finalDecision: mainResult, // Set finalDecision for single-provider path
+          providersRaw: { openai: mainResult },
+          providersUsed: ['openai'],
+          consensus: {
+            level: 'strong' as ConsensusLevel,
+            agreement_score: 1.0,
+            recommendation_match: true,
+            avg_score_delta: 0,
+            arbiter_called: false,
+          },
         },
       };
     }
@@ -407,8 +474,8 @@ export const evaluateNeedsMore: NodeFunction<
       vip_candidate: false,
     };
 
-    const thresholds = input.jobSpec.thresholds || { consider_min: 60, shortlist_min: 75, years_full_score: 3 };
-    const score = input.mainResult.overall_score_0_to_100;
+    const thresholds = jobSpec.thresholds || { consider_min: 60, shortlist_min: 75, years_full_score: 3 };
+    const score = mainResult.overall_score_0_to_100;
 
     // Trigger 1: Borderline score
     if (score >= thresholds.consider_min && score < thresholds.shortlist_min) {
@@ -417,8 +484,8 @@ export const evaluateNeedsMore: NodeFunction<
 
     // Trigger 2: Weak evidence
     const evidenceCount = [
-      ...input.mainResult.strengths.flatMap((s) => s.evidence),
-      ...input.mainResult.relevance_summary.by_experience.flatMap((e) => e.evidence),
+      ...mainResult.strengths.flatMap((s) => s.evidence),
+      ...mainResult.relevance_summary.by_experience.flatMap((e) => e.evidence),
     ].length;
 
     if (evidenceCount < UNCERTAINTY_THRESHOLDS.min_evidence_count) {
@@ -426,7 +493,7 @@ export const evaluateNeedsMore: NodeFunction<
     }
 
     // Trigger 3: Score divergence
-    const { subscores } = input.mainResult;
+    const { subscores } = mainResult;
     const scoreDiff = Math.max(
       Math.abs(subscores.experience_years_relevant * 100 - subscores.skills_match_0_to_100),
       Math.abs(subscores.skills_match_0_to_100 - subscores.nice_to_have_0_to_100)
@@ -437,7 +504,7 @@ export const evaluateNeedsMore: NodeFunction<
     }
 
     // Trigger 4: Must-have uncertain
-    for (const fail of input.mainResult.fails) {
+    for (const fail of mainResult.fails) {
       if (fail.evidence.length < UNCERTAINTY_THRESHOLDS.must_have_weak_evidence_threshold) {
         triggers.must_have_uncertain = true;
         break;
@@ -446,7 +513,7 @@ export const evaluateNeedsMore: NodeFunction<
 
     const triggersCount = Object.values(triggers).filter((v) => v).length;
     const confidence = Math.max(0.3, 1 - triggersCount * 0.2);
-    const needsMore = triggersCount >= 2 || (input.mode === 'premium' && triggersCount >= 1);
+    const needsMore = triggersCount >= 2 || (mode === 'premium' && triggersCount >= 1);
 
     console.log(`   Needs more: ${needsMore}`);
     console.log(`   Confidence: ${(confidence * 100).toFixed(0)}%`);
@@ -465,9 +532,9 @@ export const evaluateNeedsMore: NodeFunction<
       needsMoreAnalysis: result,
     };
 
-    if (!needsMore && input.mainResult) {
+    if (!needsMore && mainResult) {
       console.log('   Using main provider result as final decision (single provider mode)\n');
-      stateUpdates.finalDecision = input.mainResult;
+      stateUpdates.finalDecision = mainResult;
       stateUpdates.aggregationMethod = 'single_provider';
 
       // Set default consensus for single provider (strong consensus)
@@ -512,17 +579,27 @@ export const callAdditionalProviders: NodeFunction<
   { additionalResults: Record<string, EvaluationResult | null>; additionalCost: number }
 > = async (state, input) => {
   try {
-    console.log(`🔄 Calling additional providers: ${input.recommendedProviders.join(', ')}...\n`);
+    // Get data from state
+    const compactedCV = state.data.compactedCV as CV_JSON;
+    const jobSpec = state.data.jobSpec as JobSpec;
+    const mode = state.data.mode as AnalysisMode;
+    const recommendedProviders = state.data.needsMoreAnalysis?.recommended_providers || [];
+
+    if (!compactedCV || !jobSpec) {
+      throw new Error('Compacted CV or JobSpec not found in state');
+    }
+
+    console.log(`🔄 Calling additional providers: ${recommendedProviders.join(', ')}...\n`);
 
     const additionalProviders: Array<{ name: string; promise: Promise<any> }> = [];
 
     // Gemini
-    if (input.recommendedProviders.includes('gemini') || input.mode === 'premium') {
+    if (recommendedProviders.includes('gemini') || mode === 'premium') {
       try {
         const geminiProvider = createGeminiProvider();
         additionalProviders.push({
           name: 'gemini',
-          promise: geminiProvider.analyze(input.compactedCV, input.jobSpec),
+          promise: geminiProvider.analyze(compactedCV, jobSpec),
         });
       } catch (error) {
         console.warn(`[callAdditionalProviders] Could not create Gemini provider:`, error);
@@ -530,12 +607,12 @@ export const callAdditionalProviders: NodeFunction<
     }
 
     // Claude
-    if (input.recommendedProviders.includes('claude') || input.mode === 'premium') {
+    if (recommendedProviders.includes('claude') || mode === 'premium') {
       try {
         const claudeProvider = createClaudeProvider();
         additionalProviders.push({
           name: 'claude',
-          promise: claudeProvider.analyze(input.compactedCV, input.jobSpec),
+          promise: claudeProvider.analyze(compactedCV, jobSpec),
         });
       } catch (error) {
         console.warn(`[callAdditionalProviders] Could not create Claude provider:`, error);
@@ -605,7 +682,14 @@ export const aggregateResults: NodeFunction<
   try {
     console.log('🔄 Aggregating multi-provider results...');
 
-    const aggregation = aggregateProviderResults(input.providersRaw as any, {
+    // Get data from state
+    const providersRaw = state.data.providersRaw as Record<string, EvaluationResult | null>;
+
+    if (!providersRaw) {
+      throw new Error('Providers raw results not found in state');
+    }
+
+    const aggregation = aggregateProviderResults(providersRaw as any, {
       useWeights: true,
       minimumProviders: 1,
     });
@@ -643,10 +727,19 @@ export const callArbiter: NodeFunction<
   { arbiterDecision: EvaluationResult; arbiterCost: number }
 > = async (state, input) => {
   try {
-    console.log(`🤖 Calling arbiter (consensus: ${input.consensus.level})...`);
+    // Get data from state
+    const providersRaw = state.data.providersRaw as Record<string, EvaluationResult | null>;
+    const jobSpec = state.data.jobSpec as JobSpec;
+    const consensus = state.data.consensus as ConsensusMetrics;
+
+    if (!providersRaw || !jobSpec || !consensus) {
+      throw new Error('Required data not found in state');
+    }
+
+    console.log(`🤖 Calling arbiter (consensus: ${consensus.level})...`);
 
     const arbiterProvider = createOpenAIProvider();
-    const arbiterResult = await arbiterProvider.arbitrate!(input.providersRaw as any, input.jobSpec);
+    const arbiterResult = await arbiterProvider.arbitrate!(providersRaw as any, jobSpec);
 
     const arbiterCost = 0.01; // Estimation
 
@@ -709,44 +802,61 @@ export const buildContextSnapshot: NodeFunction<
   try {
     console.log('📸 Building context snapshot...');
 
-    const contextBuilder = new ContextSnapshotBuilder(input.engine);
+    // Get data from state
+    const engine = state.data.engine as EngineType;
+    const projectId = state.data.projectId as string;
+    const jobSpec = state.data.jobSpec as JobSpec;
+    const mode = state.data.mode as AnalysisMode;
+    const enablePrefilter = state.data.enablePrefilter as boolean;
+    const enablePacking = state.data.enablePacking as boolean;
+    const providersRaw = state.data.providersRaw as Record<string, EvaluationResult | null>;
+    const consensus = state.data.consensus as ConsensusMetrics;
+    const disagreements = state.data.disagreements || [];
+    const arbiter = state.data.arbiter as ArbiterOutput | undefined;
+    const candidateId = state.data.candidateId as string | undefined;
+    const totalCost = state.data.totalCost || 0;
+    const totalTime = state.metadata.totalTime || 0;
+    const extractionTime = state.data.extractionTime || 0;
+    const evaluationTime = state.data.evaluationTime || 0;
+
+    const contextBuilder = new ContextSnapshotBuilder(engine);
 
     // Set job context
-    contextBuilder.setJobContext(input.projectId, input.jobSpec.title, hashJobSpec(input.jobSpec));
+    contextBuilder.setJobContext(projectId, jobSpec.title, hashJobSpec(jobSpec));
 
     // Set mode
-    contextBuilder.setMode(input.mode, input.enablePrefilter, input.enablePacking);
+    contextBuilder.setMode(mode, enablePrefilter, enablePacking);
 
     // Add provider calls
-    const startTime = Date.now() - input.totalTime;
+    const startTime = Date.now() - totalTime;
 
-    if (input.providersRaw.openai) {
+    if (providersRaw.openai) {
       contextBuilder.addProviderCall({
         name: 'openai',
         model: 'gpt-4o',
         called_at: new Date(startTime).toISOString(),
-        duration_ms: input.evaluationTime,
+        duration_ms: evaluationTime,
         cost_usd: state.data.mainCost || 0,
         status: 'success',
       });
     }
 
-    if (input.providersRaw.gemini) {
+    if (providersRaw.gemini) {
       contextBuilder.addProviderCall({
         name: 'gemini',
         model: 'gemini-2.0-flash-exp',
-        called_at: new Date(startTime + input.evaluationTime).toISOString(),
+        called_at: new Date(startTime + evaluationTime).toISOString(),
         duration_ms: 5000,
         cost_usd: 0.015,
         status: 'success',
       });
     }
 
-    if (input.providersRaw.claude) {
+    if (providersRaw.claude) {
       contextBuilder.addProviderCall({
         name: 'claude',
         model: 'claude-sonnet-4-5-20250929',
-        called_at: new Date(startTime + input.evaluationTime).toISOString(),
+        called_at: new Date(startTime + evaluationTime).toISOString(),
         duration_ms: 5000,
         cost_usd: 0.018,
         status: 'success',
@@ -755,22 +865,22 @@ export const buildContextSnapshot: NodeFunction<
 
     // Set consensus
     contextBuilder.setConsensus(
-      input.consensus.level,
-      input.arbiter !== undefined,
-      input.arbiter ? `Arbitrage: ${input.consensus.level} consensus` : undefined
+      consensus.level,
+      arbiter !== undefined,
+      arbiter ? `Arbitrage: ${consensus.level} consensus` : undefined
     );
 
     // Set disagreements
-    contextBuilder.setDisagreements(input.disagreements);
+    contextBuilder.setDisagreements(disagreements);
 
     // Set cost & duration
-    contextBuilder.setCost(input.totalCost);
-    contextBuilder.setDuration(input.totalTime, input.extractionTime, input.evaluationTime);
+    contextBuilder.setCost(totalCost);
+    contextBuilder.setDuration(totalTime, extractionTime, evaluationTime);
 
     // Set compliance
-    if (input.candidateId) {
-      await contextBuilder.setConsentFromDB(input.candidateId);
-      await contextBuilder.setMaskingLevelFromDB(input.projectId);
+    if (candidateId) {
+      await contextBuilder.setConsentFromDB(candidateId);
+      await contextBuilder.setMaskingLevelFromDB(projectId);
     } else {
       contextBuilder.setCompliance('none', false);
     }

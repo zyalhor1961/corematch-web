@@ -135,7 +135,14 @@
       "Bash(PORT=3013 npm run dev:*)",
       "Bash(PORT=3014 npm run dev:*)",
       "Bash(OPENAI_API_KEY=\"\" npx tsx:*)",
-      "Bash(cmd /c \"set OPENAI_API_KEY= && npx tsx scripts/test-mcp-integration.ts\")"
+      "Bash(cmd /c \"set OPENAI_API_KEY= && npx tsx scripts/test-mcp-integration.ts\")",
+      "WebFetch(domain:corematch-a60ueqyzp-corematchs-projects.vercel.app)",
+      "Bash(while read file)",
+      "Bash(do grep -q \"params: Promise\" \"$file\")",
+      "Bash(done)",
+      "Bash(while IFS= read -r file)",
+      "Bash(do grep -q 'params: Promise' $file)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

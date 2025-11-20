@@ -440,7 +440,8 @@ export default function DebAssistantPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'La suppression a échoué.');
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || 'La suppression a échoué.';
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

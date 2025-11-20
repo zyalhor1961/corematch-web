@@ -110,7 +110,8 @@ export default function OnboardingPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la création de l\'organisation');
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || 'Erreur lors de la création de l\'organisation';
+        throw new Error(errorMessage);
       }
 
       const { organization: orgData } = await response.json();

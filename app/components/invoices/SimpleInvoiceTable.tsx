@@ -151,7 +151,8 @@ export const SimpleInvoiceTable: React.FC<SimpleInvoiceTableProps> = ({ orgId, i
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Upload failed');
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || 'Upload failed';
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

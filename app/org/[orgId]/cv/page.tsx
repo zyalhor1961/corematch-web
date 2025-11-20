@@ -116,7 +116,8 @@ export default function CVScreeningPage() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Le chargement des projets a échoué.");
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || "Le chargement des projets a échoué.";
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -1020,7 +1021,7 @@ function CreateProjectModal({ orgId, onClose, onSuccess }: { orgId: string; onCl
 
         try {
           const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
+          errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || errorMessage;
         } catch {
           // If not JSON, use the text directly or a default message
           errorMessage = errorText || errorMessage;

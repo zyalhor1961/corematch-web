@@ -115,7 +115,8 @@ export default function ProjectCandidatesPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Le chargement des candidats a échoué.");
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || "Le chargement des candidats a échoué.";
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -178,7 +179,8 @@ export default function ProjectCandidatesPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "La suppression a échoué.");
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || "La suppression a échoué.";
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -229,7 +231,8 @@ export default function ProjectCandidatesPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Le téléchargement a échoué.");
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || "Le téléchargement a échoué.";
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -302,7 +305,8 @@ export default function ProjectCandidatesPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "L'analyse a échoué.");
+        const errorMessage = errorData.error?.userMessage || errorData.error?.message || errorData.message || "L'analyse a échoué.";
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

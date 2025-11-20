@@ -318,7 +318,10 @@ export class AzureDIExtractor implements DAFExtractor {
         conditions_paiement: finalConditionsPaiement,
         items: items.length > 0 ? items : undefined,
         extraction_duration_ms: Date.now() - startTime,
-        raw_response: document,
+        raw_response: {
+          ...document,
+          content: pdfText, // Include full text for RAG embeddings
+        },
         field_positions: fieldPositions, // Add bounding boxes
       };
 

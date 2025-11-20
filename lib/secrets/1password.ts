@@ -68,7 +68,7 @@ export const SECRETS_CONFIG = {
     item: 'Anthropic API Key',
     field: 'password',
   },
-  VISION_AGENT_API_KEY: {
+  VA_API_KEY: {
     reference: 'op://CoreMatch/Landing AI Vision Agent/password',
     vault: 'CoreMatch',
     item: 'Landing AI Vision Agent',
@@ -149,6 +149,7 @@ export async function getSecret(
   // 1. Essayer d'abord les variables d'environnement (Vercel/production)
   if (preferEnv && process.env[secretKey]) {
     const value = process.env[secretKey]!;
+    console.log(`[1Password] Using environment variable for ${secretKey}`);
     // Mettre en cache
     secretsCache.set(secretKey, { value, timestamp: Date.now() });
     return value;
@@ -156,8 +157,10 @@ export async function getSecret(
 
   // 2. Fallback vers 1Password CLI (dev local)
   try {
+    console.log(`[1Password] Reading from 1Password vault for ${secretKey}...`);
     const { stdout } = await execAsync(`op read "${config.reference}"`);
     const value = stdout.trim();
+    console.log(`[1Password] ✓ Successfully read from 1Password for ${secretKey}`);
 
     if (!value) {
       throw new Error(`Empty value for secret: ${secretKey}`);

@@ -147,15 +147,28 @@ export async function getSecret(
   }
 
   // 1. Essayer d'abord les variables d'environnement (Vercel/production)
-  if (preferEnv && process.env[secretKey]) {
-    const value = process.env[secretKey]!;
+  // For SUPABASE_URL, also check NEXT_PUBLIC_SUPABASE_URL
+  const envValue = process.env[secretKey] ||
+    (secretKey === 'SUPABASE_URL' ? process.env.NEXT_PUBLIC_SUPABASE_URL : undefined);
+
+  if (preferEnv && envValue) {
     console.log(`[1Password] Using environment variable for ${secretKey}`);
     // Mettre en cache
-    secretsCache.set(secretKey, { value, timestamp: Date.now() });
-    return value;
+    secretsCache.set(secretKey, { value: envValue, timestamp: Date.now() });
+    return envValue;
   }
 
-  // 2. Fallback vers 1Password CLI (dev local)
+  // 2. Fallback vers 1Password CLI (dev local only)
+  // Skip 1Password in production environments (Vercel, etc.)
+  const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    throw new Error(
+      `Secret ${secretKey} not found in environment variables. Required in production: ${secretKey}${secretKey === 'SUPABASE_URL' ? ' or NEXT_PUBLIC_SUPABASE_URL' : ''}`
+    );
+  }
+
+  // Only try 1Password in development
   try {
     console.log(`[1Password] Reading from 1Password vault for ${secretKey}...`);
     const { stdout } = await execAsync(`op read "${config.reference}"`);

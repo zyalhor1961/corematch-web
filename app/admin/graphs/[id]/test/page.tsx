@@ -295,14 +295,14 @@ SKILLS:
                   <>
                     <div className="pt-4 border-t">
                       <span className="text-sm text-gray-600">Cost:</span>
-                      <p className="font-medium">
+                      <p className="font-medium text-gray-900">
                         ${report.cost_metrics.total_cost_usd.toFixed(4)}
                       </p>
                     </div>
 
                     <div>
                       <span className="text-sm text-gray-600">Quality:</span>
-                      <p className="font-medium">
+                      <p className="font-medium text-gray-900">
                         {report.quality_assessment.quality_level} (
                         {(report.quality_assessment.confidence_score.overall * 100).toFixed(1)}%
                         confidence)
@@ -311,7 +311,7 @@ SKILLS:
 
                     <div>
                       <span className="text-sm text-gray-600">Duration:</span>
-                      <p className="font-medium">
+                      <p className="font-medium text-gray-900">
                         {report.performance_metrics.total_duration_ms}ms
                       </p>
                     </div>

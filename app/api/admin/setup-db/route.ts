@@ -14,6 +14,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[setup-db] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[setup-db] Setting up database tables...');
 
     // Create projects table first (it's the most critical for your issue)

@@ -3,10 +3,10 @@
  * SECURITY: Includes protections against DoS attacks and malicious PDFs
  */
 export async function extractTextFromPDF(source: Buffer | string): Promise<string> {
-  // Use unpdf (serverless-friendly, no browser API dependencies)
+  // Use pdf2json (Node.js-friendly, no canvas dependencies)
   try {
-    console.log('[PDF Extract] Attempting extraction with unpdf');
-    return await extractWithUnpdf(source);
+    console.log('[PDF Extract] Attempting extraction with pdf2json');
+    return await extractWithPdf2Json(source);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[PDF Extract] Failed: ${errorMsg}`);
@@ -15,202 +15,147 @@ export async function extractTextFromPDF(source: Buffer | string): Promise<strin
 }
 
 /**
- * Extract using unpdf library (serverless-friendly)
+ * Extract using pdf2json library (Node.js-friendly)
  */
-async function extractWithUnpdf(source: Buffer | string): Promise<string> {
-  const { extractText } = await import('unpdf');
-
-  // SECURITY: Limits to prevent DoS attacks
-  const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10MB max
-  const MAX_PAGES = 50; // Max pages to process
-  const MAX_TEXT_LENGTH = 500000; // Max 500KB of text
-  const FETCH_TIMEOUT = 30000; // 30 second timeout for fetch
-
-  let pdfData: Uint8Array;
-
-  // If source is a URL, fetch the PDF
-  if (typeof source === 'string' && source.startsWith('http')) {
-    // SECURITY: Validate URL is from trusted domain
-    const url = new URL(source);
-    const trustedHosts = [
-      'glexllbywdvlxpbanjmn.supabase.co', // Supabase storage
-      'localhost',
-      '127.0.0.1'
-    ];
-
-    const isTrusted = trustedHosts.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`));
-    if (!isTrusted) {
-      console.warn(`[SECURITY] Untrusted PDF URL blocked: ${url.hostname}`);
-      throw new Error('PDF URL from untrusted source');
-    }
-
-    // SECURITY: Fetch with timeout to prevent hanging
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-    try {
-      const response = await fetch(source, {
-        signal: controller.signal,
-        // SECURITY: Don't follow redirects to prevent SSRF
-        redirect: 'manual'
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      // SECURITY: Validate Content-Type
-      const contentType = response.headers.get('content-type');
-      if (contentType && !contentType.includes('pdf')) {
-        console.warn(`[SECURITY] Invalid content type: ${contentType}`);
-        // Allow it but log warning (some servers don't set correct content-type)
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-
-      // SECURITY: Validate PDF size
-      if (arrayBuffer.byteLength > MAX_PDF_SIZE) {
-        throw new Error('PDF exceeds 10MB limit');
-      }
-
-      // SECURITY: Validate PDF magic bytes (starts with %PDF)
-      const header = new Uint8Array(arrayBuffer.slice(0, 5));
-      const pdfHeader = '%PDF-';
-      const isValidPDF = header[0] === 0x25 && // %
-                        header[1] === 0x50 && // P
-                        header[2] === 0x44 && // D
-                        header[3] === 0x46 && // F
-                        header[4] === 0x2D;   // -
-
-      if (!isValidPDF) {
-        throw new Error('Invalid PDF file: missing PDF header');
-      }
-
-      pdfData = new Uint8Array(arrayBuffer);
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('PDF fetch timeout');
-      }
-      throw error;
-    }
-  } else if (Buffer.isBuffer(source)) {
-    // SECURITY: Validate buffer size
-    if (source.length > MAX_PDF_SIZE) {
-      throw new Error('PDF exceeds 10MB limit');
-    }
-
-    // SECURITY: Validate PDF magic bytes
-    if (source.length < 5 ||
-        source[0] !== 0x25 || source[1] !== 0x50 ||
-        source[2] !== 0x44 || source[3] !== 0x46 || source[4] !== 0x2D) {
-      throw new Error('Invalid PDF file: missing PDF header');
-    }
-
-    pdfData = new Uint8Array(source);
-  } else {
-    throw new Error('Invalid source type');
-  }
-
-  // Extract text with unpdf
-  const result = await extractText(pdfData, {
-    mergePages: true, // Merge all pages into one string
-  });
-
-  const { text, totalPages } = result;
-
-  // SECURITY: Validate page count
-  if (totalPages > MAX_PAGES) {
-    console.warn(`[SECURITY] PDF has ${totalPages} pages, processing only first ${MAX_PAGES}`);
-    // unpdf doesn't have a way to limit pages, so we truncate text instead
-  }
-
-  // SECURITY: Limit extracted text length
-  if (text.length > MAX_TEXT_LENGTH) {
-    console.warn('[PDF Extract] Text truncated at 500KB for security');
-    return text.substring(0, MAX_TEXT_LENGTH);
-  }
-
-  console.log(`[PDF Extract] unpdf success: ${text.length} chars, ${totalPages} pages`);
-  return text;
-}
-
-/**
- * Extract using pdfjs-dist library (Method 2 - Fallback)
- */
-async function extractWithPdfjsDist(source: Buffer | string): Promise<string> {
-  // Try legacy build for Node.js compatibility
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+async function extractWithPdf2Json(source: Buffer | string): Promise<string> {
+  const PDFParser = (await import('pdf2json')).default;
 
   // SECURITY: Limits
-  const MAX_PDF_SIZE = 10 * 1024 * 1024;
-  const MAX_PAGES = 50;
-  const MAX_TEXT_LENGTH = 500000;
+  const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_TEXT_LENGTH = 500000; // 500KB text
+  const FETCH_TIMEOUT = 30000; // 30 seconds
 
-  let pdfData: Uint8Array;
+  return new Promise<string>(async (resolve, reject) => {
+    try {
+      let pdfBuffer: Buffer;
 
-  // Fetch or prepare PDF data
-  if (typeof source === 'string' && source.startsWith('http')) {
-    const response = await fetch(source);
+      // Fetch or prepare PDF data
+      if (typeof source === 'string' && source.startsWith('http')) {
+        // SECURITY: Validate URL
+        const url = new URL(source);
+        const trustedHosts = [
+          'glexllbywdvlxpbanjmn.supabase.co',
+          'localhost',
+          '127.0.0.1'
+        ];
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+        const isTrusted = trustedHosts.some(host =>
+          url.hostname === host || url.hostname.endsWith(`.${host}`)
+        );
+
+        if (!isTrusted) {
+          console.warn(`[SECURITY] Untrusted PDF URL blocked: ${url.hostname}`);
+          return reject(new Error('PDF URL from untrusted source'));
+        }
+
+        // SECURITY: Fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+        try {
+          const response = await fetch(source, {
+            signal: controller.signal,
+            redirect: 'manual'
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            return reject(new Error(`HTTP ${response.status}: ${response.statusText}`));
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+
+          // SECURITY: Validate size
+          if (arrayBuffer.byteLength > MAX_PDF_SIZE) {
+            return reject(new Error('PDF exceeds 10MB limit'));
+          }
+
+          // SECURITY: Validate PDF magic bytes
+          const header = new Uint8Array(arrayBuffer.slice(0, 5));
+          const isValidPDF = header[0] === 0x25 && header[1] === 0x50 &&
+                            header[2] === 0x44 && header[3] === 0x46 && header[4] === 0x2D;
+
+          if (!isValidPDF) {
+            return reject(new Error('Invalid PDF file: missing PDF header'));
+          }
+
+          pdfBuffer = Buffer.from(arrayBuffer);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if (error instanceof Error && error.name === 'AbortError') {
+            return reject(new Error('PDF fetch timeout'));
+          }
+          throw error;
+        }
+      } else if (Buffer.isBuffer(source)) {
+        // SECURITY: Validate size
+        if (source.length > MAX_PDF_SIZE) {
+          return reject(new Error('PDF exceeds 10MB limit'));
+        }
+
+        // SECURITY: Validate PDF magic bytes
+        if (source.length < 5 ||
+            source[0] !== 0x25 || source[1] !== 0x50 ||
+            source[2] !== 0x44 || source[3] !== 0x46 || source[4] !== 0x2D) {
+          return reject(new Error('Invalid PDF file: missing PDF header'));
+        }
+
+        pdfBuffer = source;
+      } else {
+        return reject(new Error('Invalid source type'));
+      }
+
+      // Parse PDF with pdf2json
+      const pdfParser = new PDFParser();
+
+      pdfParser.on('pdfParser_dataError', (errData: any) => {
+        reject(new Error(`PDF parsing error: ${errData.parserError}`));
+      });
+
+      pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+        try {
+          // Extract text from all pages
+          let fullText = '';
+
+          if (pdfData.Pages && Array.isArray(pdfData.Pages)) {
+            for (const page of pdfData.Pages) {
+              if (page.Texts && Array.isArray(page.Texts)) {
+                for (const text of page.Texts) {
+                  if (text.R && Array.isArray(text.R)) {
+                    for (const run of text.R) {
+                      if (run.T) {
+                        // Decode URI-encoded text
+                        fullText += decodeURIComponent(run.T) + ' ';
+                      }
+                    }
+                  }
+                }
+                fullText += '\n';
+              }
+            }
+          }
+
+          // SECURITY: Limit text length
+          if (fullText.length > MAX_TEXT_LENGTH) {
+            console.warn('[PDF Extract] Text truncated at 500KB for security');
+            fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+          }
+
+          console.log(`[PDF Extract] pdf2json success: ${fullText.trim().length} chars`);
+          resolve(fullText.trim());
+        } catch (error) {
+          reject(new Error(`Failed to extract text: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      });
+
+      // Parse the buffer
+      pdfParser.parseBuffer(pdfBuffer);
+
+    } catch (error) {
+      reject(error);
     }
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    if (arrayBuffer.byteLength > MAX_PDF_SIZE) {
-      throw new Error('PDF exceeds 10MB limit');
-    }
-
-    pdfData = new Uint8Array(arrayBuffer);
-  } else if (Buffer.isBuffer(source)) {
-    if (source.length > MAX_PDF_SIZE) {
-      throw new Error('PDF exceeds 10MB limit');
-    }
-    pdfData = new Uint8Array(source);
-  } else {
-    throw new Error('Invalid source type');
-  }
-
-  // Load PDF with security options
-  const loadingTask = pdfjsLib.getDocument({
-    data: pdfData,
-    isEvalSupported: false, // SECURITY: Disable eval
-    useSystemFonts: false,
   });
-
-  const pdf = await loadingTask.promise;
-
-  // SECURITY: Check page count
-  if (pdf.numPages > MAX_PAGES) {
-    throw new Error(`PDF has ${pdf.numPages} pages (max ${MAX_PAGES})`);
-  }
-
-  // Extract text from all pages
-  let fullText = '';
-
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const textContent = await page.getTextContent();
-
-    const pageText = textContent.items
-      .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
-      .join(' ');
-
-    fullText += pageText + '\n';
-
-    // SECURITY: Stop if text too long
-    if (fullText.length > MAX_TEXT_LENGTH) {
-      console.warn('[PDF Extract] Text truncated at 500KB');
-      break;
-    }
-  }
-
-  console.log(`[PDF Extract] pdfjs-dist success: ${fullText.trim().length} chars`);
-  return fullText.trim();
 }
 
 /**

@@ -14,6 +14,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[create-test-user] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[create-test-user] Creating test admin user...');
 
     const testEmail = 'admin@corematch.test';

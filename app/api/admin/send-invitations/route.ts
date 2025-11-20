@@ -22,6 +22,7 @@ const sendInvitationsSchema = z.object({
  */
 export const POST = withOrgAccessFromBody(async (request, session, orgId, membership) => {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     const body = (request as any).parsedBody || await request.json();
     const { emails, role } = sendInvitationsSchema.parse(body);
 

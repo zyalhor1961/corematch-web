@@ -14,6 +14,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[simple-login] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[simple-login] Simple login for test admin user...');
 
     const testEmail = 'admin@corematch.test';

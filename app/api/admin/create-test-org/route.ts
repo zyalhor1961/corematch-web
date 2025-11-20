@@ -14,6 +14,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[create-test-org] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[create-test-org] Creating test organization...');
 
     // Try to create organization - ignore RLS errors for admin operations

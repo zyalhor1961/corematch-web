@@ -14,6 +14,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[apply-rls] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[apply-rls] Starting RLS enforcement...');
 
     const results = [];

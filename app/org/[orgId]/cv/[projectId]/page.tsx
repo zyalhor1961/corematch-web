@@ -77,25 +77,25 @@ export default function ProjectCandidatesPage() {
       if (!session?.access_token) {
         throw new Error("Vous devez être connecté pour voir le projet.");
       }
-      
-      const response = await fetch(`/api/admin/get-project?projectId=${projectId}`, {
+
+      const response = await fetch(`/api/admin/get-project?projectId=${projectId}&orgId=${orgId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors du chargement du projet.");
       }
-      
+
       const data = await response.json();
       setProject(data.data);
     } catch (err: any) {
       setError(err.message);
       console.error('Error loading project:', err);
     }
-  }, [projectId]);
+  }, [projectId, orgId]);
 
   const loadCandidates = useCallback(async () => {
     setIsLoading(true);
@@ -105,19 +105,19 @@ export default function ProjectCandidatesPage() {
       if (!session?.access_token) {
         throw new Error("Vous devez être connecté pour voir les candidats.");
       }
-      
-      const response = await fetch(`/api/admin/list-candidates?projectId=${projectId}`, {
+
+      const response = await fetch(`/api/admin/list-candidates?projectId=${projectId}&orgId=${orgId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Le chargement des candidats a échoué.");
       }
-      
+
       const data = await response.json();
       if (data.success) {
         setCandidates(data.data);
@@ -130,7 +130,7 @@ export default function ProjectCandidatesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, orgId]);
 
   useEffect(() => {
     if (projectId) {

@@ -16,6 +16,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[disable-rls] ⚠️ DEV ONLY: User ${session.user.id} disabling RLS on all tables`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[disable-rls] Disabling RLS on all tables...');
 
     const tables = [

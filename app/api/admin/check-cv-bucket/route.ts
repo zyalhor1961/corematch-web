@@ -6,6 +6,7 @@ export const GET = withAuth(async (request, session) => {
   console.log(`[check-cv-bucket] User ${session.user.id} accessing route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[check-cv-bucket] Checking CV bucket configuration...');
 
     // Test bucket access
@@ -93,6 +94,7 @@ export const POST = withAuth(async (request, session) => {
   console.log(`[check-cv-bucket] User ${session.user.id} making bucket public`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[check-cv-bucket] Making CV bucket public...');
 
     // Try to make CV bucket public

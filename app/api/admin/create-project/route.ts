@@ -19,8 +19,8 @@ export const POST = withOrgAccessFromBody(async (request, session, orgId, member
 
     console.log(`[create-project] User ${session.user.id} creating project in org ${orgId}`);
 
-    // Utiliser client avec RLS
     // Use admin client to bypass RLS for creation operations
+    const supabaseAdmin = await getSupabaseAdmin();
 
     const { data: project, error } = await supabaseAdmin
       .from('projects')

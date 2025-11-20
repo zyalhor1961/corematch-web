@@ -16,6 +16,7 @@ export const POST = withAuth(async (request, session) => {
   console.warn(`[execute-sql] ⚠️ DEV ONLY: User ${session.user.id} executing arbitrary SQL`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     const { sql } = await request.json();
 
     if (!sql) {

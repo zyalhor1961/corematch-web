@@ -8,7 +8,7 @@ import { verifyMCPProjectAccess, verifyMCPScope, type MCPAuthUser } from '../../
 import { validateAnalysisRequest } from '../../security/pii-masking';
 import { maskPII } from '../../../utils/data-normalization';
 import { supabaseAdmin } from '../../../supabase/admin';
-import { orchestrateAnalysis } from '../../../cv-analysis/orchestrator';
+import { analyzeCVWithGraph } from '../../../cv-analysis';
 import type { AnalysisMode, JobSpec } from '../../../cv-analysis/types';
 import { isMockMode, getMockAnalysisResult } from './mock-data';
 import { loadCandidateCV } from '../utils/cv-parser';
@@ -234,15 +234,14 @@ export async function analyzeCV(
   // 5. Orchestrer analyse
   // =========================================================================
 
-  console.error('\n🎬 Starting analysis orchestration...\n');
+  console.error('\n🎬 Starting analysis orchestration (Graph-based)...\n');
 
   const mode: AnalysisMode = args.mode || 'balanced';
 
-  const result = await orchestrateAnalysis(cvText, jobSpec, {
+  const result = await analyzeCVWithGraph(cvText, jobSpec, {
     mode,
     projectId: args.projectId,
     candidateId: args.candidateId, // ✅ Pour consent/masking DB
-    engine: 'corematch-mcp', // ✅ Engine MCP
   });
 
   const fromCache = result.context_snapshot.duration_total_ms < 1000; // Heuristique

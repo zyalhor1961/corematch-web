@@ -4,6 +4,7 @@ import { withAuth } from '@/lib/api/auth-middleware';
 
 export const POST = withAuth(async (request, session) => {
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     const { name, plan = 'starter', status = 'active' } = await request.json();
 
     if (!name) {

@@ -14,6 +14,7 @@ export const GET = withAuth(async (request, session) => {
   console.warn(`[test-google-oauth] ⚠️ DEV ONLY: User ${session.user.id} accessing dev route`);
 
   try {
+    const supabaseAdmin = await getSupabaseAdmin();
     console.log('[test-google-oauth] Testing Google OAuth configuration...');
 
     const tests = [];

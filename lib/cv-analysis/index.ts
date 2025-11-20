@@ -32,6 +32,9 @@ export * from './providers/base-provider';
 // Orchestrator (point d'entrée principal)
 export { orchestrateAnalysis, type OrchestrationOptions } from './orchestrator';
 
+// Graph-based orchestration (NEW - recommended)
+export { analyzeCVWithGraph, createCVAnalysisGraph } from '@/lib/graph/graphs/cv-analysis';
+
 // Prefilter
 export { prefilterCV, shouldPrefilter, interpretSoftFlags } from './prefilter/stage0-prefilter';
 

@@ -104,7 +104,8 @@
           },
           "niveau": {
             "type": "string",
-            "enum": ["Bac", "Bac+2", "Bac+3", "Bac+5", "Doctorat", "INFORMATION_MANQUANTE"]
+            "minLength": 1,
+            "description": "Education level (flexible format accepted)"
           }
         }
       }

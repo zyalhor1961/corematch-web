@@ -124,7 +124,18 @@
       "Bash(git diff:*)",
       "Bash(git remote add:*)",
       "Bash(chmod:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "WebFetch(domain:docs.landing.ai)",
+      "Bash(git checkout:*)",
+      "Bash(op item list:*)",
+      "Bash(op:*)",
+      "Bash(PORT=3011 npm run dev:*)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(PORT=3012 npm run dev:*)",
+      "Bash(PORT=3013 npm run dev:*)",
+      "Bash(PORT=3014 npm run dev:*)",
+      "Bash(OPENAI_API_KEY=\"\" npx tsx:*)",
+      "Bash(cmd /c \"set OPENAI_API_KEY= && npx tsx scripts/test-mcp-integration.ts\")"
     ],
     "deny": [],
     "ask": []

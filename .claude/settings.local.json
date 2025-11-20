@@ -142,7 +142,9 @@
       "Bash(done)",
       "Bash(while IFS= read -r file)",
       "Bash(do grep -q 'params: Promise' $file)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(.gitignore)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

@@ -220,15 +220,15 @@ export default function AdminGraphEditorPage({
             <div className="grid grid-cols-3 gap-4 pt-4 border-t">
               <div>
                 <span className="text-sm text-gray-600">Type:</span>
-                <p className="font-medium">{data.graph.graph_type}</p>
+                <p className="font-medium text-gray-900">{data.graph.graph_type}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-600">Default:</span>
-                <p className="font-medium">{data.graph.is_default ? 'Yes' : 'No'}</p>
+                <p className="font-medium text-gray-900">{data.graph.is_default ? 'Yes' : 'No'}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-600">Created:</span>
-                <p className="font-medium text-sm">
+                <p className="font-medium text-sm text-gray-900">
                   {new Date(data.graph.created_at).toLocaleDateString()}
                 </p>
               </div>
@@ -247,7 +247,7 @@ export default function AdminGraphEditorPage({
                 className="border border-gray-200 rounded p-3 flex justify-between items-center"
               >
                 <div>
-                  <div className="font-medium">{node.node_name}</div>
+                  <div className="font-medium text-gray-900">{node.node_name}</div>
                   <div className="text-sm text-gray-600">
                     Key: {node.node_key} • Type: {node.node_type} • Handler: {node.handler_function}
                   </div>
@@ -270,7 +270,7 @@ export default function AdminGraphEditorPage({
                 key={edge.id}
                 className="border border-gray-200 rounded p-3 flex justify-between items-center"
               >
-                <div className="text-sm">
+                <div className="text-sm text-gray-900">
                   {edge.label || `${edge.source_node_id} → ${edge.target_node_id}`}
                 </div>
                 <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">
@@ -308,7 +308,7 @@ export default function AdminGraphEditorPage({
                   className="border border-gray-200 rounded p-3 flex justify-between items-center"
                 >
                   <div>
-                    <div className="text-sm font-medium">
+                    <div className="text-sm font-medium text-gray-900">
                       {new Date(exec.started_at).toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-600">

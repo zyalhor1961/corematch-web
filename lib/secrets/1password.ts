@@ -30,6 +30,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Configuration des secrets 1Password
+ * Updated: 2025-11-21 - Added Azure DI support
  */
 export const SECRETS_CONFIG = {
   SUPABASE_SERVICE_ROLE_KEY: {

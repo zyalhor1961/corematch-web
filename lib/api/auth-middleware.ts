@@ -25,8 +25,23 @@ export type OrgAccessHandler = (
 /**
  * Vérifie que l'utilisateur est authentifié
  */
-export function withAuth(handler: AuthenticatedHandler) {
-  return async (request: NextRequest) => {
+export function withAuth(handler: AuthenticatedHandler | ((request: NextRequest, session: any, context?: any) => Promise<NextResponse>)) {
+  return async (request: NextRequest, context?: any) => {
+    // DEV ONLY: Bypass auth for admin routes in development
+    if (process.env.NODE_ENV === 'development' && request.url.includes('/api/admin/')) {
+      console.warn('[Auth Middleware] ⚠️ DEV MODE: Bypassing auth for admin route:', request.url);
+
+      // Create mock session for dev
+      const mockSession = {
+        user: {
+          id: 'dev-user-id',
+          email: 'dev@corematch.local',
+        },
+      };
+
+      return handler(request, mockSession, context);
+    }
+
     const supabase = await createSupabaseServerClient();
 
     const {
@@ -46,7 +61,7 @@ export function withAuth(handler: AuthenticatedHandler) {
       );
     }
 
-    return handler(request, session);
+    return handler(request, session, context);
   };
 }
 

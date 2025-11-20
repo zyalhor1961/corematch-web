@@ -147,19 +147,19 @@ function DAFDemoContent() {
                       avec une précision de 95%+. Fournisseurs, montants, dates : tout est détecté.
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                         Factures
                       </span>
-                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                         Relevés bancaires
                       </span>
-                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                         Contrats
                       </span>
-                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                         Assurances
                       </span>
-                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                         Notes de frais
                       </span>
                     </div>
@@ -247,15 +247,15 @@ function DAFDemoContent() {
               <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
                 <div className="flex items-center gap-2 text-green-400">
                   <Shield className="h-4 w-4" />
-                  <span className="font-medium">Sécurité bancaire</span>
+                  <span className="font-medium text-green-400">Sécurité bancaire</span>
                 </div>
                 <div className="flex items-center gap-2 text-blue-400">
                   <Sparkles className="h-4 w-4" />
-                  <span className="font-medium">IA certifiée</span>
+                  <span className="font-medium text-blue-400">IA certifiée</span>
                 </div>
                 <div className="flex items-center gap-2 text-cyan-400">
                   <Zap className="h-4 w-4" />
-                  <span className="font-medium">Performance optimale</span>
+                  <span className="font-medium text-cyan-400">Performance optimale</span>
                 </div>
               </div>
             </div>

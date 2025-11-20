@@ -220,11 +220,11 @@ export default function ChatPage() {
           
           <div className="flex items-center justify-between mt-3 text-xs text-white/40">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 text-white/40">
                 <FileText className="h-3 w-3" />
                 127 candidats analysés
               </span>
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 text-white/40">
                 <TrendingUp className="h-3 w-3" />
                 8 offres actives
               </span>

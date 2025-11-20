@@ -296,11 +296,11 @@ export default function CVScreeningPage() {
             <div className="grid grid-cols-3 gap-4 lg:flex lg:items-center lg:space-x-6">
               {/* Métriques rapides */}
               <div className="text-center">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{projects.length}</div>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold text-white">{projects.length}</div>
                 <div className="text-xs md:text-sm lg:text-base text-blue-100">Projets</div>
               </div>
               <div className="text-center">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
                   {projects.reduce((total, p) => total + (p.candidates_count || 0), 0)}
                 </div>
                 <div className="text-xs md:text-sm lg:text-base text-blue-100">Candidats</div>
@@ -361,7 +361,7 @@ export default function CVScreeningPage() {
                   title="Mode Tableur RH"
                 >
                   <Table className="w-4 h-4 mx-auto sm:mx-0" />
-                  <span className="ml-2 sm:hidden text-sm">Tableur</span>
+                  <span className="ml-2 sm:hidden text-sm text-gray-900">Tableur</span>
                 </button>
                 <button 
                   onClick={() => setViewMode('gallery')} 
@@ -369,7 +369,7 @@ export default function CVScreeningPage() {
                   title="Vue galerie"
                 >
                   <Grid3x3 className="w-4 h-4 mx-auto sm:mx-0" />
-                  <span className="ml-2 sm:hidden text-sm">Galerie</span>
+                  <span className="ml-2 sm:hidden text-sm text-gray-900">Galerie</span>
                 </button>
                 <button 
                   onClick={() => setViewMode('list')} 
@@ -377,7 +377,7 @@ export default function CVScreeningPage() {
                   title="Vue liste"
                 >
                   <List className="w-4 h-4 mx-auto sm:mx-0" />
-                  <span className="ml-2 sm:hidden text-sm">Liste</span>
+                  <span className="ml-2 sm:hidden text-sm text-gray-900">Liste</span>
                 </button>
               </div>
 
@@ -386,7 +386,7 @@ export default function CVScreeningPage() {
                 <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Export</span>
-                  <span className="sm:hidden">Export</span>
+                  <span className="sm:hidden text-gray-900">Export</span>
                 </Button>
                 
                 <Button 
@@ -395,7 +395,7 @@ export default function CVScreeningPage() {
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Nouveau Projet</span>
-                  <span className="sm:hidden">Nouveau</span>
+                  <span className="sm:hidden text-white">Nouveau</span>
                 </Button>
               </div>
             </div>
@@ -475,7 +475,7 @@ export default function CVScreeningPage() {
                     <div className="flex items-center text-blue-700 dark:text-blue-300">
                       <Table className="w-5 h-5 mr-2" />
                       <div>
-                        <div className="font-semibold text-sm">Mode Tableur 📊</div>
+                        <div className="font-semibold text-sm text-blue-700 dark:text-blue-300">Mode Tableur 📊</div>
                         <div className="text-xs text-gray-700 dark:text-gray-400">Faites défiler horizontalement →</div>
                       </div>
                     </div>
@@ -484,7 +484,7 @@ export default function CVScreeningPage() {
                       className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
                     >
                       <LayoutGrid className="w-4 h-4" />
-                      <span>Vue Mobile</span>
+                      <span className="text-white">Vue Mobile</span>
                     </button>
                   </div>
                 </div>
@@ -517,7 +517,7 @@ export default function CVScreeningPage() {
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Target className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">POSTE</span>
-                            <span className="sm:hidden">POS</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">POS</span>
                           </div>
                           <div
                             className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
@@ -531,7 +531,7 @@ export default function CVScreeningPage() {
                             <div className="flex items-center space-x-1 sm:space-x-2">
                               <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                               <span className="hidden sm:inline">ORGANISATION</span>
-                              <span className="sm:hidden">ORG</span>
+                              <span className="sm:hidden text-gray-900 dark:text-gray-200">ORG</span>
                             </div>
                             <div
                               className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
@@ -548,7 +548,7 @@ export default function CVScreeningPage() {
                           >
                             <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">CANDIDATS</span>
-                            <span className="sm:hidden">CAND</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">CAND</span>
                             {sortBy === 'candidates' && (
                               sortDirection === 'asc'
                                 ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -566,7 +566,7 @@ export default function CVScreeningPage() {
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ANALYSE IA</span>
-                            <span className="sm:hidden">IA</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">IA</span>
                           </div>
                           <div
                             className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
@@ -579,7 +579,7 @@ export default function CVScreeningPage() {
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">SHORTLIST</span>
-                            <span className="sm:hidden">⭐</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">⭐</span>
                           </div>
                           <div
                             className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400"
@@ -595,7 +595,7 @@ export default function CVScreeningPage() {
                           >
                             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">DATE</span>
-                            <span className="sm:hidden">📅</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">📅</span>
                             {sortBy === 'date' && (
                               sortDirection === 'asc'
                                 ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -613,7 +613,7 @@ export default function CVScreeningPage() {
                           <div className="flex items-center justify-end space-x-1 sm:space-x-2">
                             <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span className="hidden sm:inline">ACTIONS</span>
-                            <span className="sm:hidden">⚡</span>
+                            <span className="sm:hidden text-gray-900 dark:text-gray-200">⚡</span>
                           </div>
                         </th>
                       </tr>
@@ -799,19 +799,19 @@ export default function CVScreeningPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Users className="w-4 h-4 text-blue-500" />
-                        <span className="font-semibold">{project.candidate_count || 0}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{project.candidate_count || 0}</span>
                         <span className="text-sm text-gray-700 dark:text-gray-500">candidats</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Brain className="w-4 h-4 text-green-500" />
-                        <span className="font-semibold">{project.analyzed_count || 0}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{project.analyzed_count || 0}</span>
                         <span className="text-sm text-gray-700 dark:text-gray-500">analysés</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <Star className="w-4 h-4 text-yellow-500" />
-                      <span className="font-semibold text-yellow-600">{project.shortlisted_count || 0}</span>
+                      <span className="font-semibold text-yellow-600 dark:text-yellow-400">{project.shortlisted_count || 0}</span>
                       <span className="text-sm text-gray-700 dark:text-gray-500">shortlistés</span>
                     </div>
                   </div>
@@ -819,7 +819,7 @@ export default function CVScreeningPage() {
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
                     <div className="flex items-center justify-center text-xs text-gray-700 dark:text-gray-500">
                       <Calendar className="w-3 h-3 mr-1" />
-                      <span>{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
+                      <span className="text-gray-700 dark:text-gray-500">{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
                     </div>
                     
                     {/* Actions - Version mobile friendly */}
@@ -830,7 +830,7 @@ export default function CVScreeningPage() {
                       >
                         <Eye className="w-4 h-4 mr-1.5" />
                         <span className="hidden sm:inline">Voir</span>
-                        <span className="sm:hidden">👁</span>
+                        <span className="sm:hidden text-blue-600 dark:text-blue-400">👁</span>
                       </Link>
                       <button 
                         onClick={() => setShowEditModal(project)}
@@ -838,7 +838,7 @@ export default function CVScreeningPage() {
                       >
                         <Edit className="w-4 h-4 mr-1.5" />
                         <span className="hidden sm:inline">Edit</span>
-                        <span className="sm:hidden">✏️</span>
+                        <span className="sm:hidden text-green-600 dark:text-green-400">✏️</span>
                       </button>
                       <button 
                         onClick={() => handleDeleteProject(project.id)}
@@ -846,7 +846,7 @@ export default function CVScreeningPage() {
                       >
                         <Trash2 className="w-4 h-4 mr-1.5" />
                         <span className="hidden sm:inline">Suppr</span>
-                        <span className="sm:hidden">🗑</span>
+                        <span className="sm:hidden text-red-500">🗑</span>
                       </button>
                     </div>
                   </div>

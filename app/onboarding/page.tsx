@@ -254,7 +254,7 @@ export default function OnboardingPage() {
                 <button type="button" onClick={addEmailField} className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"><Plus className="w-4 h-4 mr-1" />Ajouter un membre</button>
               </div>
               <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">💡 Les invitations seront envoyées par email. Vos collègues pourront créer leur compte et rejoindre votre organisation.</p>
+                <p className="text-sm text-gray-700">💡 Les invitations seront envoyées par email. Vos collègues pourront créer leur compte et rejoindre votre organisation.</p>
               </div>
             </div>
           )}

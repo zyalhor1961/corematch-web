@@ -134,7 +134,7 @@ export default function DebugPage() {
           
           {fixResult && (
             <div className="mt-4">
-              <h3 className="font-semibold mb-2">Fix Result:</h3>
+              <h3 className="font-semibold mb-2 text-gray-900">Fix Result:</h3>
               <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
                 {JSON.stringify(fixResult, null, 2)}
               </pre>
@@ -154,7 +154,7 @@ export default function DebugPage() {
           
           {testResult && (
             <div className="mt-4">
-              <h3 className="font-semibold mb-2">API Test Result:</h3>
+              <h3 className="font-semibold mb-2 text-gray-900">API Test Result:</h3>
               <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
                 {JSON.stringify(testResult, null, 2)}
               </pre>

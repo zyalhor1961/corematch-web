@@ -235,8 +235,8 @@ export default function OrganizationOverview() {
           {recentActivity.length === 0 ? (
             <div className="py-8 text-center">
               <Sparkles className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="font-medium text-gray-700 dark:text-gray-300">Aucune activité récente</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Commencez par créer un projet ou uploader un document.</p>
+              <p className="font-medium text-gray-900 dark:text-gray-300">Aucune activité récente</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Commencez par créer un projet ou uploader un document.</p>
             </div>
           ) : (
             recentActivity.map((activity, index) => (

@@ -40,13 +40,13 @@ export default function CheckEmailPage() {
               <span className="block font-medium text-blue-900">
                 📧 Prochaines étapes :
               </span>
-              <span className="block">
+              <span className="block text-gray-700">
                 1. Ouvrez votre boîte email
               </span>
-              <span className="block">
+              <span className="block text-gray-700">
                 2. Cliquez sur le lien de confirmation dans l'email
               </span>
-              <span className="block">
+              <span className="block text-gray-700">
                 3. Vous serez redirigé pour compléter votre inscription
               </span>
             </p>

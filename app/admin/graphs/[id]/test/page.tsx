@@ -209,7 +209,7 @@ SKILLS:
         <div className="space-y-4">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Test Input</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Test Input</h2>
               <button
                 onClick={handleLoadSample}
                 className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
@@ -274,7 +274,7 @@ SKILLS:
           {/* Result Summary */}
           {result && (
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Result</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-900">Result</h2>
 
               <div className="space-y-2">
                 <div>
@@ -324,7 +324,7 @@ SKILLS:
 
         {/* Logs Panel */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Execution Logs</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Execution Logs</h2>
 
           <div className="bg-gray-900 text-gray-100 rounded-md p-4 h-[600px] overflow-y-auto font-mono text-xs">
             {logs.length === 0 && (

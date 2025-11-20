@@ -175,7 +175,7 @@ export default function AdminGraphEditorPage({
       <div className="grid gap-6">
         {/* Basic Info */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Basic Information</h2>
 
           <div className="space-y-4">
             <div>
@@ -238,7 +238,7 @@ export default function AdminGraphEditorPage({
 
         {/* Nodes */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Nodes ({data.nodes.length})</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Nodes ({data.nodes.length})</h2>
 
           <div className="space-y-2">
             {data.nodes.map((node) => (
@@ -262,7 +262,7 @@ export default function AdminGraphEditorPage({
 
         {/* Edges */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Edges ({data.edges.length})</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Edges ({data.edges.length})</h2>
 
           <div className="space-y-2">
             {data.edges.map((edge) => (
@@ -284,7 +284,7 @@ export default function AdminGraphEditorPage({
         {/* Active Config */}
         {data.active_config && (
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">
               Active Configuration (v{data.active_config.version_number})
             </h2>
 
@@ -297,7 +297,7 @@ export default function AdminGraphEditorPage({
         {/* Recent Executions */}
         {data.recent_executions.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">
               Recent Executions ({data.recent_executions.length})
             </h2>
 

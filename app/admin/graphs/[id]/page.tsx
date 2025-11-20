@@ -98,26 +98,31 @@ export default function AdminGraphEditorPage({
 
   if (loading) {
     return (
+      <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600">Loading graph...</p>
         </div>
       </div>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
+      <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">Error: {error || 'Graph not found'}</p>
         </div>
       </div>
+      </div>
     );
   }
 
   return (
+    <div className="min-h-screen bg-gray-50">
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
@@ -125,7 +130,7 @@ export default function AdminGraphEditorPage({
           <Link href="/admin/graphs" className="text-blue-600 hover:underline mb-2 block">
             ← Back to Graphs
           </Link>
-          <h1 className="text-3xl font-bold">{data.graph.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{data.graph.name}</h1>
           <p className="text-gray-600 mt-2">Graph ID: {graphId}</p>
         </div>
         <div className="flex gap-2">
@@ -328,6 +333,7 @@ export default function AdminGraphEditorPage({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

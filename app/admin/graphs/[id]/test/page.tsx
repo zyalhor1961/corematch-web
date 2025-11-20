@@ -181,23 +181,26 @@ SKILLS:
 
   if (loading) {
     return (
+      <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
+      </div>
     );
   }
 
   return (
+    <div className="min-h-screen bg-gray-50">
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
         <Link href={`/admin/graphs/${graphId}`} className="text-blue-600 hover:underline mb-2 block">
           ← Back to Graph
         </Link>
-        <h1 className="text-3xl font-bold">Test Runner: {graph?.name}</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Test Runner: {graph?.name}</h1>
         <p className="text-gray-600 mt-2">Execute graph with test data and monitor in real-time</p>
       </div>
 
@@ -373,6 +376,7 @@ SKILLS:
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

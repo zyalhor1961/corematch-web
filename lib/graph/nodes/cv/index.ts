@@ -374,13 +374,15 @@ export const analyzeMainProvider: NodeFunction<
     // Get data from state
     const compactedCV = state.data.compactedCV as CV_JSON;
     const jobSpec = state.data.jobSpec as JobSpec;
+    const orgAISettings = state.data.orgAISettings as import('@/lib/types').OrgAISettings | null | undefined;
 
     if (!compactedCV || !jobSpec) {
       throw new Error('Compacted CV or JobSpec not found in state');
     }
 
     const provider = createOpenAIProvider();
-    const providerResult = await provider.analyze(compactedCV, jobSpec);
+    // Pass org AI settings for custom instruction injection
+    const providerResult = await provider.analyze(compactedCV, jobSpec, orgAISettings);
 
     if (!providerResult.result) {
       throw new Error(`Main provider failed: ${providerResult.error}`);
@@ -584,6 +586,7 @@ export const callAdditionalProviders: NodeFunction<
     const jobSpec = state.data.jobSpec as JobSpec;
     const mode = state.data.mode as AnalysisMode;
     const recommendedProviders = state.data.needsMoreAnalysis?.recommended_providers || [];
+    const orgAISettings = state.data.orgAISettings as import('@/lib/types').OrgAISettings | null | undefined;
 
     if (!compactedCV || !jobSpec) {
       throw new Error('Compacted CV or JobSpec not found in state');
@@ -593,26 +596,26 @@ export const callAdditionalProviders: NodeFunction<
 
     const additionalProviders: Array<{ name: string; promise: Promise<any> }> = [];
 
-    // Gemini
+    // Gemini - pass org AI settings for custom instruction injection
     if (recommendedProviders.includes('gemini') || mode === 'premium') {
       try {
         const geminiProvider = createGeminiProvider();
         additionalProviders.push({
           name: 'gemini',
-          promise: geminiProvider.analyze(compactedCV, jobSpec),
+          promise: geminiProvider.analyze(compactedCV, jobSpec, orgAISettings),
         });
       } catch (error) {
         console.warn(`[callAdditionalProviders] Could not create Gemini provider:`, error);
       }
     }
 
-    // Claude
+    // Claude - pass org AI settings for custom instruction injection
     if (recommendedProviders.includes('claude') || mode === 'premium') {
       try {
         const claudeProvider = createClaudeProvider();
         additionalProviders.push({
           name: 'claude',
-          promise: claudeProvider.analyze(compactedCV, jobSpec),
+          promise: claudeProvider.analyze(compactedCV, jobSpec, orgAISettings),
         });
       } catch (error) {
         console.warn(`[callAdditionalProviders] Could not create Claude provider:`, error);

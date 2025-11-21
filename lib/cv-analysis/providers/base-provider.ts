@@ -10,6 +10,55 @@ import type {
   ProviderName,
   ProviderResult,
 } from '../types';
+import type { OrgAISettings, AIInstructionDomain } from '@/lib/types';
+
+/**
+ * =============================================================================
+ * DOMAIN INSTRUCTION MAPPING
+ * =============================================================================
+ * Edit this section to change which org_ai_settings field is used for each
+ * prompt domain. When adding a new domain, add a mapping here.
+ *
+ * Usage: getOrgInstructions(settings, 'cv') → returns cv_instructions or general
+ * =============================================================================
+ */
+const DOMAIN_INSTRUCTION_MAP: Record<AIInstructionDomain, keyof OrgAISettings> = {
+  cv: 'cv_instructions',
+  daf: 'daf_instructions',
+  deb: 'deb_instructions',
+  general: 'general_instructions',
+} as const;
+
+/**
+ * Get the appropriate org instruction for a given domain.
+ * Falls back to general_instructions if domain-specific instruction is empty.
+ *
+ * @param settings - The org AI settings (can be null)
+ * @param domain - The instruction domain ('cv', 'daf', 'deb', 'general')
+ * @returns The instruction string or null if none exists
+ */
+export function getOrgInstructions(
+  settings: OrgAISettings | null | undefined,
+  domain: AIInstructionDomain
+): string | null {
+  if (!settings) return null;
+
+  // Get domain-specific instruction
+  const fieldName = DOMAIN_INSTRUCTION_MAP[domain];
+  const domainInstruction = settings[fieldName] as string | null | undefined;
+
+  // If domain instruction exists and is not empty, use it
+  if (domainInstruction && domainInstruction.trim()) {
+    return domainInstruction.trim();
+  }
+
+  // Fall back to general instructions
+  if (domain !== 'general' && settings.general_instructions?.trim()) {
+    return settings.general_instructions.trim();
+  }
+
+  return null;
+}
 
 /**
  * Configuration commune à tous les providers
@@ -38,9 +87,14 @@ export abstract class BaseProvider {
    * Analyser un CV (Pass 2)
    * @param cvJson CV extrait et structuré
    * @param jobSpec Spécification du poste
+   * @param orgAISettings Optional organization AI settings for custom instructions
    * @returns Résultat d'évaluation + métadonnées
    */
-  abstract analyze(cvJson: CV_JSON, jobSpec: JobSpec): Promise<ProviderResult>;
+  abstract analyze(
+    cvJson: CV_JSON,
+    jobSpec: JobSpec,
+    orgAISettings?: OrgAISettings | null
+  ): Promise<ProviderResult>;
 
   /**
    * Extraire un CV en JSON (Pass 1)
@@ -59,9 +113,21 @@ export abstract class BaseProvider {
 
   /**
    * Helper: construire le prompt système universel
+   * @param orgInstructions - Optional organization-specific instructions to inject
    */
-  protected buildSystemPrompt(): string {
+  protected buildSystemPrompt(orgInstructions?: string | null): string {
+    // Build the org instructions section if provided
+    const orgInstructionsSection = orgInstructions
+      ? `
+**INSTRUCTIONS SPÉCIFIQUES DE L'ORGANISATION:**
+${orgInstructions}
+
+---
+`
+      : '';
+
     return `Tu es un évaluateur de candidatures strict, impartial et auditable pour TOUS LES MÉTIERS.
+${orgInstructionsSection}
 
 **PRINCIPES FONDAMENTAUX:**
 

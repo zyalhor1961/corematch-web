@@ -46,6 +46,7 @@ import type { EngineType } from '@/lib/mcp/types/context-snapshot';
 export interface OrchestrationOptions {
   mode: AnalysisMode;
   projectId: string; // ✅ NOUVEAU: ID du projet (requis pour cache key)
+  orgId?: string; // ✅ NOUVEAU: ID de l'organisation (pour instructions AI personnalisées)
   enablePrefilter?: boolean; // Défaut: true en balanced/premium
   enablePacking?: boolean; // Défaut: true
   forceSingleProvider?: boolean; // Forcer mode single provider (pour tests)

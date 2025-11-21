@@ -51,3 +51,7 @@ export { ClaudeProvider, createClaudeProvider } from './providers/claude-provide
 
 // Aggregator
 export { aggregateProviderResults } from './aggregator/multi-provider-aggregator';
+
+// Organization AI Settings
+export { loadOrgAISettings, hasOrgAISettings } from './org-ai-settings';
+export { getOrgInstructions } from './providers/base-provider';

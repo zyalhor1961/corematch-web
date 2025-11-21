@@ -247,6 +247,13 @@ export async function analyzeCVWithGraph(
   console.log(`   Job: ${jobSpec.title}`);
   console.log('════════════════════════════════════════════════\n');
 
+  // Load organization AI settings if orgId is provided
+  let orgAISettings = null;
+  if (options.orgId) {
+    const { loadOrgAISettings } = await import('@/lib/cv-analysis/org-ai-settings');
+    orgAISettings = await loadOrgAISettings(options.orgId);
+  }
+
   const graph = createCVAnalysisGraph();
 
   const { executeGraph } = await import('../core/executor');
@@ -256,6 +263,8 @@ export async function analyzeCVWithGraph(
       cvText,
       jobSpec,
       projectId: options.projectId,
+      orgId: options.orgId,
+      orgAISettings, // Pass org AI settings to the graph
       mode: options.mode,
       enablePrefilter: options.enablePrefilter,
       enablePacking: options.enablePacking,

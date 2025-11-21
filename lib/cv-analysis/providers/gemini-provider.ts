@@ -12,7 +12,8 @@ import type {
   ProviderResult,
   ProviderName,
 } from '../types';
-import { BaseProvider, type BaseProviderConfig } from './base-provider';
+import { BaseProvider, type BaseProviderConfig, getOrgInstructions } from './base-provider';
+import type { OrgAISettings } from '@/lib/types';
 import { calculateProviderCost } from '../config';
 import { validateEvaluationResult } from '../validators';
 
@@ -29,15 +30,28 @@ export class GeminiProvider extends BaseProvider {
 
   /**
    * Analyser un CV avec Gemini 1.5 Pro
+   * @param cvJson - Extracted CV in JSON format
+   * @param jobSpec - Job specification
+   * @param orgAISettings - Optional organization AI settings for custom instructions
    */
-  async analyze(cvJson: CV_JSON, jobSpec: JobSpec): Promise<ProviderResult> {
+  async analyze(
+    cvJson: CV_JSON,
+    jobSpec: JobSpec,
+    orgAISettings?: OrgAISettings | null
+  ): Promise<ProviderResult> {
     const startTime = Date.now();
 
     try {
       console.log(`[${this.name}] Starting analysis with model ${this.config.model}...`);
 
+      // Get org-specific instructions for CV domain
+      const orgInstructions = getOrgInstructions(orgAISettings, 'cv');
+      if (orgInstructions) {
+        console.log(`[${this.name}] Using custom org instructions (${orgInstructions.length} chars)`);
+      }
+
       // Construire les prompts
-      const systemPrompt = this.buildSystemPrompt();
+      const systemPrompt = this.buildSystemPrompt(orgInstructions);
       const userPrompt = this.buildUserPrompt(cvJson, jobSpec);
 
       // Gemini 1.5 Pro

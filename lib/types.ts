@@ -16,6 +16,30 @@ export interface OrganizationMember {
   created_at: string;
 }
 
+/**
+ * Per-organization AI instruction settings.
+ * These instructions are injected into LLM prompts at runtime.
+ */
+export interface OrgAISettings {
+  org_id: string;
+  /** Applied to all AI interactions when no domain-specific instruction exists */
+  general_instructions?: string | null;
+  /** Applied to DAF (funding application) analysis prompts */
+  daf_instructions?: string | null;
+  /** Applied to CV screening and candidate analysis prompts */
+  cv_instructions?: string | null;
+  /** Applied to DEB (customs declaration) document processing prompts */
+  deb_instructions?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Domain types for AI instruction mapping.
+ * Edit this to add new domains or change field mappings.
+ */
+export type AIInstructionDomain = 'cv' | 'daf' | 'deb' | 'general';
+
 export interface MyOrg {
   org_id: string;
   user_id: string;

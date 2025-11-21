@@ -82,9 +82,9 @@ export class AzureDIExtractor implements DAFExtractor {
     const startTime = Date.now();
 
     try {
-      // Get Azure credentials - try new vars first, fall back to old ones
-      let endpoint = process.env.AZURE_DI_ENDPOINT || process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
-      let apiKey = process.env.AZURE_DI_API_KEY || process.env.AZURE_FORM_RECOGNIZER_KEY;
+      // Get Azure credentials - prefer OLD working vars, fall back to new ones
+      let endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT || process.env.AZURE_DI_ENDPOINT;
+      let apiKey = process.env.AZURE_FORM_RECOGNIZER_KEY || process.env.AZURE_DI_API_KEY;
 
       if (!endpoint || !apiKey) {
         throw new Error('Azure Document Intelligence credentials not found. Set AZURE_DI_ENDPOINT and AZURE_DI_API_KEY (or AZURE_FORM_RECOGNIZER_*)');

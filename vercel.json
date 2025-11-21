@@ -38,6 +38,12 @@
     "app/api/cv/projects/[projectId]/analyze-all/route.ts": {
       "maxDuration": 180
     },
+    "app/api/daf/documents/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/daf/documents/[id]/route.ts": {
+      "maxDuration": 30
+    },
     "app/**": {
       "maxDuration": 10
     }

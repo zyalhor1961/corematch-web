@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { DocumentUpload } from '@/components/daf/DocumentUpload';
 import { DocumentInbox } from '@/components/daf/DocumentInbox';
-import { FileText, Upload, List, Search } from 'lucide-react';
+import { FileText, Upload, List, Search, ArrowLeft } from 'lucide-react';
 
 export default function DAFPage() {
   const params = useParams<{ orgId: string }>();
@@ -34,6 +34,15 @@ export default function DAFPage() {
 
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <Link
+        href={`/org/${orgId}`}
+        className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Retour au tableau de bord
+      </Link>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

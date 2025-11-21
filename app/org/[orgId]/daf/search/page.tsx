@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Search, FileText, Calendar, DollarSign, Building2, Sparkles, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Search, FileText, Calendar, DollarSign, Building2, Sparkles, Loader2, ArrowLeft } from 'lucide-react';
 
 interface SearchResult {
   chunk_text: string;
@@ -86,6 +87,15 @@ export default function DAFSearchPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-cyan-600/20 to-blue-600/20 blur-3xl"></div>
 
         <div className="relative max-w-7xl mx-auto px-4 py-8">
+          {/* Back Button */}
+          <Link
+            href={`/org/${orgId}/daf`}
+            className="inline-flex items-center gap-2 text-blue-200 hover:text-white transition-colors mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Retour aux documents
+          </Link>
+
           <div className="flex items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-600 blur-xl opacity-50 animate-pulse"></div>

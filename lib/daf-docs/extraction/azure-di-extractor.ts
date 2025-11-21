@@ -83,12 +83,19 @@ export class AzureDIExtractor implements DAFExtractor {
 
     try {
       // Get Azure credentials from 1Password
-      const endpoint = await getSecret('AZURE_DI_ENDPOINT');
+      let endpoint = await getSecret('AZURE_DI_ENDPOINT');
       const apiKey = await getSecret('AZURE_DI_API_KEY');
 
       if (!endpoint || !apiKey) {
         throw new Error('Azure Document Intelligence credentials not found in 1Password');
       }
+
+      // Remove trailing slash to prevent double-slash in URL
+      endpoint = endpoint.replace(/\/+$/, '');
+
+      // Debug: Log endpoint format (masked API key)
+      console.log(`[Azure DI] Endpoint: ${endpoint}`);
+      console.log(`[Azure DI] API Key length: ${apiKey.length} chars, starts with: ${apiKey.substring(0, 4)}...`);
 
       const azureClient = new DocumentAnalysisClient(
         endpoint,

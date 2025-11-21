@@ -82,16 +82,28 @@ export class AzureDIExtractor implements DAFExtractor {
     const startTime = Date.now();
 
     try {
-      // Get Azure credentials from 1Password
-      let endpoint = await getSecret('AZURE_DI_ENDPOINT');
-      const apiKey = await getSecret('AZURE_DI_API_KEY');
+      // Get Azure credentials - try new vars first, fall back to old ones
+      let endpoint = process.env.AZURE_DI_ENDPOINT || process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
+      let apiKey = process.env.AZURE_DI_API_KEY || process.env.AZURE_FORM_RECOGNIZER_KEY;
 
       if (!endpoint || !apiKey) {
-        throw new Error('Azure Document Intelligence credentials not found in 1Password');
+        throw new Error('Azure Document Intelligence credentials not found. Set AZURE_DI_ENDPOINT and AZURE_DI_API_KEY (or AZURE_FORM_RECOGNIZER_*)');
       }
 
-      // Remove trailing slash to prevent double-slash in URL
-      endpoint = endpoint.replace(/\/+$/, '');
+      // Clean endpoint: remove quotes, newlines, trailing slashes
+      endpoint = endpoint
+        .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
+        .replace(/\\n/g, '')           // Remove literal \n
+        .replace(/\n/g, '')            // Remove actual newlines
+        .replace(/\/+$/, '')           // Remove trailing slashes
+        .trim();
+
+      // Clean API key: remove quotes, newlines, whitespace
+      apiKey = apiKey
+        .replace(/^["']|["']$/g, '')
+        .replace(/\\n/g, '')
+        .replace(/\n/g, '')
+        .trim();
 
       // Debug: Log endpoint format (masked API key)
       console.log(`[Azure DI] Endpoint: ${endpoint}`);

@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -15,42 +13,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  FileText,
+  ClipboardList,
   Plus,
   ArrowLeft,
-  Download,
   Eye,
+  Download,
   CheckCircle,
   Clock,
-  AlertCircle,
   XCircle,
+  Send,
   Filter,
   Home,
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 
-interface Invoice {
+interface Quote {
   id: string;
-  invoice_number: string;
-  invoice_date: string;
-  due_date: string;
+  quote_number: string;
+  quote_date: string;
+  valid_until: string;
   status: string;
+  total_ht: number;
   total_ttc: number;
-  paid_amount: number;
-  balance_due: number;
   client?: {
     id: string;
     name: string;
-    email?: string;
     company_name?: string;
   };
 }
@@ -70,15 +58,14 @@ function formatDate(dateStr: string): string {
 
 function getStatusBadge(status: string) {
   const statusConfig: Record<string, { label: string; bgColor: string; textColor: string; icon: any }> = {
-    draft: { label: 'Brouillon', bgColor: 'bg-gray-100 dark:bg-gray-700', textColor: 'text-gray-700 dark:text-gray-300', icon: FileText },
-    sent: { label: 'Envoyée', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-700 dark:text-blue-400', icon: Clock },
-    paid: { label: 'Payée', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle },
-    partial: { label: 'Partiel', bgColor: 'bg-amber-100 dark:bg-amber-900/30', textColor: 'text-amber-700 dark:text-amber-400', icon: Clock },
-    overdue: { label: 'En retard', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-700 dark:text-red-400', icon: AlertCircle },
-    cancelled: { label: 'Annulée', bgColor: 'bg-gray-100 dark:bg-gray-700', textColor: 'text-gray-500 dark:text-gray-400', icon: XCircle },
+    draft: { label: 'Brouillon', bgColor: 'bg-gray-100 dark:bg-gray-700', textColor: 'text-gray-700 dark:text-gray-300', icon: Clock },
+    sent: { label: 'Envoyé', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-700 dark:text-blue-400', icon: Send },
+    accepted: { label: 'Accepté', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle },
+    rejected: { label: 'Refusé', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-700 dark:text-red-400', icon: XCircle },
+    expired: { label: 'Expiré', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-700 dark:text-orange-400', icon: Clock },
   };
 
-  const config = statusConfig[status] || { label: status, bgColor: 'bg-gray-100 dark:bg-gray-700', textColor: 'text-gray-700 dark:text-gray-300', icon: FileText };
+  const config = statusConfig[status] || statusConfig.draft;
   const Icon = config.icon;
 
   return (
@@ -89,78 +76,57 @@ function getStatusBadge(status: string) {
   );
 }
 
-export default function InvoicesPage() {
+export default function QuotesPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const orgId = params.orgId as string;
 
   const [loading, setLoading] = useState(true);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [total, setTotal] = useState(0);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
-  const [clientFilter, setClientFilter] = useState(searchParams.get('client_id') || '');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Stats
   const [stats, setStats] = useState({
     total_amount: 0,
-    total_paid: 0,
-    total_outstanding: 0,
-    count_paid: 0,
-    count_unpaid: 0,
-    count_overdue: 0,
+    count_draft: 0,
+    count_sent: 0,
+    count_accepted: 0,
   });
 
-  async function fetchInvoices() {
+  async function fetchQuotes() {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const urlParams = new URLSearchParams();
+      urlParams.set('org_id', orgId);
       if (statusFilter && statusFilter !== 'all') {
-        if (statusFilter === 'unpaid') {
-          // 'unpaid' is a virtual status for sent, partial, overdue
-        } else {
-          params.set('status', statusFilter);
-        }
+        urlParams.set('status', statusFilter);
       }
-      if (clientFilter) params.set('client_id', clientFilter);
 
-      const res = await fetch(`/api/erp/invoices?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch invoices');
+      const res = await fetch(`/api/erp/quotes?${urlParams.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch quotes');
 
       const json = await res.json();
       if (json.success) {
-        let filteredInvoices = json.data.invoices || [];
+        setQuotes(json.data.quotes || []);
+        setTotal(json.data.total || 0);
 
-        // Apply unpaid filter client-side
-        if (statusFilter === 'unpaid') {
-          filteredInvoices = filteredInvoices.filter((inv: Invoice) =>
-            ['sent', 'partial', 'overdue'].includes(inv.status)
-          );
-        }
-
-        setInvoices(filteredInvoices);
-        setTotal(filteredInvoices.length);
-
-        // Calculate stats
-        const allInvoices = json.data.invoices || [];
+        const allQuotes = json.data.quotes || [];
         setStats({
-          total_amount: allInvoices.reduce((sum: number, inv: Invoice) => sum + (inv.total_ttc || 0), 0),
-          total_paid: allInvoices.reduce((sum: number, inv: Invoice) => sum + (inv.paid_amount || 0), 0),
-          total_outstanding: allInvoices.reduce((sum: number, inv: Invoice) => sum + (inv.balance_due || 0), 0),
-          count_paid: allInvoices.filter((inv: Invoice) => inv.status === 'paid').length,
-          count_unpaid: allInvoices.filter((inv: Invoice) => ['sent', 'partial'].includes(inv.status)).length,
-          count_overdue: allInvoices.filter((inv: Invoice) => inv.status === 'overdue').length,
+          total_amount: allQuotes.reduce((sum: number, q: Quote) => sum + (q.total_ttc || 0), 0),
+          count_draft: allQuotes.filter((q: Quote) => q.status === 'draft').length,
+          count_sent: allQuotes.filter((q: Quote) => q.status === 'sent').length,
+          count_accepted: allQuotes.filter((q: Quote) => q.status === 'accepted').length,
         });
       }
     } catch (err) {
-      console.error('Error fetching invoices:', err);
+      console.error('Error fetching quotes:', err);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchInvoices();
-  }, [statusFilter, clientFilter]);
+    fetchQuotes();
+  }, [statusFilter, orgId]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -175,7 +141,7 @@ export default function InvoicesPage() {
           ERP
         </Link>
         <ChevronRight className="h-4 w-4 text-gray-400" />
-        <span className="font-medium text-gray-900 dark:text-white">Factures</span>
+        <span className="font-medium text-gray-900 dark:text-white">Devis</span>
       </nav>
 
       {/* Header */}
@@ -188,17 +154,17 @@ export default function InvoicesPage() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-              <FileText className="h-8 w-8 text-green-600 dark:text-green-400" />
-              Factures
+              <ClipboardList className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+              Devis
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">{total} facture{total !== 1 ? 's' : ''}</p>
+            <p className="text-gray-600 dark:text-gray-400">{total} devis</p>
           </div>
         </div>
 
         <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Link href={`/org/${orgId}/erp/invoices/new`}>
+          <Link href={`/org/${orgId}/erp/quotes/new`}>
             <Plus className="h-4 w-4 mr-2" />
-            Nouvelle facture
+            Nouveau devis
           </Link>
         </Button>
       </div>
@@ -206,20 +172,20 @@ export default function InvoicesPage() {
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total facturé</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total devis</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.total_amount)}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total encaissé</p>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.total_paid)}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Brouillons</p>
+          <p className="text-2xl font-bold text-gray-500 dark:text-gray-400">{stats.count_draft}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Reste à encaisser</p>
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatCurrency(stats.total_outstanding)}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Envoyés</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.count_sent}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">En retard</p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.count_overdue}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Acceptés</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.count_accepted}</p>
         </div>
       </div>
 
@@ -237,21 +203,17 @@ export default function InvoicesPage() {
             <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <SelectItem value="all" className="text-gray-900 dark:text-white">Tous les statuts</SelectItem>
               <SelectItem value="draft" className="text-gray-900 dark:text-white">Brouillons</SelectItem>
-              <SelectItem value="sent" className="text-gray-900 dark:text-white">Envoyées</SelectItem>
-              <SelectItem value="unpaid" className="text-gray-900 dark:text-white">À encaisser</SelectItem>
-              <SelectItem value="paid" className="text-gray-900 dark:text-white">Payées</SelectItem>
-              <SelectItem value="overdue" className="text-gray-900 dark:text-white">En retard</SelectItem>
-              <SelectItem value="cancelled" className="text-gray-900 dark:text-white">Annulées</SelectItem>
+              <SelectItem value="sent" className="text-gray-900 dark:text-white">Envoyés</SelectItem>
+              <SelectItem value="accepted" className="text-gray-900 dark:text-white">Acceptés</SelectItem>
+              <SelectItem value="rejected" className="text-gray-900 dark:text-white">Refusés</SelectItem>
+              <SelectItem value="expired" className="text-gray-900 dark:text-white">Expirés</SelectItem>
             </SelectContent>
           </Select>
-          {(statusFilter !== 'all' || clientFilter) && (
+          {statusFilter !== 'all' && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setStatusFilter('all');
-                setClientFilter('');
-              }}
+              onClick={() => setStatusFilter('all')}
               className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Réinitialiser
@@ -260,7 +222,7 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Invoices Table */}
+      {/* Quotes Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         {loading ? (
           <div className="space-y-2">
@@ -268,15 +230,15 @@ export default function InvoicesPage() {
               <Skeleton key={i} className="h-12 w-full bg-gray-200 dark:bg-gray-700" />
             ))}
           </div>
-        ) : invoices.length === 0 ? (
+        ) : quotes.length === 0 ? (
           <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-            <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucune facture</h3>
-            <p className="text-gray-600 dark:text-gray-400">Commencez par créer votre première facture</p>
+            <ClipboardList className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+            <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucun devis</h3>
+            <p className="text-gray-600 dark:text-gray-400">Commencez par créer votre premier devis</p>
             <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" asChild>
-              <Link href={`/org/${orgId}/erp/invoices/new`}>
+              <Link href={`/org/${orgId}/erp/quotes/new`}>
                 <Plus className="h-4 w-4 mr-2" />
-                Nouvelle facture
+                Nouveau devis
               </Link>
             </Button>
           </div>
@@ -285,50 +247,42 @@ export default function InvoicesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">N° Facture</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">N° Devis</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Client</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Échéance</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Validité</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Statut</th>
                   <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Montant TTC</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Reste dû</th>
                   <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                {quotes.map((quote) => (
+                  <tr key={quote.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="py-3 px-4">
-                      <span className="font-mono font-medium text-gray-900 dark:text-white">{invoice.invoice_number}</span>
+                      <span className="font-mono font-medium text-gray-900 dark:text-white">{quote.quote_number}</span>
                     </td>
                     <td className="py-3 px-4">
-                      {invoice.client ? (
+                      {quote.client ? (
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{invoice.client.name}</div>
-                          {invoice.client.company_name && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400">{invoice.client.company_name}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{quote.client.name}</div>
+                          {quote.client.company_name && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{quote.client.company_name}</div>
                           )}
                         </div>
                       ) : (
                         <span className="text-gray-500 dark:text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{formatDate(invoice.invoice_date)}</td>
+                    <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{formatDate(quote.quote_date)}</td>
                     <td className="py-3 px-4">
-                      <span className={invoice.status === 'overdue' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
-                        {formatDate(invoice.due_date)}
+                      <span className={new Date(quote.valid_until) < new Date() ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
+                        {formatDate(quote.valid_until)}
                       </span>
                     </td>
-                    <td className="py-3 px-4">{getStatusBadge(invoice.status)}</td>
+                    <td className="py-3 px-4">{getStatusBadge(quote.status)}</td>
                     <td className="py-3 px-4 text-right font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(invoice.total_ttc)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {invoice.balance_due > 0 ? (
-                        <span className="text-orange-600 dark:text-orange-400 font-medium">{formatCurrency(invoice.balance_due)}</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400">Soldée</span>
-                      )}
+                      {formatCurrency(quote.total_ttc)}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex justify-end gap-1">

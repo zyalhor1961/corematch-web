@@ -29,14 +29,14 @@ export function AskDafHero({ orgId }: AskDafHeroProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      router.push(`/org/${orgId}/daf?q=${encodeURIComponent(query)}`);
+      router.push(`/org/${orgId}/daf?tab=ask&q=${encodeURIComponent(query)}`);
     } else {
-      router.push(`/org/${orgId}/daf`);
+      router.push(`/org/${orgId}/daf?tab=ask`);
     }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    router.push(`/org/${orgId}/daf?q=${encodeURIComponent(suggestion)}`);
+    router.push(`/org/${orgId}/daf?tab=ask&q=${encodeURIComponent(suggestion)}`);
   };
 
   return (

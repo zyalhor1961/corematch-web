@@ -30,6 +30,7 @@ interface Message {
 
 interface AskDAFProps {
   orgId: string;
+  initialQuery?: string;
 }
 
 const EXAMPLE_QUESTIONS = {
@@ -104,10 +105,11 @@ function SimpleBarChart({ data, columns }: { data: Record<string, any>[]; column
   );
 }
 
-export function AskDAF({ orgId }: AskDAFProps) {
+export function AskDAF({ orgId, initialQuery }: AskDAFProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialQuery || '');
   const [loading, setLoading] = useState(false);
+  const [hasProcessedInitialQuery, setHasProcessedInitialQuery] = useState(false);
   const [expandedResults, setExpandedResults] = useState<string | null>(null);
   const [chartViews, setChartViews] = useState<Record<string, boolean>>({});
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
@@ -132,6 +134,20 @@ export function AskDAF({ orgId }: AskDAFProps) {
   useEffect(() => {
     fetchSavedQueries();
   }, [fetchSavedQueries]);
+
+  // Auto-submit initial query
+  useEffect(() => {
+    if (initialQuery && !hasProcessedInitialQuery && !loading) {
+      setHasProcessedInitialQuery(true);
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.form?.requestSubmit();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [initialQuery, hasProcessedInitialQuery, loading]);
 
   // Auto-scroll to bottom
   useEffect(() => {

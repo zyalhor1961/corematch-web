@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,9 @@ import {
   ArrowLeft,
   MoreHorizontal,
   FileText,
-  TrendingUp
+  TrendingUp,
+  Home,
+  ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -67,14 +69,23 @@ function formatDate(dateStr: string): string {
 
 export default function ClientsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const orgId = params.orgId as string;
+  const actionParam = searchParams.get('action');
 
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(actionParam === 'new');
   const [saving, setSaving] = useState(false);
+
+  // Open dialog when action=new is in URL
+  useEffect(() => {
+    if (actionParam === 'new') {
+      setDialogOpen(true);
+    }
+  }, [actionParam]);
 
   // New client form
   const [newClient, setNewClient] = useState({
@@ -140,6 +151,20 @@ export default function ClientsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-sm">
+        <Link href={`/org/${orgId}`} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
+          <Home className="h-4 w-4" />
+          <span>Accueil</span>
+        </Link>
+        <ChevronRight className="h-4 w-4 text-gray-400" />
+        <Link href={`/org/${orgId}/erp`} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+          ERP
+        </Link>
+        <ChevronRight className="h-4 w-4 text-gray-400" />
+        <span className="font-medium text-gray-900 dark:text-white">Clients</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

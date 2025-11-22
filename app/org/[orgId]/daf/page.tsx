@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { DocumentUpload } from '@/components/daf/DocumentUpload';
 import { DocumentInbox } from '@/components/daf/DocumentInbox';
@@ -10,10 +10,26 @@ import { FileText, Upload, List, Search, ArrowLeft, Sparkles } from 'lucide-reac
 
 export default function DAFPage() {
   const params = useParams<{ orgId: string }>();
+  const searchParams = useSearchParams();
   const orgId = params?.orgId;
 
-  const [activeTab, setActiveTab] = useState<'upload' | 'inbox' | 'ask'>('inbox');
+  // Get tab and query from URL parameters
+  const tabParam = searchParams.get('tab') as 'upload' | 'inbox' | 'ask' | null;
+  const queryParam = searchParams.get('q');
+
+  const [activeTab, setActiveTab] = useState<'upload' | 'inbox' | 'ask'>(tabParam || 'inbox');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [initialQuery, setInitialQuery] = useState<string | null>(queryParam);
+
+  // Update tab when URL params change
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+    if (queryParam) {
+      setInitialQuery(queryParam);
+    }
+  }, [tabParam, queryParam]);
 
   const handleUploadComplete = () => {
     // Refresh inbox after upload
@@ -122,7 +138,7 @@ export default function DAFPage() {
           )}
 
           {activeTab === 'ask' && orgId && (
-            <AskDAF orgId={orgId} />
+            <AskDAF orgId={orgId} initialQuery={initialQuery || undefined} />
           )}
         </div>
       </div>

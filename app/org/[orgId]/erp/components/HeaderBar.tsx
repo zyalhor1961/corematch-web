@@ -51,7 +51,7 @@ export function HeaderBar({ orgId }: HeaderBarProps) {
           asChild
           className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
-          <Link href={`/org/${orgId}/erp/clients`}>
+          <Link href={`/org/${orgId}/erp/clients?action=new`}>
             <UserPlus className="h-4 w-4 mr-2" />
             Nouveau client
           </Link>
@@ -63,9 +63,9 @@ export function HeaderBar({ orgId }: HeaderBarProps) {
           asChild
           className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
-          <Link href={`/org/${orgId}/erp/suppliers`}>
+          <Link href={`/org/${orgId}/erp/suppliers?action=new`}>
             <Upload className="h-4 w-4 mr-2" />
-            Upload facture fournisseur
+            Nouveau fournisseur
           </Link>
         </Button>
 
@@ -74,7 +74,7 @@ export function HeaderBar({ orgId }: HeaderBarProps) {
           asChild
           className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
         >
-          <Link href={`/org/${orgId}/daf`}>
+          <Link href={`/org/${orgId}/daf?tab=ask`}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Ask DAF
           </Link>

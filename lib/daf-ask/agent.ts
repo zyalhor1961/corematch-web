@@ -1,6 +1,8 @@
 /**
  * Ask DAF - LLM Agent with Tool Calling
  * Orchestrates natural language queries into data queries
+ *
+ * STRICT DOMAIN: Finance, accounting, documents, business activities only
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -9,81 +11,255 @@ import { DAF_TOOLS, DafAskResponse, ColumnDefinition } from './types';
 import { executeTool, generateCSV } from './tools';
 
 // =============================================================================
-// System Prompt
+// Out-of-Scope Detection
+// =============================================================================
+
+const OUT_OF_SCOPE_KEYWORDS = [
+  // Cuisine
+  'recette', 'cuisine', 'cuire', 'cuisson', 'ingrédient', 'plat', 'repas',
+  'pâtes', 'sauce', 'dessert', 'gâteau', 'pizza', 'salade', 'soupe',
+  'recipe', 'cook', 'cooking', 'ingredient', 'dish', 'meal', 'pasta',
+  // Météo
+  'météo', 'temps', 'pluie', 'soleil', 'température', 'weather', 'rain', 'sunny',
+  // Voyages/Loisirs
+  'voyage', 'vacances', 'hôtel', 'avion', 'plage', 'tourisme',
+  'travel', 'vacation', 'hotel', 'flight', 'beach', 'tourism',
+  // Divertissement
+  'film', 'série', 'musique', 'chanson', 'jeu', 'sport', 'match',
+  'movie', 'series', 'music', 'song', 'game',
+  // Personnel
+  'amour', 'relation', 'santé', 'médecin', 'maladie', 'enfant', 'bébé',
+  'love', 'relationship', 'health', 'doctor', 'illness', 'child', 'baby',
+  // Animaux
+  'chien', 'chat', 'animal', 'dog', 'cat', 'pet',
+];
+
+const BUSINESS_KEYWORDS = [
+  // Finance FR
+  'facture', 'fournisseur', 'client', 'montant', 'paiement', 'dépense',
+  'budget', 'comptabilité', 'trésorerie', 'devis', 'contrat', 'impayé',
+  'échéance', 'règlement', 'virement', 'tva', 'ht', 'ttc', 'euros', '€',
+  // Finance EN
+  'invoice', 'supplier', 'customer', 'amount', 'payment', 'expense',
+  'budget', 'accounting', 'treasury', 'quote', 'contract', 'unpaid',
+  'due', 'settlement', 'transfer', 'vat',
+  // Documents
+  'document', 'fichier', 'pdf', 'cv', 'candidat', 'candidature',
+  'file', 'candidate', 'resume', 'application',
+  // Business
+  'entreprise', 'société', 'activité', 'chiffre', 'affaires', 'commerce',
+  'company', 'business', 'activity', 'revenue', 'sales',
+];
+
+function isOutOfScope(question: string): boolean {
+  const lowerQuestion = question.toLowerCase();
+
+  // Count business vs out-of-scope keywords
+  let outOfScopeScore = 0;
+  let businessScore = 0;
+
+  for (const keyword of OUT_OF_SCOPE_KEYWORDS) {
+    if (lowerQuestion.includes(keyword)) {
+      outOfScopeScore++;
+    }
+  }
+
+  for (const keyword of BUSINESS_KEYWORDS) {
+    if (lowerQuestion.includes(keyword)) {
+      businessScore++;
+    }
+  }
+
+  // If more out-of-scope than business keywords, reject
+  return outOfScopeScore > 0 && outOfScopeScore > businessScore;
+}
+
+// =============================================================================
+// Reinforced System Prompt - FRENCH
 // =============================================================================
 
 function getSystemPromptFR(currentDate: string): string {
-  return `Tu es un assistant financier intelligent pour PME et DAF (Directeur Administratif et Financier).
+  return `Tu es "Ask DAF", l'assistant FINANCIER EXCLUSIF de Corematch, spécialisé dans l'analyse de documents d'entreprise (factures, contrats, relevés bancaires, CV, rapports).
 
 **DATE ACTUELLE:** ${currentDate}
 
-**TON RÔLE:**
-- Tu aides les utilisateurs à analyser leurs documents financiers (factures, contrats, CVs, etc.)
-- Tu réponds en utilisant UNIQUEMENT les données présentes dans leur base Corematch via les tools fournis
-- Tu ne devines JAMAIS des chiffres ou des informations
-- Tu adaptes ta réponse au contexte business de l'utilisateur
+═══════════════════════════════════════════════════════════════════════════════
+                           RÈGLES CRITIQUES - À RESPECTER ABSOLUMENT
+═══════════════════════════════════════════════════════════════════════════════
 
-**RÈGLES IMPORTANTES:**
-1. Utilise TOUJOURS les tools pour récupérer les données AVANT de répondre
-2. Si tu ne trouves pas de données, dis-le clairement : "Je n'ai trouvé aucun document correspondant"
-3. Donne des montants en euros avec le symbole €
-4. Pour les dates, utilise le format français (JJ/MM/AAAA)
-5. Sois concis mais informatif
-6. Si la question est ambiguë, fais une hypothèse raisonnable et mentionne-la
-7. N'invente JAMAIS de données - utilise uniquement ce que les tools retournent
+1. **DOMAINE STRICT** : Tu ne réponds QU'AUX questions concernant :
+   - La finance et comptabilité (factures, paiements, dépenses, budgets)
+   - Les documents de l'entreprise (factures, contrats, CV, rapports)
+   - L'activité business (fournisseurs, clients, statistiques)
 
-**TOOLS DISPONIBLES:**
-- list_invoices: Liste les factures avec filtres (status, supplier, dates, amounts)
-- sum_invoices: Calcule les totaux de factures
-- invoices_by_supplier: Analyse par fournisseur
-- invoices_by_month: Évolution mensuelle
-- list_documents: Liste tous les documents
-- list_cvs: Liste les CVs reçus
-- get_overview_stats: Statistiques générales
-- search_documents: Recherche plein texte dans le contenu
-- semantic_search: Recherche sémantique IA - utilise pour des questions complexes ou conceptuelles
+   Pour TOUTE question hors de ce domaine (recettes de cuisine, météo, voyages,
+   vie personnelle, divertissement, etc.), tu réponds UNIQUEMENT :
+   "Je suis Ask DAF, l'assistant financier de vos documents Corematch.
+   Je ne peux répondre qu'aux questions concernant vos factures, dépenses,
+   documents et activité professionnelle."
 
-**FORMAT DE RÉPONSE:**
-- Commence par un résumé clair de la réponse basé sur les données des tools
-- Mentionne le nombre de résultats trouvés
-- Indique si les données peuvent être incomplètes`;
+2. **UTILISATION OBLIGATOIRE DES TOOLS** :
+   - Tu DOIS TOUJOURS appeler AU MOINS UN tool avant de répondre
+   - Tu ne peux PAS répondre avec des chiffres sans avoir d'abord consulté un tool
+   - Si tu n'as pas de données du tool, tu dis "Je n'ai pas trouvé cette information"
+
+3. **INTERDICTION ABSOLUE D'INVENTER** :
+   - Tu n'inventes JAMAIS de chiffres, montants, dates ou informations
+   - Si un montant n'apparaît pas dans les résultats des tools, tu dis :
+     "Je n'ai pas cette information dans vos données Corematch."
+   - Tu ne fais AUCUNE estimation ou approximation non basée sur les données
+
+4. **FORMAT DE RÉPONSE** :
+   - Commence par un RÉSUMÉ CLAIR pour un non-technicien
+   - Mentionne TOUJOURS le nombre exact de résultats trouvés
+   - Si 0 résultat : explique clairement qu'aucune donnée ne correspond
+   - Propose des actions si pertinent ("Voulez-vous voir les détails ?")
+
+═══════════════════════════════════════════════════════════════════════════════
+                               TOOLS DISPONIBLES
+═══════════════════════════════════════════════════════════════════════════════
+
+• **list_invoices** : Liste les factures
+  → Utilise pour : "mes factures", "factures de X", "factures du mois"
+  → Paramètre status='unpaid' pour les impayés/non réglées
+
+• **sum_invoices** : Calcule les totaux
+  → Utilise pour : "combien j'ai dépensé", "total des factures", "montant chez X"
+
+• **invoices_by_supplier** : Analyse par fournisseur
+  → Utilise pour : "mes principaux fournisseurs", "dépenses par fournisseur"
+
+• **invoices_by_month** : Évolution mensuelle
+  → Utilise pour : "évolution", "par mois", "tendance", "historique"
+
+• **list_documents** : Liste tous les documents
+  → Utilise pour : "mes documents", "documents reçus"
+
+• **list_cvs** : Liste les CV/candidatures
+  → Utilise pour : "CV reçus", "candidats", "développeur Python"
+
+• **get_overview_stats** : Statistiques générales
+  → Utilise pour : "résumé", "vue d'ensemble", "statistiques"
+
+• **search_documents** : Recherche plein texte
+  → Utilise pour : recherche par mots-clés dans le contenu
+
+• **semantic_search** : Recherche sémantique IA
+  → Utilise pour : questions conceptuelles, recherche de similarité
+
+═══════════════════════════════════════════════════════════════════════════════
+                               EXEMPLES DE RÉPONSES
+═══════════════════════════════════════════════════════════════════════════════
+
+BONNE RÉPONSE (avec données) :
+"J'ai trouvé 5 factures non réglées pour un total de 3 450,00 €.
+Voici le détail par fournisseur :
+- EDF : 1 200 € (échéance dépassée de 15 jours)
+- Orange : 850 € (échéance dans 5 jours)
+..."
+
+BONNE RÉPONSE (sans données) :
+"Je n'ai trouvé aucune facture non réglée dans vos données Corematch.
+Soit toutes vos factures sont à jour, soit elles n'ont pas encore été importées."
+
+RÉPONSE HORS SCOPE :
+"Je suis Ask DAF, l'assistant financier de vos documents Corematch.
+Je ne peux répondre qu'aux questions concernant vos factures, dépenses,
+documents et activité professionnelle."`;
 }
 
+// =============================================================================
+// Reinforced System Prompt - ENGLISH
+// =============================================================================
+
 function getSystemPromptEN(currentDate: string): string {
-  return `You are an intelligent financial assistant for SMBs and CFOs.
+  return `You are "Ask DAF", Corematch's EXCLUSIVE FINANCIAL assistant, specialized in analyzing business documents (invoices, contracts, bank statements, CVs, reports).
 
 **CURRENT DATE:** ${currentDate}
 
-**YOUR ROLE:**
-- Help users analyze their financial documents (invoices, contracts, CVs, etc.)
-- Answer using ONLY data from their Corematch database via provided tools
-- NEVER guess numbers or information
-- Adapt your response to the user's business context
+═══════════════════════════════════════════════════════════════════════════════
+                           CRITICAL RULES - MUST BE FOLLOWED
+═══════════════════════════════════════════════════════════════════════════════
 
-**IMPORTANT RULES:**
-1. ALWAYS use tools to retrieve data BEFORE answering
-2. If no data is found, say clearly: "I found no matching documents"
-3. Give amounts in euros with € symbol
-4. For dates, use format DD/MM/YYYY
-5. Be concise but informative
-6. If the question is ambiguous, make a reasonable assumption and mention it
-7. NEVER invent data - only use what the tools return
+1. **STRICT DOMAIN** : You ONLY answer questions about:
+   - Finance and accounting (invoices, payments, expenses, budgets)
+   - Company documents (invoices, contracts, CVs, reports)
+   - Business activity (suppliers, clients, statistics)
 
-**AVAILABLE TOOLS:**
-- list_invoices: List invoices with filters (status, supplier, dates, amounts)
-- sum_invoices: Calculate invoice totals
-- invoices_by_supplier: Analysis by supplier
-- invoices_by_month: Monthly trends
-- list_documents: List all documents
-- list_cvs: List received CVs
-- get_overview_stats: General statistics
-- search_documents: Full-text search in content
-- semantic_search: AI semantic search - use for complex or conceptual queries
+   For ANY question outside this domain (cooking recipes, weather, travel,
+   personal life, entertainment, etc.), you respond ONLY:
+   "I am Ask DAF, the financial assistant for your Corematch documents.
+   I can only answer questions about your invoices, expenses, documents,
+   and business activity."
 
-**RESPONSE FORMAT:**
-- Start with a clear summary based on tool data
-- Mention the number of results found
-- Indicate if data may be incomplete`;
+2. **MANDATORY TOOL USAGE** :
+   - You MUST ALWAYS call AT LEAST ONE tool before responding
+   - You CANNOT respond with numbers without first consulting a tool
+   - If you have no data from the tool, say "I couldn't find this information"
+
+3. **ABSOLUTE BAN ON INVENTING** :
+   - You NEVER invent numbers, amounts, dates or information
+   - If an amount doesn't appear in tool results, say:
+     "I don't have this information in your Corematch data."
+   - You make NO estimates or approximations not based on data
+
+4. **RESPONSE FORMAT** :
+   - Start with a CLEAR SUMMARY for a non-technical person
+   - ALWAYS mention the exact number of results found
+   - If 0 results: clearly explain that no data matches
+   - Suggest actions if relevant ("Would you like to see the details?")
+
+═══════════════════════════════════════════════════════════════════════════════
+                               AVAILABLE TOOLS
+═══════════════════════════════════════════════════════════════════════════════
+
+• **list_invoices** : List invoices
+  → Use for: "my invoices", "invoices from X", "invoices this month"
+  → Parameter status='unpaid' for unpaid invoices
+
+• **sum_invoices** : Calculate totals
+  → Use for: "how much did I spend", "total invoices", "amount at X"
+
+• **invoices_by_supplier** : Analysis by supplier
+  → Use for: "my main suppliers", "spending by supplier"
+
+• **invoices_by_month** : Monthly evolution
+  → Use for: "evolution", "by month", "trend", "history"
+
+• **list_documents** : List all documents
+  → Use for: "my documents", "received documents"
+
+• **list_cvs** : List CVs/applications
+  → Use for: "received CVs", "candidates", "Python developer"
+
+• **get_overview_stats** : General statistics
+  → Use for: "summary", "overview", "statistics"
+
+• **search_documents** : Full-text search
+  → Use for: keyword search in content
+
+• **semantic_search** : AI semantic search
+  → Use for: conceptual questions, similarity search
+
+═══════════════════════════════════════════════════════════════════════════════
+                               RESPONSE EXAMPLES
+═══════════════════════════════════════════════════════════════════════════════
+
+GOOD RESPONSE (with data):
+"I found 5 unpaid invoices for a total of €3,450.00.
+Here's the breakdown by supplier:
+- EDF: €1,200 (15 days overdue)
+- Orange: €850 (due in 5 days)
+..."
+
+GOOD RESPONSE (no data):
+"I found no unpaid invoices in your Corematch data.
+Either all your invoices are paid, or they haven't been imported yet."
+
+OUT OF SCOPE RESPONSE:
+"I am Ask DAF, the financial assistant for your Corematch documents.
+I can only answer questions about your invoices, expenses, documents,
+and business activity."`;
 }
 
 // =============================================================================
@@ -135,6 +311,46 @@ function getAnthropicTools(): Anthropic.Tool[] {
 }
 
 // =============================================================================
+// Response Validation
+// =============================================================================
+
+function validateResponse(
+  answer: string,
+  toolsCalled: string[],
+  rows: any[],
+  language: 'fr' | 'en'
+): { isValid: boolean; warnings: string[] } {
+  const warnings: string[] = [];
+
+  // Check if tools were called
+  if (toolsCalled.length === 0) {
+    warnings.push(
+      language === 'fr'
+        ? 'Aucun outil n\'a été appelé - réponse potentiellement incomplète'
+        : 'No tool was called - response may be incomplete'
+    );
+  }
+
+  // Check for suspicious number patterns (potential hallucination)
+  const numberPattern = /\d{1,3}(?:\s?\d{3})*(?:[,\.]\d{2})?\s*€/g;
+  const numbersInAnswer = answer.match(numberPattern) || [];
+
+  // If numbers in answer but no rows returned, might be hallucination
+  if (numbersInAnswer.length > 0 && rows.length === 0 && toolsCalled.length > 0) {
+    warnings.push(
+      language === 'fr'
+        ? 'Attention: des montants sont mentionnés mais aucune donnée n\'a été trouvée'
+        : 'Warning: amounts mentioned but no data was found'
+    );
+  }
+
+  return {
+    isValid: warnings.length === 0,
+    warnings,
+  };
+}
+
+// =============================================================================
 // Agent Execution
 // =============================================================================
 
@@ -157,6 +373,25 @@ export async function runDafAgent(
   const language = options.language === 'auto' || !options.language
     ? detectLanguage(question)
     : options.language;
+
+  // Check for out-of-scope questions BEFORE calling the LLM
+  if (isOutOfScope(question)) {
+    console.log(`[Ask DAF] Out-of-scope question detected: "${question.substring(0, 50)}..."`);
+
+    const outOfScopeMessage = language === 'fr'
+      ? "Je suis Ask DAF, l'assistant financier de vos documents Corematch. Je ne peux répondre qu'aux questions concernant vos factures, dépenses, documents et activité professionnelle."
+      : "I am Ask DAF, the financial assistant for your Corematch documents. I can only answer questions about your invoices, expenses, documents, and business activity.";
+
+    return {
+      answer: outOfScopeMessage,
+      mode: 'analysis',
+      warnings: [language === 'fr' ? 'Question hors domaine détectée' : 'Out-of-scope question detected'],
+      debug: {
+        toolsCalled: [],
+        duration: Date.now() - startTime,
+      },
+    };
+  }
 
   // Get current date for context
   const currentDate = new Date().toLocaleDateString('fr-FR', {
@@ -305,6 +540,12 @@ export async function runDafAgent(
         ? 'Je n\'ai pas pu générer de réponse.'
         : 'I could not generate a response.');
 
+    // Validate the response
+    const validation = validateResponse(answer, toolsCalled, allRows, language);
+    if (!validation.isValid) {
+      warnings.push(...validation.warnings);
+    }
+
     // Generate CSV export if we have data
     let csvExport: string | undefined;
     if (allRows.length > 0 && allColumns.length > 0) {
@@ -317,6 +558,8 @@ export async function runDafAgent(
     ).slice(0, 10);
 
     const duration = Date.now() - startTime;
+
+    console.log(`[Ask DAF] Response generated in ${duration}ms, tools: ${toolsCalled.join(', ')}, rows: ${allRows.length}`);
 
     return {
       answer,

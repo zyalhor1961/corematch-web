@@ -158,13 +158,13 @@ export interface ToolDefinition {
 export const DAF_TOOLS: ToolDefinition[] = [
   {
     name: 'list_invoices',
-    description: 'List invoices (factures) with optional filters. Use for questions about specific invoices, unpaid bills, or invoice listings.',
+    description: 'LISTE LES FACTURES avec filtres optionnels. UTILISE CE TOOL POUR: "mes factures", "factures non réglées/impayées", "factures de [fournisseur]", "factures du mois/année". Le paramètre status="unpaid" filtre les factures en retard de paiement.',
     parameters: {
       type: 'object',
       properties: {
         status: {
           type: 'string',
-          description: 'Filter by status. Use "unpaid" for overdue invoices.',
+          description: 'Filtre par statut. IMPORTANT: Utilise "unpaid" pour les factures non réglées, impayées ou en retard.',
           enum: ['uploaded', 'extracted', 'validated', 'exported', 'archived', 'unpaid']
         },
         supplier: {
@@ -196,7 +196,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'sum_invoices',
-    description: 'Calculate total amounts for invoices matching filters. Use for questions like "how much did I spend on X" or "total unpaid".',
+    description: 'CALCULE LES TOTAUX des factures. UTILISE CE TOOL POUR: "combien j\'ai dépensé", "total chez [fournisseur]", "montant total en [année]", "total des impayés". Retourne total_ttc, total_ht et nombre de factures.',
     parameters: {
       type: 'object',
       properties: {
@@ -227,7 +227,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'invoices_by_supplier',
-    description: 'Get invoice totals grouped by supplier. Use for supplier spending analysis.',
+    description: 'ANALYSE PAR FOURNISSEUR - Totaux groupés par fournisseur. UTILISE CE TOOL POUR: "mes principaux fournisseurs", "dépenses par fournisseur", "top fournisseurs", "qui sont mes plus gros fournisseurs".',
     parameters: {
       type: 'object',
       properties: {
@@ -252,7 +252,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'invoices_by_month',
-    description: 'Get monthly invoice totals. Use for time-series analysis and trends.',
+    description: 'ÉVOLUTION MENSUELLE des factures. UTILISE CE TOOL POUR: "évolution des dépenses", "par mois", "tendance", "historique mensuel", "graphique des dépenses".',
     parameters: {
       type: 'object',
       properties: {
@@ -273,7 +273,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'list_documents',
-    description: 'List all documents with filters. Use for general document queries.',
+    description: 'LISTE TOUS LES DOCUMENTS avec filtres. UTILISE CE TOOL POUR: "mes documents", "documents reçus aujourd\'hui/hier/cette semaine", "tous les documents". Pour les factures spécifiquement, préfère list_invoices.',
     parameters: {
       type: 'object',
       properties: {
@@ -307,7 +307,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'list_cvs',
-    description: 'List CV/resume documents. Use for recruitment and candidate queries.',
+    description: 'LISTE LES CV/CANDIDATURES. UTILISE CE TOOL POUR: "CV reçus", "candidats", "développeur Python", "CV ce mois-ci", "candidatures récentes". Permet de filtrer par compétences et date.',
     parameters: {
       type: 'object',
       properties: {
@@ -336,7 +336,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_overview_stats',
-    description: 'Get overview statistics for the workspace. Use for dashboard summaries.',
+    description: 'STATISTIQUES GÉNÉRALES du workspace. UTILISE CE TOOL POUR: "résumé", "vue d\'ensemble", "statistiques", "combien de documents", "overview". Retourne le nombre total de documents, factures, CV, contrats, montants.',
     parameters: {
       type: 'object',
       properties: {}
@@ -344,7 +344,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'search_documents',
-    description: 'Full-text search across all documents. Use when user asks about specific content in documents.',
+    description: 'RECHERCHE PLEIN TEXTE dans le contenu des documents. UTILISE CE TOOL POUR: recherche par mots-clés spécifiques, "documents contenant X", "cherche Y dans les factures". Pour des questions conceptuelles, préfère semantic_search.',
     parameters: {
       type: 'object',
       properties: {
@@ -366,7 +366,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'semantic_search',
-    description: 'Semantic/AI-powered search using embeddings. Use for complex natural language queries, finding similar documents, or when keyword search is not sufficient. Better for conceptual questions like "documents about payment issues" or "invoices related to maintenance".',
+    description: 'RECHERCHE SÉMANTIQUE IA avec embeddings. UTILISE CE TOOL POUR: questions conceptuelles, "documents concernant les problèmes de paiement", "factures liées à la maintenance", recherche de similarité. Plus efficace que search_documents pour des questions en langage naturel.',
     parameters: {
       type: 'object',
       properties: {

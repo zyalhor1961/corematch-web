@@ -5,13 +5,14 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { DocumentUpload } from '@/components/daf/DocumentUpload';
 import { DocumentInbox } from '@/components/daf/DocumentInbox';
-import { FileText, Upload, List, Search, ArrowLeft } from 'lucide-react';
+import { AskDAF } from '@/components/daf/AskDAF';
+import { FileText, Upload, List, Search, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function DAFPage() {
   const params = useParams<{ orgId: string }>();
   const orgId = params?.orgId;
 
-  const [activeTab, setActiveTab] = useState<'upload' | 'inbox'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'inbox' | 'ask'>('inbox');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleUploadComplete = () => {
@@ -90,6 +91,17 @@ export default function DAFPage() {
               <List className="h-4 w-4" />
               Documents
             </button>
+            <button
+              onClick={() => setActiveTab('ask')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'ask'
+                  ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              Ask DAF
+            </button>
           </div>
         </div>
 
@@ -107,6 +119,10 @@ export default function DAFPage() {
               orgId={orgId}
               refreshTrigger={refreshTrigger}
             />
+          )}
+
+          {activeTab === 'ask' && orgId && (
+            <AskDAF orgId={orgId} />
           )}
         </div>
       </div>

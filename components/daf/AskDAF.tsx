@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Send, Loader2, Sparkles, Download, ExternalLink, MessageSquare,
   BarChart3, List, Gauge, AlertCircle, ChevronDown, ChevronUp,
-  FileText, Receipt, User, ScrollText, X
+  FileText, Receipt, User, ScrollText, X, TrendingUp, Table
 } from 'lucide-react';
 import type { DafAskResponse, ColumnDefinition } from '@/lib/daf-ask/types';
 
@@ -51,11 +51,53 @@ const MODE_LABELS = {
   mixed: 'Mixte',
 };
 
+// Simple bar chart component (no dependencies)
+function SimpleBarChart({ data, columns }: { data: Record<string, any>[]; columns: ColumnDefinition[] }) {
+  // Find the label column and value column
+  const labelCol = columns.find(c => c.type === 'string' || c.type === 'date') || columns[0];
+  const valueCol = columns.find(c => c.type === 'currency' || c.type === 'number') || columns[1];
+
+  if (!labelCol || !valueCol || data.length === 0) return null;
+
+  const values = data.map(row => row[valueCol.key] || 0);
+  const maxValue = Math.max(...values, 1);
+
+  return (
+    <div className="space-y-2 p-4">
+      {data.slice(0, 12).map((row, idx) => {
+        const value = row[valueCol.key] || 0;
+        const percentage = (value / maxValue) * 100;
+        const label = row[labelCol.key] || `Item ${idx + 1}`;
+
+        return (
+          <div key={idx} className="flex items-center gap-3">
+            <div className="w-24 text-xs text-slate-600 truncate text-right" title={String(label)}>
+              {String(label).substring(0, 12)}
+            </div>
+            <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500"
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+            <div className="w-24 text-xs font-medium text-slate-700">
+              {valueCol.type === 'currency'
+                ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value)
+                : value.toLocaleString('fr-FR')}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AskDAF({ orgId }: AskDAFProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedResults, setExpandedResults] = useState<string | null>(null);
+  const [chartViews, setChartViews] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -161,11 +203,23 @@ export function AskDAF({ orgId }: AskDAFProps) {
     return String(value);
   }
 
-  function renderDataTable(data: DafAskResponse) {
+  // Check if data is suitable for chart (has numeric column)
+  function isChartable(data: DafAskResponse): boolean {
+    if (!data.rows || !data.columns || data.rows.length < 2) return false;
+    return data.columns.some(c => c.type === 'currency' || c.type === 'number');
+  }
+
+  function toggleChartView(messageId: string) {
+    setChartViews(prev => ({ ...prev, [messageId]: !prev[messageId] }));
+  }
+
+  function renderDataTable(data: DafAskResponse, messageId: string) {
     if (!data.rows || !data.columns || data.rows.length === 0) return null;
 
     const isExpanded = expandedResults === data.answer;
     const displayRows = isExpanded ? data.rows : data.rows.slice(0, 5);
+    const showChart = chartViews[messageId];
+    const chartable = isChartable(data);
 
     return (
       <div className="mt-4 bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -188,45 +242,76 @@ export function AskDAF({ orgId }: AskDAFProps) {
             )}
           </div>
 
-          {data.exports?.csv && (
-            <button
-              onClick={() => handleExportCSV(data.exports!.csv!, `export-${Date.now()}.csv`)}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors"
-            >
-              <Download className="h-3 w-3" />
-              CSV
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Chart/Table Toggle */}
+            {chartable && (
+              <div className="flex items-center bg-slate-100 rounded p-0.5">
+                <button
+                  onClick={() => toggleChartView(messageId)}
+                  className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    !showChart ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  <Table className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => toggleChartView(messageId)}
+                  className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    showChart ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  <TrendingUp className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            {data.exports?.csv && (
+              <button
+                onClick={() => handleExportCSV(data.exports!.csv!, `export-${Date.now()}.csv`)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors"
+              >
+                <Download className="h-3 w-3" />
+                CSV
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                {data.columns.map(col => (
-                  <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    {col.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {displayRows.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  {data.columns!.map(col => (
-                    <td key={col.key} className="px-3 py-2 text-slate-700">
-                      {formatCellValue(row[col.key], col.type)}
-                    </td>
+        {/* Chart View */}
+        {showChart && chartable && (
+          <SimpleBarChart data={data.rows} columns={data.columns} />
+        )}
+
+        {/* Table (hidden when chart is shown) */}
+        {!showChart && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {data.columns.map(col => (
+                    <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      {col.label}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {displayRows.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    {data.columns!.map(col => (
+                      <td key={col.key} className="px-3 py-2 text-slate-700">
+                        {formatCellValue(row[col.key], col.type)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {/* Show More/Less */}
-        {data.rows.length > 5 && (
+        {/* Show More/Less (only for table view) */}
+        {!showChart && data.rows.length > 5 && (
           <button
             onClick={() => setExpandedResults(isExpanded ? null : data.answer)}
             className="w-full flex items-center justify-center gap-1 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 bg-slate-50 border-t border-slate-200 hover:bg-slate-100 transition-colors"
@@ -341,7 +426,7 @@ export function AskDAF({ orgId }: AskDAFProps) {
                   </p>
 
                   {/* Data Table */}
-                  {message.data && renderDataTable(message.data)}
+                  {message.data && renderDataTable(message.data, message.id)}
 
                   {/* Source Documents */}
                   {message.data && renderSourceDocuments(message.data)}

@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { secureApiRoute } from '@/lib/auth/middleware';
 import { ApiErrorHandler } from '@/lib/errors/api-error-handler';
 import { AppError, ErrorType } from '@/lib/errors/error-types';
-import { runDafAgent } from '@/lib/daf-ask/agent';
+import { orchestrateQuery } from '@/lib/daf-ask/orchestrator';
 import type { DafAskRequest, DafAskResponse } from '@/lib/daf-ask/types';
 
 // Increase timeout for LLM calls
@@ -84,13 +84,14 @@ export async function POST(request: NextRequest) {
       // No custom instructions - that's fine
     }
 
-    // Run the agent
-    const response: DafAskResponse = await runDafAgent(question, {
+    // Run the orchestrator (includes intent classifier + RAG + agent)
+    const response: DafAskResponse = await orchestrateQuery(question, {
       supabase: supabaseAdmin,
       orgId,
       userId: user!.id,
       language: body.language || 'auto',
       orgInstructions,
+      enableRAG: true,
     });
 
     console.log(`[Ask DAF] Response generated in ${response.debug?.duration}ms, tools: ${response.debug?.toolsCalled.join(', ')}`);

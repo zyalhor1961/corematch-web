@@ -144,7 +144,8 @@
       "Bash(do grep -q 'params: Promise' $file)",
       "Bash(npm run lint:*)",
       "Bash(.gitignore)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(npm ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -390,5 +390,159 @@ export const DAF_TOOLS: ToolDefinition[] = [
       },
       required: ['query']
     }
+  },
+  // =============================================================================
+  // ERP Tools (Mini-ERP Integration)
+  // =============================================================================
+  {
+    name: 'erp_list_clients',
+    description: 'LISTE LES CLIENTS de l\'entreprise. UTILISE CE TOOL POUR: "mes clients", "liste des clients", "qui sont mes clients", "clients par CA". Retourne nom, email, total facturé, impayés.',
+    parameters: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Recherche par nom ou email' },
+        category: { type: 'string', description: 'Catégorie de client' },
+        orderBy: { type: 'string', description: 'Trier par', enum: ['name', 'total_invoiced', 'created_at'] },
+        limit: { type: 'number', description: 'Nombre max de résultats' }
+      }
+    }
+  },
+  {
+    name: 'erp_list_client_invoices',
+    description: 'LISTE LES FACTURES CLIENTS (ventes). UTILISE CE TOOL POUR: "factures émises", "mes ventes", "qui me doit de l\'argent", "factures en retard".',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Statut', enum: ['draft', 'sent', 'paid', 'partial', 'overdue', 'cancelled'] },
+        client_id: { type: 'string', description: 'ID du client' },
+        dateFrom: { type: 'string', description: 'Date début (YYYY-MM-DD)' },
+        dateTo: { type: 'string', description: 'Date fin (YYYY-MM-DD)' },
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_sum_client_invoices',
+    description: 'CALCULE LE TOTAL des factures clients. UTILISE CE TOOL POUR: "chiffre d\'affaires", "CA du mois", "total facturé", "revenus année".',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Statut', enum: ['all', 'paid', 'unpaid', 'overdue'] },
+        dateFrom: { type: 'string', description: 'Date début' },
+        dateTo: { type: 'string', description: 'Date fin' },
+        groupBy: { type: 'string', description: 'Grouper par', enum: ['client', 'month', 'status'] }
+      }
+    }
+  },
+  {
+    name: 'erp_list_suppliers',
+    description: 'LISTE LES FOURNISSEURS. UTILISE CE TOOL POUR: "mes fournisseurs", "à qui j\'achète".',
+    parameters: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Recherche par nom' },
+        orderBy: { type: 'string', description: 'Trier par', enum: ['name', 'total_purchased', 'created_at'] },
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_list_supplier_invoices',
+    description: 'LISTE LES FACTURES FOURNISSEURS (achats). UTILISE CE TOOL POUR: "factures à payer", "mes achats", "ce que je dois".',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Statut', enum: ['unpaid', 'partial', 'paid', 'overdue'] },
+        supplier_id: { type: 'string', description: 'ID fournisseur' },
+        dateFrom: { type: 'string', description: 'Date début' },
+        dateTo: { type: 'string', description: 'Date fin' },
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_list_expenses',
+    description: 'LISTE LES DÉPENSES. UTILISE CE TOOL POUR: "dépenses", "notes de frais", "où part mon argent".',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Catégorie' },
+        dateFrom: { type: 'string', description: 'Date début' },
+        dateTo: { type: 'string', description: 'Date fin' },
+        status: { type: 'string', description: 'Statut', enum: ['pending', 'validated', 'rejected'] },
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_sum_expenses',
+    description: 'CALCULE LE TOTAL des dépenses. UTILISE CE TOOL POUR: "total dépenses", "budget utilisé".',
+    parameters: {
+      type: 'object',
+      properties: {
+        dateFrom: { type: 'string', description: 'Date début' },
+        dateTo: { type: 'string', description: 'Date fin' },
+        groupBy: { type: 'string', description: 'Grouper par', enum: ['category', 'month', 'supplier'] }
+      }
+    }
+  },
+  {
+    name: 'erp_get_kpis',
+    description: 'OBTIENT LES KPIs FINANCIERS. UTILISE CE TOOL POUR: "tableau de bord", "KPIs", "situation financière", "résumé ERP".',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'erp_get_receivables',
+    description: 'OBTIENT LES CRÉANCES CLIENTS. UTILISE CE TOOL POUR: "créances", "qui me doit", "impayés clients".',
+    parameters: {
+      type: 'object',
+      properties: {
+        includeOverdue: { type: 'boolean', description: 'Seulement les retards' }
+      }
+    }
+  },
+  {
+    name: 'erp_get_payables',
+    description: 'OBTIENT LES DETTES FOURNISSEURS. UTILISE CE TOOL POUR: "dettes", "à payer", "factures en retard fournisseurs".',
+    parameters: {
+      type: 'object',
+      properties: {
+        includeOverdue: { type: 'boolean', description: 'Seulement les retards' }
+      }
+    }
+  },
+  {
+    name: 'erp_get_cashflow',
+    description: 'PRÉVISION DE TRÉSORERIE. UTILISE CE TOOL POUR: "cashflow", "trésorerie", "prévision 30 jours".',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'Nombre de jours (default 30)' }
+      }
+    }
+  },
+  {
+    name: 'erp_top_clients',
+    description: 'TOP CLIENTS par CA. UTILISE CE TOOL POUR: "meilleurs clients", "top clients".',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Nombre (default 10)' },
+        dateFrom: { type: 'string', description: 'Période début' },
+        dateTo: { type: 'string', description: 'Période fin' }
+      }
+    }
+  },
+  {
+    name: 'erp_top_suppliers',
+    description: 'TOP FOURNISSEURS par volume d\'achats. UTILISE CE TOOL POUR: "principaux fournisseurs", "top fournisseurs".',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Nombre (default 10)' },
+        dateFrom: { type: 'string', description: 'Période début' },
+        dateTo: { type: 'string', description: 'Période fin' }
+      }
+    }
   }
 ];

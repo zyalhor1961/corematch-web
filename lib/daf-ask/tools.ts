@@ -5,6 +5,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmbeddingsGenerator } from '../rag/embeddings';
+import { executeERPTool } from '../erp/tools';
 import type {
   InvoiceFilter,
   InvoiceRow,
@@ -696,6 +697,22 @@ export async function executeTool(
 
     case 'semantic_search':
       return await semanticSearch(supabase, orgId, args as any);
+
+    // ERP Tools
+    case 'erp_list_clients':
+    case 'erp_list_client_invoices':
+    case 'erp_sum_client_invoices':
+    case 'erp_list_suppliers':
+    case 'erp_list_supplier_invoices':
+    case 'erp_list_expenses':
+    case 'erp_sum_expenses':
+    case 'erp_get_kpis':
+    case 'erp_get_receivables':
+    case 'erp_get_payables':
+    case 'erp_get_cashflow':
+    case 'erp_top_clients':
+    case 'erp_top_suppliers':
+      return await executeERPTool(toolName, args, supabase, orgId);
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);

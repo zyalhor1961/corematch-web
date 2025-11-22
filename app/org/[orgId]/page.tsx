@@ -6,10 +6,10 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/app/components/ui/button';
 import { useTheme } from '@/app/components/ThemeProvider';
-import { 
-  Users, 
-  FileText, 
-  TrendingUp, 
+import {
+  Users,
+  FileText,
+  TrendingUp,
   Clock,
   AlertTriangle,
   CheckCircle,
@@ -20,7 +20,10 @@ import {
   ArrowUpRight,
   Activity,
   Brain,
-  Sparkles
+  Sparkles,
+  Receipt,
+  Wallet,
+  Building2
 } from 'lucide-react';
 
 // Define types for our data to ensure type safety
@@ -185,6 +188,7 @@ export default function OrganizationOverview() {
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Un résumé de l'activité de votre organisation.</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-2">
+          <Button asChild variant="outline"><Link href={`/org/${orgId}/erp`}><Receipt className="w-4 h-4 mr-2" /> ERP</Link></Button>
           <Button asChild variant="outline"><Link href={`/org/${orgId}/deb`}><FileText className="w-4 h-4 mr-2" /> Uploader un document</Link></Button>
           <Button asChild><Link href={`/org/${orgId}/cv`}><Users className="w-4 h-4 mr-2" /> Nouveau projet CV</Link></Button>
         </div>
@@ -225,6 +229,47 @@ export default function OrganizationOverview() {
             <FileText className="w-6 h-6 text-red-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.documentCount}</p>
+        </div>
+      </div>
+
+      {/* ERP Quick Access */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-sm border border-blue-100 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-blue-600" />
+              Mini-ERP
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Gérez votre facturation et comptabilité</p>
+          </div>
+          <Button asChild size="sm">
+            <Link href={`/org/${orgId}/erp`}>
+              Accéder au dashboard
+              <ArrowUpRight className="w-4 h-4 ml-1" />
+            </Link>
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href={`/org/${orgId}/erp/clients`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
+            <Users className="w-6 h-6 text-blue-500 mb-2" />
+            <p className="font-medium text-gray-900 dark:text-white">Clients</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Gérer vos clients</p>
+          </Link>
+          <Link href={`/org/${orgId}/erp/invoices`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
+            <FileText className="w-6 h-6 text-green-500 mb-2" />
+            <p className="font-medium text-gray-900 dark:text-white">Factures</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Créer et suivre</p>
+          </Link>
+          <Link href={`/org/${orgId}/erp/suppliers`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
+            <Building2 className="w-6 h-6 text-orange-500 mb-2" />
+            <p className="font-medium text-gray-900 dark:text-white">Fournisseurs</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Gérer vos achats</p>
+          </Link>
+          <Link href={`/org/${orgId}/daf`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
+            <Wallet className="w-6 h-6 text-purple-500 mb-2" />
+            <p className="font-medium text-gray-900 dark:text-white">Ask DAF</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Assistant IA financier</p>
+          </Link>
         </div>
       </div>
 

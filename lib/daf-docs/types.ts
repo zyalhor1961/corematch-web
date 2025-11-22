@@ -1,8 +1,9 @@
 /**
  * Types pour DAF Docs Assistant
+ * Smart Document Hub - supports all document types
  */
 
-// Types de documents reconnus
+// Legacy types (user-selected classification)
 export type DocumentType =
   | 'facture'
   | 'releve_bancaire'
@@ -10,6 +11,46 @@ export type DocumentType =
   | 'assurance'
   | 'note_frais'
   | 'autre';
+
+// AI-detected document types
+export type AIDetectedType = 'invoice' | 'cv' | 'contract' | 'report' | 'other';
+
+// Mapping AI types to display labels
+export const AI_TYPE_LABELS: Record<AIDetectedType, { label: string; icon: string; color: string }> = {
+  invoice: { label: 'Facture', icon: '🧾', color: 'blue' },
+  cv: { label: 'CV', icon: '👤', color: 'purple' },
+  contract: { label: 'Contrat', icon: '📜', color: 'amber' },
+  report: { label: 'Rapport', icon: '📊', color: 'green' },
+  other: { label: 'Autre', icon: '📄', color: 'slate' },
+};
+
+// Type-specific key info structures
+export interface InvoiceKeyInfo {
+  supplier?: string;
+  amount?: number;
+  date?: string;
+  invoice_number?: string;
+}
+
+export interface CVKeyInfo {
+  name?: string;
+  title?: string;
+  skills?: string[];
+}
+
+export interface ContractKeyInfo {
+  parties?: string[];
+  type?: string;
+  renewal_date?: string;
+}
+
+export interface GenericKeyInfo {
+  summary?: string;
+  page_count?: number;
+  table_count?: number;
+}
+
+export type KeyInfo = InvoiceKeyInfo | CVKeyInfo | ContractKeyInfo | GenericKeyInfo;
 
 // Statuts du workflow
 export type DocumentStatus =
@@ -38,11 +79,19 @@ export interface DAFDocument {
   file_size_bytes?: number;
   file_type?: string;
 
-  // Classification
+  // Classification (legacy - user selected)
   doc_type: DocumentType;
   fournisseur?: string;
 
-  // Extraction
+  // AI Detection (Smart Hub)
+  ai_detected_type?: AIDetectedType;
+  ai_confidence?: number;
+  page_count?: number;
+  table_count?: number;
+  full_text?: string;
+  key_info?: KeyInfo;
+
+  // Extraction (invoice-specific)
   montant_ht?: number;
   montant_ttc?: number;
   taux_tva?: number;
@@ -81,7 +130,7 @@ export interface ClassificationResult {
   raison: string;
 }
 
-// Statistiques documents
+// Statistiques documents (legacy)
 export interface DAFStats {
   total_documents: number;
   total_factures: number;
@@ -89,4 +138,24 @@ export interface DAFStats {
   total_en_attente: number;
   montant_total_ttc: number;
   nombre_fournisseurs: number;
+}
+
+// Smart Hub Statistics (v2)
+export interface SmartHubStats {
+  total_documents: number;
+  // By AI-detected type
+  total_invoices: number;
+  total_cvs: number;
+  total_contracts: number;
+  total_reports: number;
+  total_other: number;
+  // By status
+  total_validated: number;
+  total_pending: number;
+  total_extracted: number;
+  // Financial (invoices only)
+  montant_total_ttc: number;
+  nombre_fournisseurs: number;
+  // Attention needed
+  needs_attention: number;
 }

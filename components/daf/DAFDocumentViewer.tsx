@@ -138,8 +138,12 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
     console.log('[DAF Viewer] Page dimensions:', { pageWidth, pageHeight, scale });
   }
 
-  // Extract fields for display
-  const extractedFields = [
+  // Detect document type
+  const documentType = extractionResult?.document_type || document?.ai_detected_type || 'other';
+  const isInvoice = documentType === 'invoice';
+
+  // Invoice-specific fields (only shown for invoices)
+  const invoiceFields = [
     { label: 'Numéro de facture', value: extractionResult?.numero_facture, field: 'numero_facture' },
     { label: 'Fournisseur', value: extractionResult?.fournisseur, field: 'fournisseur' },
     { label: 'Client', value: extractionResult?.client, field: 'client' },
@@ -174,8 +178,28 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
     { label: 'Email client', value: extractionResult?.email_client, field: 'email_client' },
   ];
 
+  // Generic fields for all document types
+  const genericFields = [
+    { label: 'Type de document', value: documentType?.charAt(0).toUpperCase() + documentType?.slice(1), field: 'type' },
+    { label: 'Nombre de pages', value: extractionResult?.pages?.length || document?.page_count, field: 'pages' },
+    { label: 'Tables détectées', value: extractionResult?.tables?.length || document?.table_count, field: 'tables' },
+  ];
+
+  // Choose fields based on document type
+  const extractedFields = isInvoice ? invoiceFields : genericFields;
+
   const provider = extractionResult?.provider || 'unknown';
   const confidence = extractionResult?.confidence || 0;
+
+  // Get document type label and color
+  const typeLabels: Record<string, { label: string; color: string }> = {
+    invoice: { label: '🧾 Facture', color: 'bg-blue-100 text-blue-800' },
+    cv: { label: '👤 CV', color: 'bg-purple-100 text-purple-800' },
+    contract: { label: '📜 Contrat', color: 'bg-amber-100 text-amber-800' },
+    report: { label: '📊 Rapport', color: 'bg-green-100 text-green-800' },
+    other: { label: '📄 Document', color: 'bg-slate-100 text-slate-800' },
+  };
+  const typeInfo = typeLabels[documentType] || typeLabels.other;
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -197,7 +221,12 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
             </button>
 
             <div className="border-l border-slate-600 pl-4">
-              <h1 className="text-xl font-bold text-white">{document.file_name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-white">{document.file_name}</h1>
+                <span className={`px-3 py-1 rounded-full text-sm font-bold ${typeInfo.color}`}>
+                  {typeInfo.label}
+                </span>
+              </div>
               <div className="flex items-center gap-4 mt-1">
                 <span className="text-sm text-slate-300">
                   <span className="font-medium text-white">{provider}</span>
@@ -404,8 +433,74 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
               ))}
             </div>
 
-            {/* Line Items (Descriptions) */}
-            {extractionResult?.items && extractionResult.items.length > 0 && (
+            {/* Full Text Content (for non-invoices) */}
+            {!isInvoice && (extractionResult?.full_text || document?.full_text) && (
+              <div className="mt-8">
+                <div className="bg-gradient-to-r from-purple-600 to-purple-500 rounded-t-xl px-4 py-3 shadow-lg">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                    Contenu extrait
+                  </h3>
+                </div>
+                <div className="bg-gradient-to-b from-purple-50 to-white rounded-b-xl p-4 shadow-lg border-2 border-purple-100">
+                  <div className="max-h-96 overflow-y-auto pr-2">
+                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
+                      {(extractionResult?.full_text || document?.full_text || '').substring(0, 5000)}
+                      {(extractionResult?.full_text || document?.full_text || '').length > 5000 && '...'}
+                    </pre>
+                  </div>
+                  {(extractionResult?.full_text || document?.full_text || '').length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-purple-200">
+                      <span className="text-xs text-purple-600 font-semibold">
+                        {(extractionResult?.full_text || document?.full_text || '').length.toLocaleString()} caractères extraits
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tables (for non-invoices with tables) */}
+            {!isInvoice && (extractionResult?.tables?.length > 0 || document?.table_count > 0) && (
+              <div className="mt-8">
+                <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-t-xl px-4 py-3 shadow-lg">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                    Tables détectées ({extractionResult?.tables?.length || document?.table_count || 0})
+                  </h3>
+                </div>
+                <div className="bg-gradient-to-b from-cyan-50 to-white rounded-b-xl p-4 shadow-lg border-2 border-cyan-100">
+                  {extractionResult?.tables?.map((table: any, idx: number) => (
+                    <div key={idx} className="mb-4 last:mb-0">
+                      <div className="text-xs font-bold text-cyan-700 mb-2">
+                        Table {idx + 1}: {table.row_count} lignes × {table.column_count} colonnes
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs border border-cyan-200 rounded">
+                          <tbody>
+                            {/* Show first few rows as preview */}
+                            {table.cells?.slice(0, 20).map((cell: any, cellIdx: number) => (
+                              <tr key={cellIdx} className={cellIdx % 2 === 0 ? 'bg-cyan-50' : 'bg-white'}>
+                                <td className="px-2 py-1 border-b border-cyan-100 text-gray-700">
+                                  [{cell.row_index},{cell.column_index}] {cell.content}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )) || (
+                    <p className="text-sm text-cyan-600">
+                      {document?.table_count || 0} table(s) détectée(s) dans le document
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Line Items (Descriptions) - Only for invoices */}
+            {isInvoice && extractionResult?.items && extractionResult.items.length > 0 && (
               <div className="mt-8">
                 <div className="bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-t-xl px-4 py-3 shadow-lg">
                   <h3 className="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">

@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { secureApiRoute } from '@/lib/auth/middleware';
 import { ApiErrorHandler } from '@/lib/errors/api-error-handler';
 import { AppError, ErrorType } from '@/lib/errors/error-types';
-import type { DAFDocument } from '@/lib/daf-docs/types';
+import type { DAFDocument, SmartHubStats } from '@/lib/daf-docs/types';
 
 /**
  * GET /api/daf/documents
@@ -81,26 +81,50 @@ export async function GET(request: NextRequest) {
       throw new AppError(ErrorType.INTERNAL_ERROR, 'Failed to fetch documents');
     }
 
-    // Get stats (fallback si fonction pas créée)
-    let stats = null;
+    // Get Smart Hub stats (try v2 first, fallback to v1, then manual)
+    let smartStats: SmartHubStats | null = null;
+    let legacyStats = null;
+
+    // Try Smart Hub stats (v2)
+    try {
+      const { data } = await supabaseAdmin
+        .rpc('get_daf_stats_v2', { p_org_id: orgId })
+        .single();
+      smartStats = data as SmartHubStats;
+    } catch {
+      console.warn('[DAF Documents] Smart Hub stats v2 not available');
+    }
+
+    // Try legacy stats (v1)
     try {
       const { data } = await supabaseAdmin
         .rpc('get_daf_stats', { p_org_id: orgId })
         .single();
-      stats = data;
-    } catch (statsError) {
-      console.warn('[DAF Documents] Stats function not available, using fallback');
-      // Fallback: calculer les stats manuellement
-      const allDocs = documents || [];
-      stats = {
-        total_documents: allDocs.length,
-        total_factures: allDocs.filter(d => d.doc_type === 'facture').length,
-        total_valides: allDocs.filter(d => d.status === 'validated').length,
-        total_en_attente: allDocs.filter(d => ['uploaded', 'extracted'].includes(d.status)).length,
-        montant_total_ttc: 0,
-        nombre_fournisseurs: new Set(allDocs.map(d => d.fournisseur).filter(Boolean)).size,
-      };
+      legacyStats = data;
+    } catch {
+      console.warn('[DAF Documents] Legacy stats not available');
     }
+
+    // Fallback: calculate stats manually from documents
+    const allDocs = documents || [];
+    const fallbackStats: SmartHubStats = {
+      total_documents: allDocs.length,
+      // By AI type
+      total_invoices: allDocs.filter(d => d.ai_detected_type === 'invoice' || d.doc_type === 'facture').length,
+      total_cvs: allDocs.filter(d => d.ai_detected_type === 'cv').length,
+      total_contracts: allDocs.filter(d => d.ai_detected_type === 'contract' || d.doc_type === 'contrat').length,
+      total_reports: allDocs.filter(d => d.ai_detected_type === 'report').length,
+      total_other: allDocs.filter(d => !d.ai_detected_type || d.ai_detected_type === 'other').length,
+      // By status
+      total_validated: allDocs.filter(d => d.status === 'validated').length,
+      total_pending: allDocs.filter(d => ['uploaded', 'extracted'].includes(d.status)).length,
+      total_extracted: allDocs.filter(d => d.status === 'extracted').length,
+      // Financial
+      montant_total_ttc: allDocs.reduce((sum, d) => sum + (d.montant_ttc || 0), 0),
+      nombre_fournisseurs: new Set(allDocs.map(d => d.fournisseur).filter(Boolean)).size,
+      // Attention
+      needs_attention: allDocs.filter(d => d.status === 'uploaded' || (d.ai_confidence && d.ai_confidence < 0.5)).length,
+    };
 
     return NextResponse.json({
       success: true,
@@ -112,13 +136,16 @@ export async function GET(request: NextRequest) {
           offset,
           hasMore: (count || 0) > offset + limit,
         },
-        stats: stats || {
-          total_documents: 0,
-          total_factures: 0,
-          total_valides: 0,
-          total_en_attente: 0,
-          montant_total_ttc: 0,
-          nombre_fournisseurs: 0,
+        // Smart Hub stats (primary)
+        stats: smartStats || fallbackStats,
+        // Legacy stats for backward compatibility
+        legacyStats: legacyStats || {
+          total_documents: fallbackStats.total_documents,
+          total_factures: fallbackStats.total_invoices,
+          total_valides: fallbackStats.total_validated,
+          total_en_attente: fallbackStats.total_pending,
+          montant_total_ttc: fallbackStats.montant_total_ttc,
+          nombre_fournisseurs: fallbackStats.nombre_fournisseurs,
         },
       },
     });

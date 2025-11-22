@@ -102,7 +102,7 @@ export default function DAFPage() {
             />
           )}
 
-          {activeTab === 'inbox' && (
+          {activeTab === 'inbox' && orgId && (
             <DocumentInbox
               orgId={orgId}
               refreshTrigger={refreshTrigger}

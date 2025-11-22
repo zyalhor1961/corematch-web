@@ -5,8 +5,43 @@ import { ApiErrorHandler, ValidationHelper } from '@/lib/errors/api-error-handle
 import { AppError, ErrorType } from '@/lib/errors/error-types';
 import { classifyDocument } from '@/lib/daf-docs/classifier';
 import { AzureDIExtractor } from '@/lib/daf-docs/extraction';
-import type { DAFDocument } from '@/lib/daf-docs/types';
+import type { DAFDocument, AIDetectedType, KeyInfo } from '@/lib/daf-docs/types';
 import { ingestDocument } from '@/lib/rag';
+
+/**
+ * Build key_info object based on document type for Smart Hub display
+ */
+function buildKeyInfo(extractionResult: any, classification: any): KeyInfo {
+  const docType = extractionResult.document_type as AIDetectedType;
+
+  switch (docType) {
+    case 'invoice':
+      return {
+        supplier: extractionResult.fournisseur || classification.fournisseur_detecte,
+        amount: extractionResult.montant_ttc,
+        date: extractionResult.date_document,
+        invoice_number: extractionResult.numero_facture,
+      };
+    case 'cv':
+      // For CVs, try to extract name from full text (first line often contains name)
+      const lines = (extractionResult.full_text || '').split('\n').filter((l: string) => l.trim());
+      return {
+        name: lines[0]?.substring(0, 50) || 'CV',
+        title: lines[1]?.substring(0, 50),
+      };
+    case 'contract':
+      return {
+        parties: [],
+        type: 'Contrat',
+      };
+    default:
+      return {
+        summary: `${extractionResult.pages?.length || 0} page(s)`,
+        page_count: extractionResult.pages?.length || 0,
+        table_count: extractionResult.tables?.length || 0,
+      };
+  }
+}
 
 /**
  * Upload de documents DAF
@@ -206,10 +241,14 @@ export async function POST(request: NextRequest) {
 
             console.log(`[DAF Upload] Cleaned extraction result for database storage`);
 
-            // Update document with extracted fields
+            // Build key_info for Smart Hub display
+            const keyInfo = buildKeyInfo(extractionResult, classification);
+
+            // Update document with extracted fields + Smart Hub fields
             const { error: updateError } = await supabaseAdmin
               .from('daf_documents')
               .update({
+                // Invoice-specific fields (Level 2)
                 montant_ht: extractionResult.montant_ht,
                 montant_ttc: extractionResult.montant_ttc,
                 taux_tva: extractionResult.taux_tva,
@@ -217,10 +256,18 @@ export async function POST(request: NextRequest) {
                 date_echeance: extractionResult.date_echeance,
                 numero_facture: extractionResult.numero_facture,
                 fournisseur: extractionResult.fournisseur || classification.fournisseur_detecte,
+                // Smart Hub fields (Level 1 - all documents)
+                ai_detected_type: extractionResult.document_type || 'other',
+                ai_confidence: extractionResult.confidence,
+                page_count: extractionResult.pages?.length || 0,
+                table_count: extractionResult.tables?.length || 0,
+                full_text: extractionResult.full_text?.substring(0, 100000), // Limit to 100KB
+                key_info: keyInfo,
+                // Status & metadata
                 status: 'extracted',
                 extraction_raw: cleanedRawResponse,
-                extraction_result: cleanedExtractionResult, // Store cleaned complete result with field_positions
-                notes: `${document.notes || ''}\nExtraction ${extractionResult.provider}: ${extractionResult.confidence.toFixed(2)} confidence`,
+                extraction_result: cleanedExtractionResult,
+                notes: `${document.notes || ''}\nExtraction ${extractionResult.provider}: ${extractionResult.confidence.toFixed(2)} confidence (${extractionResult.document_type || 'unknown'})`,
               })
               .eq('id', document.id);
 

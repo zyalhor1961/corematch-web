@@ -1,11 +1,13 @@
 /**
  * Azure Document Intelligence Extractor
- * Provider fallback pour l'extraction DAF
+ * Two-level extraction strategy:
+ * - Level 1: prebuilt-document for ALL documents (full text, pages, tables)
+ * - Level 2: prebuilt-invoice only for invoices (structured invoice fields)
  */
 
 import { DocumentAnalysisClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
 import { getSecret } from '@/lib/secrets/1password';
-import type { DAFExtractor, DAFExtractionResult } from './types';
+import type { DAFExtractor, DAFExtractionResult, GenericExtractionResult, DocumentType } from './types';
 import { enrichWithGPT } from './gpt-enrichment';
 
 export class AzureDIExtractor implements DAFExtractor {
@@ -78,41 +80,166 @@ export class AzureDIExtractor implements DAFExtractor {
     return String(fieldValue);
   }
 
-  async extractDocument(fileBuffer: ArrayBuffer, fileName: string): Promise<DAFExtractionResult> {
+  /**
+   * Get configured Azure Document Intelligence client
+   */
+  private getAzureClient(): DocumentAnalysisClient {
+    // Get Azure credentials - prefer OLD working vars, fall back to new ones
+    let endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT || process.env.AZURE_DI_ENDPOINT;
+    let apiKey = process.env.AZURE_FORM_RECOGNIZER_KEY || process.env.AZURE_DI_API_KEY;
+
+    if (!endpoint || !apiKey) {
+      throw new Error('Azure Document Intelligence credentials not found. Set AZURE_DI_ENDPOINT and AZURE_DI_API_KEY (or AZURE_FORM_RECOGNIZER_*)');
+    }
+
+    // Clean endpoint: remove quotes, newlines, trailing slashes
+    endpoint = endpoint
+      .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
+      .replace(/\\n/g, '')           // Remove literal \n
+      .replace(/\n/g, '')            // Remove actual newlines
+      .replace(/\/+$/, '')           // Remove trailing slashes
+      .trim();
+
+    // Clean API key: remove quotes, newlines, whitespace
+    apiKey = apiKey
+      .replace(/^["']|["']$/g, '')
+      .replace(/\\n/g, '')
+      .replace(/\n/g, '')
+      .trim();
+
+    return new DocumentAnalysisClient(
+      endpoint,
+      new AzureKeyCredential(apiKey)
+    );
+  }
+
+  /**
+   * Detect document type based on content heuristics
+   */
+  private detectDocumentType(fullText: string, fileName: string): { type: DocumentType; confidence: number } {
+    const textLower = fullText.toLowerCase();
+    const fileNameLower = fileName.toLowerCase();
+
+    // Invoice detection keywords
+    const invoiceKeywords = ['facture', 'invoice', 'montant ttc', 'montant ht', 'tva', 'total', 'échéance', 'due date', 'payment'];
+    const invoiceScore = invoiceKeywords.filter(kw => textLower.includes(kw)).length;
+
+    // CV detection keywords
+    const cvKeywords = ['cv', 'curriculum', 'experience', 'expérience', 'formation', 'education', 'compétences', 'skills', 'diplôme'];
+    const cvScore = cvKeywords.filter(kw => textLower.includes(kw) || fileNameLower.includes(kw)).length;
+
+    // Contract detection keywords
+    const contractKeywords = ['contrat', 'contract', 'agreement', 'signé', 'signed', 'parties', 'clause', 'article', 'conditions générales'];
+    const contractScore = contractKeywords.filter(kw => textLower.includes(kw)).length;
+
+    // Determine type based on scores
+    const scores: Array<{ type: DocumentType; score: number }> = [
+      { type: 'invoice', score: invoiceScore },
+      { type: 'cv', score: cvScore },
+      { type: 'contract', score: contractScore },
+    ];
+
+    const best = scores.sort((a, b) => b.score - a.score)[0];
+
+    if (best.score >= 2) {
+      return { type: best.type, confidence: Math.min(best.score / 5, 0.95) };
+    }
+
+    return { type: 'other', confidence: 0.5 };
+  }
+
+  /**
+   * LEVEL 1: Generic extraction using prebuilt-document
+   * Works for ALL document types (CV, contracts, invoices, etc.)
+   */
+  async extractGeneric(fileBuffer: ArrayBuffer, fileName: string): Promise<GenericExtractionResult> {
     const startTime = Date.now();
 
     try {
-      // Get Azure credentials - prefer OLD working vars, fall back to new ones
-      let endpoint = process.env.AZURE_FORM_RECOGNIZER_ENDPOINT || process.env.AZURE_DI_ENDPOINT;
-      let apiKey = process.env.AZURE_FORM_RECOGNIZER_KEY || process.env.AZURE_DI_API_KEY;
+      const azureClient = this.getAzureClient();
 
-      if (!endpoint || !apiKey) {
-        throw new Error('Azure Document Intelligence credentials not found. Set AZURE_DI_ENDPOINT and AZURE_DI_API_KEY (or AZURE_FORM_RECOGNIZER_*)');
-      }
+      console.log(`[Azure DI L1] Starting generic extraction for: ${fileName}`);
 
-      // Clean endpoint: remove quotes, newlines, trailing slashes
-      endpoint = endpoint
-        .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
-        .replace(/\\n/g, '')           // Remove literal \n
-        .replace(/\n/g, '')            // Remove actual newlines
-        .replace(/\/+$/, '')           // Remove trailing slashes
-        .trim();
-
-      // Clean API key: remove quotes, newlines, whitespace
-      apiKey = apiKey
-        .replace(/^["']|["']$/g, '')
-        .replace(/\\n/g, '')
-        .replace(/\n/g, '')
-        .trim();
-
-      // Debug: Log endpoint format (masked API key)
-      console.log(`[Azure DI] Endpoint: ${endpoint}`);
-      console.log(`[Azure DI] API Key length: ${apiKey.length} chars, starts with: ${apiKey.substring(0, 4)}...`);
-
-      const azureClient = new DocumentAnalysisClient(
-        endpoint,
-        new AzureKeyCredential(apiKey)
+      // Use prebuilt-document for generic extraction
+      const poller = await azureClient.beginAnalyzeDocument(
+        'prebuilt-document',
+        fileBuffer
       );
+
+      const result = await poller.pollUntilDone();
+
+      // Extract full text
+      const fullText = result.content || '';
+      console.log(`[Azure DI L1] Extracted ${fullText.length} characters of text`);
+
+      // Extract pages information
+      const pages = (result.pages || []).map((page, idx) => ({
+        page_number: idx + 1,
+        width: page.width || 0,
+        height: page.height || 0,
+        unit: page.unit || 'inch',
+        lines: (page.lines || []).map(line => ({
+          content: line.content || '',
+          polygon: line.polygon ? line.polygon.flatMap(p => [p.x, p.y]) : undefined,
+        })),
+      }));
+
+      // Extract tables
+      const tables = (result.tables || []).map(table => ({
+        row_count: table.rowCount || 0,
+        column_count: table.columnCount || 0,
+        cells: (table.cells || []).map(cell => ({
+          row_index: cell.rowIndex || 0,
+          column_index: cell.columnIndex || 0,
+          content: cell.content || '',
+          kind: cell.kind,
+        })),
+      }));
+
+      // Detect document type
+      const { type: detectedType, confidence: typeConfidence } = this.detectDocumentType(fullText, fileName);
+
+      console.log(`[Azure DI L1] Detected document type: ${detectedType} (confidence: ${typeConfidence})`);
+      console.log(`[Azure DI L1] Found ${pages.length} pages, ${tables.length} tables`);
+
+      return {
+        success: true,
+        provider: 'azure-di',
+        full_text: fullText,
+        pages,
+        tables: tables.length > 0 ? tables : undefined,
+        detected_type: detectedType,
+        type_confidence: typeConfidence,
+        extraction_duration_ms: Date.now() - startTime,
+      };
+
+    } catch (error) {
+      console.error('[Azure DI L1] Generic extraction failed:', error);
+
+      return {
+        success: false,
+        provider: 'azure-di',
+        full_text: '',
+        pages: [],
+        detected_type: 'other',
+        type_confidence: 0,
+        extraction_duration_ms: Date.now() - startTime,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * LEVEL 2: Invoice-specific extraction using prebuilt-invoice
+   * Only called when document is detected as an invoice
+   */
+  async extractInvoice(fileBuffer: ArrayBuffer, fileName: string): Promise<DAFExtractionResult> {
+    const startTime = Date.now();
+
+    try {
+      const azureClient = this.getAzureClient();
+
+      console.log(`[Azure DI L2] Starting invoice-specific extraction for: ${fileName}`);
 
       // Analyze document with prebuilt-invoice model
       const poller = await azureClient.beginAnalyzeDocument(
@@ -321,6 +448,8 @@ export class AzureDIExtractor implements DAFExtractor {
         success: true,
         provider: 'azure-di',
         confidence: document.confidence || 0.7,
+        document_type: 'invoice', // This is invoice-specific extraction
+        full_text: pdfText,
         montant_ht: montantHT,
         montant_ttc: montantTTC,
         taux_tva: tauxTVA,
@@ -344,22 +473,104 @@ export class AzureDIExtractor implements DAFExtractor {
         field_positions: fieldPositions, // Add bounding boxes
       };
 
-      console.log(`[Azure DI] Extraction completed in ${extractedData.extraction_duration_ms}ms (confidence: ${extractedData.confidence})`);
-      console.log(`[Azure DI] Extracted: montant_ttc=${montantTTC}, montant_ht=${montantHT}, fournisseur="${fournisseur}"`);
-      console.log(`[Azure DI] Found ${fieldPositions.length} bounding boxes`);
+      console.log(`[Azure DI L2] Invoice extraction completed in ${extractedData.extraction_duration_ms}ms (confidence: ${extractedData.confidence})`);
+      console.log(`[Azure DI L2] Extracted: montant_ttc=${montantTTC}, montant_ht=${montantHT}, fournisseur="${fournisseur}"`);
+      console.log(`[Azure DI L2] Found ${fieldPositions.length} bounding boxes`);
 
       return extractedData;
 
     } catch (error) {
-      console.error('[Azure DI] Extraction failed:', error);
+      console.error('[Azure DI L2] Invoice extraction failed:', error);
 
       return {
         success: false,
         provider: 'azure-di',
         confidence: 0,
+        document_type: 'invoice',
         extraction_duration_ms: Date.now() - startTime,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  }
+
+  /**
+   * MAIN EXTRACTION METHOD - Two-level strategy
+   * 1. Always run generic extraction (prebuilt-document) for ALL documents
+   * 2. If document is detected as invoice, additionally run invoice extraction
+   * 3. Merge results from both levels
+   */
+  async extractDocument(fileBuffer: ArrayBuffer, fileName: string): Promise<DAFExtractionResult> {
+    const startTime = Date.now();
+
+    console.log(`[Azure DI] Starting two-level extraction for: ${fileName}`);
+
+    // ============ LEVEL 1: Generic extraction for ALL documents ============
+    const genericResult = await this.extractGeneric(fileBuffer, fileName);
+
+    if (!genericResult.success) {
+      console.error('[Azure DI] Level 1 (generic) extraction failed, aborting');
+      return {
+        success: false,
+        provider: 'azure-di',
+        confidence: 0,
+        document_type: 'other',
+        full_text: '',
+        extraction_duration_ms: Date.now() - startTime,
+        error: genericResult.error || 'Generic extraction failed',
+      };
+    }
+
+    console.log(`[Azure DI] Level 1 complete: ${genericResult.detected_type} (${genericResult.type_confidence * 100}% confidence)`);
+    console.log(`[Azure DI] Full text: ${genericResult.full_text.length} chars, ${genericResult.pages.length} pages, ${genericResult.tables?.length || 0} tables`);
+
+    // ============ LEVEL 2: Invoice-specific extraction (conditional) ============
+    // Only run invoice extraction if document is detected as invoice (or high heuristic match)
+    const isInvoice = genericResult.detected_type === 'invoice' && genericResult.type_confidence >= 0.4;
+
+    if (isInvoice) {
+      console.log('[Azure DI] Document detected as invoice, running Level 2 extraction...');
+
+      const invoiceResult = await this.extractInvoice(fileBuffer, fileName);
+
+      if (invoiceResult.success) {
+        // Merge Level 1 + Level 2 results
+        const mergedResult: DAFExtractionResult = {
+          ...invoiceResult,
+          // Override with Level 1 generic data
+          document_type: 'invoice',
+          full_text: genericResult.full_text, // Use L1's full text (more complete)
+          pages: genericResult.pages,
+          tables: genericResult.tables,
+          extraction_duration_ms: Date.now() - startTime,
+        };
+
+        console.log(`[Azure DI] Two-level extraction complete: invoice with ${mergedResult.items?.length || 0} items`);
+        return mergedResult;
+      } else {
+        console.warn('[Azure DI] Level 2 (invoice) extraction failed, returning Level 1 data only');
+      }
+    } else {
+      console.log(`[Azure DI] Document is ${genericResult.detected_type}, skipping invoice extraction`);
+    }
+
+    // Return generic-only result for non-invoices (CV, contracts, etc.)
+    const genericOnlyResult: DAFExtractionResult = {
+      success: true,
+      provider: 'azure-di',
+      confidence: genericResult.type_confidence,
+      document_type: genericResult.detected_type,
+      full_text: genericResult.full_text,
+      pages: genericResult.pages,
+      tables: genericResult.tables,
+      extraction_duration_ms: Date.now() - startTime,
+      raw_response: {
+        content: genericResult.full_text,
+        pages: genericResult.pages,
+        tables: genericResult.tables,
+      },
+    };
+
+    console.log(`[Azure DI] Extraction complete: ${genericResult.detected_type} document with ${genericResult.full_text.length} chars`);
+    return genericOnlyResult;
   }
 }

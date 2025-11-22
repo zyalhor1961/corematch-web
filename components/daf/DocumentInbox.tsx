@@ -1,15 +1,32 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Clock, CheckCircle, Archive, Filter, Eye, Download,
   Receipt, User, ScrollText, BarChart3, AlertTriangle, MoreVertical,
   LayoutGrid, LayoutList, Search, Sparkles, Building2, FileCheck,
   CreditCard, Briefcase, Truck, FileSpreadsheet, Landmark, Folder,
-  FolderOpen, ChevronRight
+  FolderOpen, ChevronRight, Loader2, Zap
 } from 'lucide-react';
 import type { DAFDocument, SmartHubStats, AIDetectedType } from '@/lib/daf-docs/types';
+
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 interface InboxProps {
   orgId: string;
@@ -101,18 +118,38 @@ function getKeyInfoPreview(doc: DAFDocument): string {
 
 export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
   const router = useRouter();
-  const [documents, setDocuments] = useState<DAFDocument[]>([]);
+  const [allDocuments, setAllDocuments] = useState<DAFDocument[]>([]);
+  const [searchResults, setSearchResults] = useState<DAFDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [stats, setStats] = useState<SmartHubStats | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFolder, setActiveFolder] = useState('all');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchMode, setSearchMode] = useState<'local' | 'fulltext' | 'ilike'>('local');
+  const [totalSearchResults, setTotalSearchResults] = useState(0);
 
+  // Debounce search query (400ms delay)
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+
+  // Load initial documents (all documents for the org)
   useEffect(() => {
     loadDocuments();
   }, [refreshTrigger]);
+
+  // Search when debounced query changes
+  useEffect(() => {
+    if (debouncedSearchQuery.trim()) {
+      performSearch(debouncedSearchQuery);
+    } else {
+      // Clear search results when query is empty
+      setSearchResults([]);
+      setSearchMode('local');
+      setTotalSearchResults(0);
+    }
+  }, [debouncedSearchQuery, typeFilter]);
 
   async function loadDocuments() {
     setLoading(true);
@@ -121,13 +158,46 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
       const data = await response.json();
 
       if (data.success) {
-        setDocuments(data.data.documents);
+        setAllDocuments(data.data.documents);
         setStats(data.data.stats);
       }
     } catch (error) {
       console.error('Error loading documents:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function performSearch(query: string) {
+    if (!query.trim()) return;
+
+    setSearching(true);
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        limit: '100',
+      });
+
+      // Add type filter if not 'all'
+      if (typeFilter !== 'all') {
+        params.set('doc_type', typeFilter);
+      }
+
+      const response = await fetch(`/api/daf/search?${params}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setSearchResults(data.data.documents);
+        setSearchMode(data.data.searchMode || 'ilike');
+        setTotalSearchResults(data.data.pagination?.total || data.data.documents.length);
+        console.log(`[Search] Found ${data.data.documents.length} results using ${data.data.searchMode}`);
+      }
+    } catch (error) {
+      console.error('Error searching documents:', error);
+      // Fallback to local search
+      setSearchMode('local');
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -146,55 +216,40 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
     }
   };
 
-  // Filter by AI-detected type and search query
-  const filteredDocuments = documents.filter(d => {
-    // Type filter
-    let matchesType = true;
-    if (typeFilter !== 'all') {
-      if (typeFilter === 'invoice') {
-        matchesType = d.ai_detected_type === 'invoice' || d.doc_type === 'facture';
-      } else if (typeFilter === 'contract') {
-        matchesType = d.ai_detected_type === 'contract' || d.doc_type === 'contrat';
-      } else {
+  // Determine which documents to display
+  const isSearchActive = debouncedSearchQuery.trim().length > 0;
+  const documents = isSearchActive ? searchResults : allDocuments;
+
+  // Apply local type filter only when not searching (search API handles it)
+  const filteredDocuments = isSearchActive
+    ? documents
+    : documents.filter(d => {
+        if (typeFilter === 'all') return true;
+        if (typeFilter === 'invoice') return d.ai_detected_type === 'invoice' || d.doc_type === 'facture';
+        if (typeFilter === 'contract') return d.ai_detected_type === 'contract' || d.doc_type === 'contrat';
+
         // Check for USA tax forms in folder
         const folder = FOLDER_STRUCTURE.find(f => f.id === activeFolder);
         if (folder && Array.isArray(folder.filter)) {
-          matchesType = folder.filter.includes(d.ai_detected_type || '');
-        } else {
-          matchesType = d.ai_detected_type === typeFilter;
+          return folder.filter.includes(d.ai_detected_type || '');
         }
-      }
-    }
+        return d.ai_detected_type === typeFilter;
+      });
 
-    // Search filter (basic text search)
-    let matchesSearch = true;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      matchesSearch =
-        (d.file_name?.toLowerCase().includes(query)) ||
-        (d.fournisseur?.toLowerCase().includes(query)) ||
-        (d.numero_facture?.toLowerCase().includes(query)) ||
-        ((d.key_info as any)?.supplier?.toLowerCase().includes(query)) ||
-        ((d.key_info as any)?.name?.toLowerCase().includes(query));
-    }
-
-    return matchesType && matchesSearch;
-  });
-
-  // Count by AI type for filters and sidebar
+  // Count by AI type for filters and sidebar (always use allDocuments for consistent counts)
   const typeCounts: Record<string, number> = {
-    all: documents.length,
-    invoice: documents.filter(d => d.ai_detected_type === 'invoice' || d.doc_type === 'facture').length,
-    cv: documents.filter(d => d.ai_detected_type === 'cv').length,
-    contract: documents.filter(d => d.ai_detected_type === 'contract' || d.doc_type === 'contrat').length,
-    report: documents.filter(d => d.ai_detected_type === 'report').length,
-    tax: documents.filter(d => ['w2', 'w9', '1099', 'tax_form'].includes(d.ai_detected_type || '')).length,
-    other: documents.filter(d => !d.ai_detected_type || d.ai_detected_type === 'other').length,
+    all: allDocuments.length,
+    invoice: allDocuments.filter(d => d.ai_detected_type === 'invoice' || d.doc_type === 'facture').length,
+    cv: allDocuments.filter(d => d.ai_detected_type === 'cv').length,
+    contract: allDocuments.filter(d => d.ai_detected_type === 'contract' || d.doc_type === 'contrat').length,
+    report: allDocuments.filter(d => d.ai_detected_type === 'report').length,
+    tax: allDocuments.filter(d => ['w2', 'w9', '1099', 'tax_form'].includes(d.ai_detected_type || '')).length,
+    other: allDocuments.filter(d => !d.ai_detected_type || d.ai_detected_type === 'other').length,
   };
 
   // Get folder document count
   const getFolderCount = (folderId: string) => {
-    if (folderId === 'all') return documents.length;
+    if (folderId === 'all') return allDocuments.length;
     if (folderId === 'invoices') return typeCounts.invoice;
     if (folderId === 'cvs') return typeCounts.cv;
     if (folderId === 'contracts') return typeCounts.contract;
@@ -262,24 +317,66 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
         {/* AI Search Bar */}
         <div className="relative">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Sparkles className="h-5 w-5 text-purple-500" />
+            {searching ? (
+              <Loader2 className="h-5 w-5 text-purple-500 animate-spin" />
+            ) : (
+              <Sparkles className="h-5 w-5 text-purple-500" />
+            )}
           </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Recherche intelligente... (ex: factures Amazon, CV développeur, contrats 2024)"
-            className="w-full pl-12 pr-4 py-3.5 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl text-gray-900 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+            className="w-full pl-12 pr-32 py-3.5 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl text-gray-900 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600"
-            >
-              ✕
-            </button>
-          )}
+          <div className="absolute inset-y-0 right-4 flex items-center gap-2">
+            {/* Search mode badge */}
+            {isSearchActive && !searching && (
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                searchMode === 'fulltext'
+                  ? 'bg-green-100 text-green-700'
+                  : searchMode === 'ilike'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-600'
+              }`}>
+                {searchMode === 'fulltext' && <><Zap className="h-3 w-3 inline mr-1" />Full-text</>}
+                {searchMode === 'ilike' && 'ILIKE'}
+                {searchMode === 'local' && 'Local'}
+              </span>
+            )}
+            {/* Results count */}
+            {isSearchActive && !searching && (
+              <span className="text-xs text-purple-600 font-medium">
+                {filteredDocuments.length} résultat{filteredDocuments.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {/* Clear button */}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Search results header */}
+        {isSearchActive && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
+            <Search className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-purple-700">
+              Recherche : <strong>&quot;{debouncedSearchQuery}&quot;</strong>
+              {' '}&mdash;{' '}
+              {searching ? 'Recherche en cours...' : `${filteredDocuments.length} document(s) trouvé(s)`}
+              {searchMode === 'fulltext' && !searching && (
+                <span className="ml-2 text-green-600">(recherche dans le contenu des PDFs)</span>
+              )}
+            </span>
+          </div>
+        )}
 
         {/* Stats + View Toggle Bar */}
         <div className="flex items-center justify-between gap-4">

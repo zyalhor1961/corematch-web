@@ -41,6 +41,7 @@ function getSystemPromptFR(currentDate: string): string {
 - list_cvs: Liste les CVs reçus
 - get_overview_stats: Statistiques générales
 - search_documents: Recherche plein texte dans le contenu
+- semantic_search: Recherche sémantique IA - utilise pour des questions complexes ou conceptuelles
 
 **FORMAT DE RÉPONSE:**
 - Commence par un résumé clair de la réponse basé sur les données des tools
@@ -77,6 +78,7 @@ function getSystemPromptEN(currentDate: string): string {
 - list_cvs: List received CVs
 - get_overview_stats: General statistics
 - search_documents: Full-text search in content
+- semantic_search: AI semantic search - use for complex or conceptual queries
 
 **RESPONSE FORMAT:**
 - Start with a clear summary based on tool data

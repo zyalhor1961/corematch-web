@@ -4,6 +4,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { EmbeddingsGenerator } from '../rag/embeddings';
 import type {
   InvoiceFilter,
   InvoiceRow,
@@ -537,6 +538,126 @@ export async function searchDocuments(
 }
 
 // =============================================================================
+// Tool: semantic_search
+// =============================================================================
+
+export async function semanticSearch(
+  supabase: SupabaseClient,
+  orgId: string,
+  filter: { query: string; type?: string; limit?: number; threshold?: number }
+): Promise<{ rows: any[]; columns: ColumnDefinition[]; total: number }> {
+  const limit = Math.min(filter.limit || 10, 50);
+  const threshold = filter.threshold || 0.6;
+
+  try {
+    // Generate embedding for the query
+    const embeddings = new EmbeddingsGenerator();
+    const queryEmbedding = await embeddings.generateQueryEmbedding(filter.query);
+
+    // Call the hybrid search function from the database
+    const { data, error } = await supabase.rpc('hybrid_search', {
+      query_embedding: queryEmbedding,
+      query_text: filter.query,
+      p_org_id: orgId,
+      p_content_type: filter.type ? `daf_${filter.type}` : null,
+      p_metadata_filters: null,
+      p_limit: limit,
+      vector_weight: 0.7,
+      fts_weight: 0.3,
+    });
+
+    if (error) {
+      console.error('[semantic_search] Error:', error);
+      // Fallback to regular full-text search if semantic fails
+      console.log('[semantic_search] Falling back to full-text search');
+      return await searchDocuments(supabase, orgId, filter);
+    }
+
+    if (!data || data.length === 0) {
+      // If no embeddings found, fall back to regular search
+      console.log('[semantic_search] No embeddings found, falling back to full-text search');
+      return await searchDocuments(supabase, orgId, filter);
+    }
+
+    // Filter by similarity threshold
+    const filteredResults = data.filter((row: any) =>
+      (row.combined_score || row.vector_similarity || 0) >= threshold
+    );
+
+    // Fetch the actual document details for each source
+    const sourceIds = [...new Set(filteredResults.map((r: any) => r.source_id))];
+
+    if (sourceIds.length === 0) {
+      return {
+        rows: [],
+        columns: [
+          { key: 'file_name', label: 'Document', type: 'string' },
+          { key: 'ai_detected_type', label: 'Type', type: 'string' },
+          { key: 'similarity', label: 'Pertinence', type: 'percentage' },
+          { key: 'chunk_preview', label: 'Extrait', type: 'string' },
+        ],
+        total: 0,
+      };
+    }
+
+    const { data: documents, error: docError } = await supabase
+      .from('daf_documents')
+      .select('id, file_name, ai_detected_type, doc_type, fournisseur, montant_ttc, status, created_at')
+      .eq('org_id', orgId)
+      .in('id', sourceIds);
+
+    if (docError) {
+      console.error('[semantic_search] Error fetching documents:', docError);
+    }
+
+    // Merge results with document metadata
+    const docMap = new Map((documents || []).map((d: any) => [d.id, d]));
+
+    const rows = filteredResults.map((result: any) => {
+      const doc = docMap.get(result.source_id) || {};
+      return {
+        id: result.source_id,
+        file_name: doc.file_name || 'Unknown',
+        ai_detected_type: doc.ai_detected_type || result.content_type?.replace('daf_', '') || 'document',
+        fournisseur: doc.fournisseur,
+        montant_ttc: doc.montant_ttc,
+        similarity: result.combined_score || result.vector_similarity || 0,
+        chunk_preview: result.chunk_text?.substring(0, 200) + (result.chunk_text?.length > 200 ? '...' : ''),
+        created_at: doc.created_at,
+      };
+    });
+
+    // Deduplicate by document ID (take highest similarity)
+    const uniqueDocs = new Map();
+    for (const row of rows) {
+      if (!uniqueDocs.has(row.id) || uniqueDocs.get(row.id).similarity < row.similarity) {
+        uniqueDocs.set(row.id, row);
+      }
+    }
+
+    const uniqueRows = Array.from(uniqueDocs.values());
+
+    return {
+      rows: uniqueRows.slice(0, limit),
+      columns: [
+        { key: 'file_name', label: 'Document', type: 'string' },
+        { key: 'ai_detected_type', label: 'Type', type: 'string' },
+        { key: 'fournisseur', label: 'Fournisseur', type: 'string' },
+        { key: 'montant_ttc', label: 'Montant', type: 'currency' },
+        { key: 'similarity', label: 'Pertinence', type: 'percentage' },
+        { key: 'chunk_preview', label: 'Extrait', type: 'string' },
+      ],
+      total: uniqueRows.length,
+    };
+  } catch (error) {
+    console.error('[semantic_search] Error:', error);
+    // Graceful fallback to full-text search
+    console.log('[semantic_search] Falling back to full-text search due to error');
+    return await searchDocuments(supabase, orgId, filter);
+  }
+}
+
+// =============================================================================
 // Tool Executor
 // =============================================================================
 
@@ -572,6 +693,9 @@ export async function executeTool(
 
     case 'search_documents':
       return await searchDocuments(supabase, orgId, args as any);
+
+    case 'semantic_search':
+      return await semanticSearch(supabase, orgId, args as any);
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);

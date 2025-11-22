@@ -363,5 +363,32 @@ export const DAF_TOOLS: ToolDefinition[] = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'semantic_search',
+    description: 'Semantic/AI-powered search using embeddings. Use for complex natural language queries, finding similar documents, or when keyword search is not sufficient. Better for conceptual questions like "documents about payment issues" or "invoices related to maintenance".',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Natural language search query describing what to find'
+        },
+        type: {
+          type: 'string',
+          description: 'Filter by document type (invoice, cv, contract, etc.)',
+          enum: ['invoice', 'cv', 'contract', 'report', 'other']
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 10)'
+        },
+        threshold: {
+          type: 'number',
+          description: 'Minimum similarity threshold 0-1 (default 0.6)'
+        }
+      },
+      required: ['query']
+    }
   }
 ];

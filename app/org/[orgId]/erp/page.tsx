@@ -82,24 +82,22 @@ function KPICard({
   subtitle?: string;
 }) {
   const content = (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{formatCurrency(value)}</div>
-        {change !== undefined && (
-          <p className={`text-xs flex items-center gap-1 mt-1 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {change >= 0 ? '+' : ''}{change}% vs mois dernier
-          </p>
-        )}
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</span>
+        <Icon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+      </div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(value)}</div>
+      {change !== undefined && (
+        <p className={`text-xs flex items-center gap-1 mt-1 ${change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+          {change >= 0 ? '+' : ''}{change}% vs mois dernier
+        </p>
+      )}
+      {subtitle && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
+      )}
+    </div>
   );
 
   if (href) {
@@ -160,11 +158,9 @@ export default function ERPDashboardPage() {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-600">Erreur: {error}</p>
-          </CardContent>
-        </Card>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <p className="text-red-700 dark:text-red-400">Erreur: {error}</p>
+        </div>
       </div>
     );
   }
@@ -174,17 +170,17 @@ export default function ERPDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Tableau de bord ERP</h1>
-          <p className="text-muted-foreground">Vue d'ensemble de votre activité</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tableau de bord ERP</h1>
+          <p className="text-gray-600 dark:text-gray-400">Vue d'ensemble de votre activité</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
             <Link href={`/org/${orgId}/erp/invoices`}>
               <FileText className="h-4 w-4 mr-2" />
               Nouvelle facture
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
             <Link href={`/org/${orgId}/erp/clients`}>
               <Users className="h-4 w-4 mr-2" />
               Clients
@@ -222,196 +218,172 @@ export default function ERPDashboardPage() {
 
       {/* Receivables & Payables */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ArrowUpRight className="h-5 w-5 text-green-600" />
-              Créances clients
-            </CardTitle>
-            <CardDescription>Montants à recevoir</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Total à recevoir</span>
-                <span className="text-2xl font-bold">{formatCurrency(kpis?.total_receivables || 0)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">En retard</span>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(kpis?.overdue_receivables || 0)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Factures en attente</span>
-                <span>{kpis?.receivables_count || 0}</span>
-              </div>
-              <Button variant="outline" className="w-full" asChild>
-                <Link href={`/org/${orgId}/erp/invoices?status=unpaid`}>
-                  Voir les créances
-                </Link>
-              </Button>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <ArrowUpRight className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Créances clients</h3>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Montants à recevoir</p>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">Total à recevoir</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(kpis?.total_receivables || 0)}</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">En retard</span>
+              <span className="text-lg font-semibold text-red-600 dark:text-red-400">{formatCurrency(kpis?.overdue_receivables || 0)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Factures en attente</span>
+              <span className="text-gray-900 dark:text-white">{kpis?.receivables_count || 0}</span>
+            </div>
+            <Button variant="outline" className="w-full border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" asChild>
+              <Link href={`/org/${orgId}/erp/invoices?status=unpaid`}>
+                Voir les créances
+              </Link>
+            </Button>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ArrowDownRight className="h-5 w-5 text-orange-600" />
-              Dettes fournisseurs
-            </CardTitle>
-            <CardDescription>Montants à payer</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Total à payer</span>
-                <span className="text-2xl font-bold">{formatCurrency(kpis?.total_payables || 0)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">En retard</span>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(kpis?.overdue_payables || 0)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Factures à payer</span>
-                <span>{kpis?.payables_count || 0}</span>
-              </div>
-              <Button variant="outline" className="w-full" asChild>
-                <Link href={`/org/${orgId}/erp/suppliers`}>
-                  Voir les dettes
-                </Link>
-              </Button>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <ArrowDownRight className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Dettes fournisseurs</h3>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Montants à payer</p>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">Total à payer</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(kpis?.total_payables || 0)}</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">En retard</span>
+              <span className="text-lg font-semibold text-red-600 dark:text-red-400">{formatCurrency(kpis?.overdue_payables || 0)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Factures à payer</span>
+              <span className="text-gray-900 dark:text-white">{kpis?.payables_count || 0}</span>
+            </div>
+            <Button variant="outline" className="w-full border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" asChild>
+              <Link href={`/org/${orgId}/erp/suppliers`}>
+                Voir les dettes
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Top Clients & Suppliers */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Top Clients
-            </CardTitle>
-            <CardDescription>Par chiffre d'affaires</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topClients.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Aucun client pour le moment</p>
-            ) : (
-              <div className="space-y-3">
-                {topClients.slice(0, 5).map((client, i) => (
-                  <div key={client.client_id || i} className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground text-sm w-4">{i + 1}.</span>
-                      <span className="font-medium">{client.client_name}</span>
-                    </div>
-                    <span className="text-sm font-semibold">{formatCurrency(client.total_invoiced || 0)}</span>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Clients</h3>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Par chiffre d'affaires</p>
+          {topClients.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Aucun client pour le moment</p>
+          ) : (
+            <div className="space-y-3">
+              {topClients.slice(0, 5).map((client, i) => (
+                <div key={client.client_id || i} className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 dark:text-gray-400 text-sm w-4">{i + 1}.</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{client.client_name}</span>
                   </div>
-                ))}
-              </div>
-            )}
-            <Button variant="ghost" className="w-full mt-4" asChild>
-              <Link href={`/org/${orgId}/erp/clients`}>
-                Voir tous les clients
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(client.total_invoiced || 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="ghost" className="w-full mt-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" asChild>
+            <Link href={`/org/${orgId}/erp/clients`}>
+              Voir tous les clients
+            </Link>
+          </Button>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Top Fournisseurs
-            </CardTitle>
-            <CardDescription>Par volume d'achats</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topSuppliers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Aucun fournisseur pour le moment</p>
-            ) : (
-              <div className="space-y-3">
-                {topSuppliers.slice(0, 5).map((supplier, i) => (
-                  <div key={supplier.supplier_id || i} className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground text-sm w-4">{i + 1}.</span>
-                      <span className="font-medium">{supplier.supplier_name}</span>
-                    </div>
-                    <span className="text-sm font-semibold">{formatCurrency(supplier.total_purchased || 0)}</span>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Fournisseurs</h3>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Par volume d'achats</p>
+          {topSuppliers.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Aucun fournisseur pour le moment</p>
+          ) : (
+            <div className="space-y-3">
+              {topSuppliers.slice(0, 5).map((supplier, i) => (
+                <div key={supplier.supplier_id || i} className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 dark:text-gray-400 text-sm w-4">{i + 1}.</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{supplier.supplier_name}</span>
                   </div>
-                ))}
-              </div>
-            )}
-            <Button variant="ghost" className="w-full mt-4" asChild>
-              <Link href={`/org/${orgId}/erp/suppliers`}>
-                Voir tous les fournisseurs
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(supplier.total_purchased || 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="ghost" className="w-full mt-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" asChild>
+            <Link href={`/org/${orgId}/erp/suppliers`}>
+              Voir tous les fournisseurs
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Year to Date Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Résumé annuel</CardTitle>
-          <CardDescription>Cumul depuis le 1er janvier</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-muted-foreground">CA Annuel</p>
-              <p className="text-2xl font-bold text-green-700">{formatCurrency(kpis?.total_revenue_ytd || 0)}</p>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <p className="text-sm text-muted-foreground">Dépenses Annuelles</p>
-              <p className="text-2xl font-bold text-orange-700">{formatCurrency(kpis?.total_expenses_ytd || 0)}</p>
-            </div>
-            <div className={`text-center p-4 rounded-lg ${(kpis?.profit_ytd || 0) >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
-              <p className="text-sm text-muted-foreground">Résultat Annuel</p>
-              <p className={`text-2xl font-bold ${(kpis?.profit_ytd || 0) >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                {formatCurrency(kpis?.profit_ytd || 0)}
-              </p>
-            </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Résumé annuel</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Cumul depuis le 1er janvier</p>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">CA Annuel</p>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(kpis?.total_revenue_ytd || 0)}</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+            <p className="text-sm text-orange-700 dark:text-orange-300">Dépenses Annuelles</p>
+            <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{formatCurrency(kpis?.total_expenses_ytd || 0)}</p>
+          </div>
+          <div className={`text-center p-4 rounded-lg border ${(kpis?.profit_ytd || 0) >= 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+            <p className={`text-sm ${(kpis?.profit_ytd || 0) >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}`}>Résultat Annuel</p>
+            <p className={`text-2xl font-bold ${(kpis?.profit_ytd || 0) >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400'}`}>
+              {formatCurrency(kpis?.profit_ytd || 0)}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Actions rapides</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-2 md:grid-cols-4">
-            <Button variant="outline" asChild>
-              <Link href={`/org/${orgId}/erp/clients`}>
-                <Users className="h-4 w-4 mr-2" />
-                Gérer les clients
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/org/${orgId}/erp/invoices`}>
-                <FileText className="h-4 w-4 mr-2" />
-                Gérer les factures
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/org/${orgId}/erp/suppliers`}>
-                <Building2 className="h-4 w-4 mr-2" />
-                Gérer les fournisseurs
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/org/${orgId}/erp/expenses`}>
-                <Receipt className="h-4 w-4 mr-2" />
-                Gérer les dépenses
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions rapides</h3>
+        <div className="grid gap-2 md:grid-cols-4">
+          <Button variant="outline" asChild className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <Link href={`/org/${orgId}/erp/clients`}>
+              <Users className="h-4 w-4 mr-2" />
+              Gérer les clients
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <Link href={`/org/${orgId}/erp/invoices`}>
+              <FileText className="h-4 w-4 mr-2" />
+              Gérer les factures
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <Link href={`/org/${orgId}/erp/suppliers`}>
+              <Building2 className="h-4 w-4 mr-2" />
+              Gérer les fournisseurs
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <Link href={`/org/${orgId}/erp/expenses`}>
+              <Receipt className="h-4 w-4 mr-2" />
+              Gérer les dépenses
+            </Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

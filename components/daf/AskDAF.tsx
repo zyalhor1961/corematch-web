@@ -1,12 +1,24 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send, Loader2, Sparkles, Download, ExternalLink, MessageSquare,
   BarChart3, List, Gauge, AlertCircle, ChevronDown, ChevronUp,
-  FileText, Receipt, User, ScrollText, X, TrendingUp, Table
+  FileText, Receipt, User, ScrollText, X, TrendingUp, Table,
+  Bookmark, BookmarkPlus, Star, Trash2, Clock
 } from 'lucide-react';
 import type { DafAskResponse, ColumnDefinition } from '@/lib/daf-ask/types';
+
+interface SavedQuery {
+  id: string;
+  title: string;
+  question: string;
+  category: string;
+  is_favorite: boolean;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+}
 
 interface Message {
   id: string;
@@ -98,13 +110,100 @@ export function AskDAF({ orgId }: AskDAFProps) {
   const [loading, setLoading] = useState(false);
   const [expandedResults, setExpandedResults] = useState<string | null>(null);
   const [chartViews, setChartViews] = useState<Record<string, boolean>>({});
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+  const [showSavedQueries, setShowSavedQueries] = useState(false);
+  const [savingQuery, setSavingQuery] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch saved queries on mount
+  const fetchSavedQueries = useCallback(async () => {
+    try {
+      const response = await fetch('/api/daf/saved-queries');
+      const result = await response.json();
+      if (result.success) {
+        setSavedQueries(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch saved queries:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSavedQueries();
+  }, [fetchSavedQueries]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Save current question
+  async function handleSaveQuery(question: string) {
+    if (!question.trim() || savingQuery) return;
+
+    setSavingQuery(true);
+    try {
+      const response = await fetch('/api/daf/saved-queries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: question.trim() }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchSavedQueries();
+      }
+    } catch (error) {
+      console.error('Failed to save query:', error);
+    } finally {
+      setSavingQuery(false);
+    }
+  }
+
+  // Toggle favorite
+  async function handleToggleFavorite(id: string, currentFavorite: boolean) {
+    try {
+      const response = await fetch('/api/daf/saved-queries', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_favorite: !currentFavorite }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchSavedQueries();
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  }
+
+  // Delete saved query
+  async function handleDeleteSavedQuery(id: string) {
+    try {
+      const response = await fetch(`/api/daf/saved-queries?id=${id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchSavedQueries();
+      }
+    } catch (error) {
+      console.error('Failed to delete query:', error);
+    }
+  }
+
+  // Use saved query
+  function handleUseSavedQuery(query: SavedQuery) {
+    setInput(query.question);
+    setShowSavedQueries(false);
+    inputRef.current?.focus();
+    // Increment use count in background
+    fetch('/api/daf/saved-queries', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: query.id, increment_use: true }),
+    }).catch(() => {});
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -472,30 +571,117 @@ export function AskDAF({ orgId }: AskDAFProps) {
       </div>
 
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="p-4 bg-white border-t border-slate-200">
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Posez votre question... (ex: factures non réglées, dépenses 2024)"
-            className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="p-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
+      <div className="p-4 bg-white border-t border-slate-200">
+        {/* Saved Queries Dropdown */}
+        {showSavedQueries && savedQueries.length > 0 && (
+          <div className="mb-3 p-2 bg-slate-50 rounded-lg border border-slate-200 max-h-48 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2 px-2">
+              <span className="text-xs font-medium text-slate-600">Questions sauvegardées</span>
+              <button
+                onClick={() => setShowSavedQueries(false)}
+                className="p-1 hover:bg-slate-200 rounded"
+              >
+                <X className="h-3 w-3 text-slate-500" />
+              </button>
+            </div>
+            <div className="space-y-1">
+              {savedQueries.map(query => (
+                <div
+                  key={query.id}
+                  className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer group"
+                >
+                  <button
+                    onClick={() => handleUseSavedQuery(query)}
+                    className="flex-1 text-left text-sm text-slate-700 truncate"
+                    title={query.question}
+                  >
+                    {query.title}
+                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(query.id, query.is_favorite); }}
+                      className={`p-1 rounded hover:bg-slate-200 ${query.is_favorite ? 'text-yellow-500' : 'text-slate-400'}`}
+                      title={query.is_favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                    >
+                      <Star className="h-3 w-3" fill={query.is_favorite ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSavedQuery(query.id); }}
+                      className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-500"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {query.use_count > 0 && (
+                    <span className="text-xs text-slate-400 flex items-center gap-0.5">
+                      <Clock className="h-3 w-3" />
+                      {query.use_count}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="flex items-center gap-2">
+            {/* Saved Queries Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowSavedQueries(!showSavedQueries)}
+              className={`p-2.5 rounded-xl transition-all ${
+                showSavedQueries || savedQueries.length > 0
+                  ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+              }`}
+              title={savedQueries.length > 0 ? `${savedQueries.length} questions sauvegardées` : 'Pas de questions sauvegardées'}
+            >
+              <Bookmark className="h-5 w-5" />
+            </button>
+
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Posez votre question... (ex: factures non réglées, dépenses 2024)"
+              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              disabled={loading}
+            />
+
+            {/* Save Query Button */}
+            {input.trim() && (
+              <button
+                type="button"
+                onClick={() => handleSaveQuery(input)}
+                disabled={savingQuery}
+                className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 transition-all"
+                title="Sauvegarder cette question"
+              >
+                {savingQuery ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <BookmarkPlus className="h-5 w-5" />
+                )}
+              </button>
             )}
-          </button>
-        </div>
-      </form>
+
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="p-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

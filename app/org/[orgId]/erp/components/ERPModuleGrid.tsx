@@ -8,6 +8,7 @@ import {
   Building2,
   ShoppingCart,
   Receipt,
+  BookOpen,
   ArrowRight
 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/erp/formatters';
@@ -143,12 +144,23 @@ export function ERPModuleGrid({ orgId, stats, loading = false }: ERPModuleGridPr
       stat2Label: 'Montant total',
       stat2Value: formatCurrency(stats?.expenses.amount || 0),
     },
+    {
+      title: 'Comptabilité',
+      description: 'Journaux et écritures comptables',
+      href: `/org/${orgId}/erp/accounting`,
+      icon: <BookOpen className="h-6 w-6 text-slate-600 dark:text-slate-400" />,
+      iconBg: 'bg-slate-100 dark:bg-slate-900/30',
+      stat1Label: 'Écritures',
+      stat1Value: '-',
+      stat2Label: 'Journaux',
+      stat2Value: '4',
+    },
   ];
 
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
+        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
           <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse mb-4" />
             <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />

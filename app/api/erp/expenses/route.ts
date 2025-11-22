@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { onExpenseRecorded } from '@/lib/accounting';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -73,6 +74,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const expenseDate = expense_date || new Date().toISOString().split('T')[0];
+
     const { data: expense, error } = await supabase
       .from('erp_expenses')
       .insert({
@@ -82,13 +85,16 @@ export async function POST(request: NextRequest) {
         amount: amount || 0,
         vat_amount: vat_amount || 0,
         category: category || 'other',
-        expense_date: expense_date || new Date().toISOString().split('T')[0],
+        expense_date: expenseDate,
         payment_method,
         reference,
         notes,
-        status: 'recorded',
+        status: 'validated',
       })
-      .select()
+      .select(`
+        *,
+        supplier:erp_suppliers(id, name, company_name)
+      `)
       .single();
 
     if (error) {
@@ -96,7 +102,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data: expense });
+    // Trigger accounting entry generation
+    const accountingResult = await onExpenseRecorded(supabase, {
+      id: expense.id,
+      org_id,
+      expense_date: expenseDate,
+      amount: amount || 0,
+      vat_amount: vat_amount || 0,
+      category: category || 'other',
+      description: description || '',
+      supplier_id,
+      supplier_name: expense.supplier?.company_name || expense.supplier?.name,
+      reference,
+      payment_method,
+    });
+
+    // Update expense with journal entry id if accounting succeeded
+    if (accountingResult?.success && accountingResult.entry_id) {
+      await supabase
+        .from('erp_expenses')
+        .update({ journal_entry_id: accountingResult.entry_id })
+        .eq('id', expense.id);
+
+      expense.journal_entry_id = accountingResult.entry_id;
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        expense,
+        accounting_result: accountingResult,
+      },
+    });
   } catch (err: any) {
     console.error('Expense creation error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

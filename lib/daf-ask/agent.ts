@@ -197,7 +197,7 @@ export async function runDafAgent(
   try {
     // First call - let Claude decide which tools to use
     let response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: fullSystemPrompt,
       tools: getAnthropicTools(),
@@ -287,7 +287,7 @@ export async function runDafAgent(
       messages.push(toolResults);
 
       response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         system: fullSystemPrompt,
         tools: getAnthropicTools(),

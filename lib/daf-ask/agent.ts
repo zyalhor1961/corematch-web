@@ -390,26 +390,11 @@ export async function runDafAgent(
             // Extract source documents if they have IDs
             for (const row of result.rows) {
               if (row.id && row.file_name) {
-                // Build document URL
-                let docUrl: string | undefined;
-                if (row.file_url) {
-                  docUrl = row.file_url;
-                } else if (row.storage_path) {
-                  // Generate Supabase storage URL
-                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                  if (supabaseUrl) {
-                    docUrl = `${supabaseUrl}/storage/v1/object/public/daf-documents/${row.storage_path}`;
-                  }
-                } else {
-                  // Fallback to viewer URL
-                  docUrl = `/daf/documents/${row.id}/viewer`;
-                }
-
                 sourceDocuments.push({
                   id: row.id,
                   title: row.file_name,
                   type: row.ai_detected_type || row.doc_type || 'document',
-                  url: docUrl,
+                  url: `/daf/documents/${row.id}/viewer`,
                 });
               }
             }

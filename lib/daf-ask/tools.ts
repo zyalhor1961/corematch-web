@@ -26,7 +26,7 @@ export async function listInvoices(
 ): Promise<{ rows: InvoiceRow[]; columns: ColumnDefinition[]; total: number }> {
   let query = supabase
     .from('daf_documents')
-    .select('id, file_name, storage_path, fournisseur, montant_ht, montant_ttc, taux_tva, date_document, date_echeance, numero_facture, status, created_at', { count: 'exact' })
+    .select('id, file_name, fournisseur, montant_ht, montant_ttc, taux_tva, date_document, date_echeance, numero_facture, status, created_at', { count: 'exact' })
     .eq('org_id', orgId)
     .or('ai_detected_type.eq.invoice,doc_type.eq.facture')
     .order('date_document', { ascending: false, nullsFirst: false });
@@ -337,7 +337,7 @@ export async function listDocuments(
 ): Promise<{ rows: DocumentRow[]; columns: ColumnDefinition[]; total: number }> {
   let query = supabase
     .from('daf_documents')
-    .select('id, file_name, storage_path, ai_detected_type, doc_type, status, page_count, created_at, key_info', { count: 'exact' })
+    .select('id, file_name, ai_detected_type, doc_type, status, page_count, created_at, key_info', { count: 'exact' })
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
@@ -395,7 +395,7 @@ export async function listCVs(
 ): Promise<{ rows: DocumentRow[]; columns: ColumnDefinition[]; total: number }> {
   let query = supabase
     .from('daf_documents')
-    .select('id, file_name, storage_path, ai_detected_type, status, page_count, created_at, key_info, full_text', { count: 'exact' })
+    .select('id, file_name, ai_detected_type, status, page_count, created_at, key_info, full_text', { count: 'exact' })
     .eq('org_id', orgId)
     .eq('ai_detected_type', 'cv')
     .order('created_at', { ascending: false });
@@ -507,7 +507,7 @@ export async function searchDocuments(
   // Use full-text search
   let query = supabase
     .from('daf_documents')
-    .select('id, file_name, storage_path, ai_detected_type, doc_type, status, page_count, created_at, key_info, fournisseur, montant_ttc', { count: 'exact' })
+    .select('id, file_name, ai_detected_type, doc_type, status, page_count, created_at, key_info, fournisseur, montant_ttc', { count: 'exact' })
     .eq('org_id', orgId)
     .or(`file_name.ilike.%${filter.query}%,fournisseur.ilike.%${filter.query}%,full_text.ilike.%${filter.query}%,numero_facture.ilike.%${filter.query}%`)
     .order('created_at', { ascending: false })
@@ -602,7 +602,7 @@ export async function semanticSearch(
 
     const { data: documents, error: docError } = await supabase
       .from('daf_documents')
-      .select('id, file_name, storage_path, ai_detected_type, doc_type, fournisseur, montant_ttc, status, created_at')
+      .select('id, file_name, ai_detected_type, doc_type, fournisseur, montant_ttc, status, created_at')
       .eq('org_id', orgId)
       .in('id', sourceIds);
 

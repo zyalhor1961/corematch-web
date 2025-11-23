@@ -25,7 +25,6 @@ import {
 import {
   FileText,
   Plus,
-  ArrowLeft,
   Download,
   Eye,
   CheckCircle,
@@ -33,10 +32,14 @@ import {
   AlertCircle,
   XCircle,
   Filter,
-  Home,
-  ChevronRight
+  Wallet,
+  TrendingUp,
+  Receipt
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/erp/formatters';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SummaryCards, formatCurrency as formatCurrencyCard } from '@/components/ui/SummaryCards';
 
 interface Invoice {
   id: string;
@@ -62,10 +65,6 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
 }
 
 function getStatusBadge(status: string) {
@@ -162,66 +161,71 @@ export default function InvoicesPage() {
     fetchInvoices();
   }, [statusFilter, clientFilter]);
 
+  const breadcrumbs = [
+    { label: 'Accueil', href: `/org/${orgId}` },
+    { label: 'ERP', href: `/org/${orgId}/erp` },
+    { label: 'Factures' },
+  ];
+
+  const summaryCards = [
+    {
+      label: 'Total facturé',
+      value: formatCurrencyCard(stats.total_amount),
+      icon: Receipt,
+      iconColor: 'text-blue-500',
+    },
+    {
+      label: 'Total encaissé',
+      value: formatCurrencyCard(stats.total_paid),
+      icon: CheckCircle,
+      iconColor: 'text-emerald-500',
+    },
+    {
+      label: 'Reste à encaisser',
+      value: formatCurrencyCard(stats.total_outstanding),
+      icon: Clock,
+      iconColor: 'text-orange-500',
+    },
+    {
+      label: 'En retard',
+      value: stats.count_overdue,
+      icon: AlertCircle,
+      iconColor: 'text-red-500',
+      subtext: stats.count_overdue > 0 ? 'Action requise' : undefined,
+    },
+  ];
+
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm">
-        <Link href={`/org/${orgId}`} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
-          <Home className="h-4 w-4" />
-          <span>Accueil</span>
-        </Link>
-        <ChevronRight className="h-4 w-4 text-gray-400" />
-        <Link href={`/org/${orgId}/erp`} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-          ERP
-        </Link>
-        <ChevronRight className="h-4 w-4 text-gray-400" />
-        <span className="font-medium text-gray-900 dark:text-white">Factures</span>
-      </nav>
-
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-            <Link href={`/org/${orgId}/erp`}>
-              <ArrowLeft className="h-4 w-4" />
+      <PageHeader
+        title="Factures"
+        subtitle={`${total} facture${total !== 1 ? 's' : ''}`}
+        icon={<FileText className="h-7 w-7" />}
+        iconColor="text-green-600 dark:text-green-400"
+        breadcrumbs={breadcrumbs}
+        backHref={`/org/${orgId}/erp`}
+        helpContent={{
+          title: 'Gestion des factures',
+          description: 'Créez, suivez et gérez toutes vos factures clients. Visualisez les paiements et les retards.',
+          examples: [
+            'Créer une nouvelle facture',
+            'Suivre les paiements',
+            'Relancer les impayés',
+          ],
+        }}
+        actions={
+          <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Link href={`/org/${orgId}/erp/invoices/new`}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nouvelle facture
             </Link>
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-              <FileText className="h-8 w-8 text-green-600 dark:text-green-400" />
-              Factures
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">{total} facture{total !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-
-        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Link href={`/org/${orgId}/erp/invoices/new`}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nouvelle facture
-          </Link>
-        </Button>
-      </div>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total facturé</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.total_amount)}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total encaissé</p>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.total_paid)}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Reste à encaisser</p>
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatCurrency(stats.total_outstanding)}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">En retard</p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.count_overdue}</p>
-        </div>
-      </div>
+      <SummaryCards cards={summaryCards} columns={4} />
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">

@@ -20,8 +20,15 @@ import {
   X,
   Sun,
   Moon,
-  Search
+  Search,
+  Command,
+  Sparkles,
+  Receipt,
+  Keyboard
 } from 'lucide-react';
+import { CommandBar } from '@/components/CommandBar';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { HelpShortcutsOverlay } from '@/components/HelpShortcutsOverlay';
 
 export default function OrganizationLayout({
   children,
@@ -81,12 +88,44 @@ export default function OrganizationLayout({
     router.push('/');
   };
 
+  // Keyboard shortcuts
+  const { shortcuts, showHelp, setShowHelp } = useKeyboardShortcuts({ orgId, enabled: !isLoading });
+
+  // Navigation structure with sections
+  const navigationSections = [
+    {
+      title: 'AI Workspace',
+      icon: Sparkles,
+      items: [
+        { name: 'CV Screening', href: `/org/${orgId}/cv`, icon: Users, aiPowered: true },
+        { name: 'Documents DAF', href: `/org/${orgId}/daf`, icon: FileText, aiPowered: true },
+        { name: 'DEB Assistant', href: `/org/${orgId}/deb`, icon: FileText, aiPowered: true },
+      ],
+    },
+    {
+      title: 'Core ERP',
+      icon: Receipt,
+      items: [
+        { name: 'Dashboard ERP', href: `/org/${orgId}/erp`, icon: BarChart3 },
+      ],
+    },
+    {
+      title: 'Paramètres',
+      icon: Settings,
+      items: [
+        { name: 'Facturation', href: `/org/${orgId}/billing`, icon: CreditCard },
+        { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },
+      ],
+    },
+  ];
+
+  // Flat navigation for mobile
   const navigation = [
     { name: 'Vue d\'ensemble', href: `/org/${orgId}`, icon: BarChart3 },
     { name: 'CV Screening', href: `/org/${orgId}/cv`, icon: Users },
     { name: 'Documents DAF', href: `/org/${orgId}/daf`, icon: FileText },
     { name: 'DEB Assistant', href: `/org/${orgId}/deb`, icon: FileText },
-    // { name: 'Membres', href: `/org/${orgId}/members`, icon: Users }, // TODO: Create members page
+    { name: 'Core ERP', href: `/org/${orgId}/erp`, icon: Receipt },
     { name: 'Facturation', href: `/org/${orgId}/billing`, icon: CreditCard },
     { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },
   ];
@@ -192,11 +231,75 @@ export default function OrganizationLayout({
             </div>
           </div>
 
-          {/* Navigation */}
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
-            {navigation.map((item) => <NavLink key={item.name} item={item} />)}
+          {/* Command Bar Trigger */}
+          <div className="p-4">
+            <CommandBar orgId={orgId} />
+          </div>
+
+          {/* Navigation with sections */}
+          <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+            {/* Dashboard link */}
+            <div>
+              <Link
+                href={`/org/${orgId}`}
+                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  pathname === `/org/${orgId}`
+                    ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-blue-50 text-blue-600')
+                    : (isDarkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100')
+                }`}
+              >
+                <BarChart3 className={`w-5 h-5 mr-3 ${pathname === `/org/${orgId}` ? (isDarkMode ? 'text-white' : 'text-blue-600') : (isDarkMode ? 'text-gray-500' : 'text-gray-400')}`} />
+                Vue d'ensemble
+              </Link>
+            </div>
+
+            {/* Sections */}
+            {navigationSections.map((section) => (
+              <div key={section.title}>
+                <div className={`flex items-center gap-2 px-3 mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <section.icon className="w-4 h-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">{section.title}</span>
+                </div>
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                          isActive
+                            ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-blue-50 text-blue-600')
+                            : (isDarkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100')
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 mr-3 ${isActive ? (isDarkMode ? 'text-white' : 'text-blue-600') : (isDarkMode ? 'text-gray-500' : 'text-gray-400')}`} />
+                        {item.name}
+                        {(item as any).aiPowered && (
+                          <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300">
+                            IA
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
+
+          {/* Keyboard shortcuts button */}
+          <div className={`px-4 py-2 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <button
+              onClick={() => setShowHelp(true)}
+              className={`flex items-center gap-2 w-full px-3 py-2 text-xs rounded-md transition-colors ${isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+            >
+              <Keyboard className="w-4 h-4" />
+              <span>Raccourcis clavier</span>
+              <kbd className="ml-auto px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono">?</kbd>
+            </button>
+          </div>
 
           {/* User menu */}
           <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -262,6 +365,13 @@ export default function OrganizationLayout({
           {children}
         </main>
       </div>
+
+      {/* Keyboard shortcuts help overlay */}
+      <HelpShortcutsOverlay
+        shortcuts={shortcuts}
+        open={showHelp}
+        onClose={() => setShowHelp(false)}
+      />
     </div>
   );
 }

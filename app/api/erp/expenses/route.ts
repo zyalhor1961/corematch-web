@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       .from('erp_expenses')
       .select(`
         *,
-        supplier:erp_suppliers(id, name, company_name)
+        supplier:erp_suppliers(id, name)
       `)
       .eq('org_id', orgId)
       .order('expense_date', { ascending: false });
@@ -76,14 +76,22 @@ export async function POST(request: NextRequest) {
 
     const expenseDate = expense_date || new Date().toISOString().split('T')[0];
 
+    // Calculer le TTC si nécessaire
+    const vatRate = body.vat_rate || 20;
+    const amountHT = body.amount_ht || amount || 0;
+    const calculatedVat = vat_amount !== undefined ? vat_amount : (amountHT * vatRate / 100);
+    const amountTTC = amountHT + calculatedVat;
+
     const { data: expense, error } = await supabase
       .from('erp_expenses')
       .insert({
         org_id,
         supplier_id,
         description,
-        amount: amount || 0,
-        vat_amount: vat_amount || 0,
+        amount: amountTTC,
+        amount_ht: amountHT,
+        vat_amount: calculatedVat,
+        vat_rate: vatRate,
         category: category || 'other',
         expense_date: expenseDate,
         payment_method,
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
       })
       .select(`
         *,
-        supplier:erp_suppliers(id, name, company_name)
+        supplier:erp_suppliers(id, name)
       `)
       .single();
 
@@ -107,12 +115,12 @@ export async function POST(request: NextRequest) {
       id: expense.id,
       org_id,
       expense_date: expenseDate,
-      amount: amount || 0,
-      vat_amount: vat_amount || 0,
+      amount: amountHT,
+      vat_amount: calculatedVat,
       category: category || 'other',
       description: description || '',
       supplier_id,
-      supplier_name: expense.supplier?.company_name || expense.supplier?.name,
+      supplier_name: expense.supplier?.name,
       reference,
       payment_method,
     });

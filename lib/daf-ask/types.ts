@@ -392,7 +392,7 @@ export const DAF_TOOLS: ToolDefinition[] = [
     }
   },
   // =============================================================================
-  // ERP Tools (Mini-ERP Integration)
+  // ERP Tools (Core ERP Integration)
   // =============================================================================
   {
     name: 'erp_list_clients',
@@ -542,6 +542,59 @@ export const DAF_TOOLS: ToolDefinition[] = [
         limit: { type: 'number', description: 'Nombre (default 10)' },
         dateFrom: { type: 'string', description: 'Période début' },
         dateTo: { type: 'string', description: 'Période fin' }
+      }
+    }
+  },
+  // =============================================================================
+  // Bank Reconciliation & Lettrage Tools
+  // =============================================================================
+  {
+    name: 'erp_list_bank_transactions',
+    description: 'LISTE LES TRANSACTIONS BANCAIRES. UTILISE CE TOOL POUR: "transactions banque", "relevé bancaire", "mouvements bancaires", "opérations bancaires".',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Statut de réconciliation', enum: ['unmatched', 'suggested', 'matched', 'ignored', 'all'] },
+        direction: { type: 'string', description: 'Sens du mouvement', enum: ['credit', 'debit', 'all'] },
+        dateFrom: { type: 'string', description: 'Date début' },
+        dateTo: { type: 'string', description: 'Date fin' },
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_get_reconciliation_stats',
+    description: 'STATISTIQUES DE RAPPROCHEMENT BANCAIRE. UTILISE CE TOOL POUR: "état du rapprochement", "combien de transactions à rapprocher", "taux de réconciliation".',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'erp_unmatched_transactions',
+    description: 'TRANSACTIONS BANCAIRES NON RAPPROCHÉES. UTILISE CE TOOL POUR: "transactions à rapprocher", "non rapprochées", "rapprochement en attente".',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Nombre max' }
+      }
+    }
+  },
+  {
+    name: 'erp_get_lettrage_stats',
+    description: 'STATISTIQUES DE LETTRAGE COMPTABLE (411/401). UTILISE CE TOOL POUR: "état du lettrage", "écritures non lettrées", "soldes clients/fournisseurs ouverts".',
+    parameters: {
+      type: 'object',
+      properties: {
+        account_type: { type: 'string', description: 'client (411) ou supplier (401)', enum: ['client', 'supplier'] }
+      }
+    }
+  },
+  {
+    name: 'erp_unlettred_entries',
+    description: 'ÉCRITURES COMPTABLES NON LETTRÉES. UTILISE CE TOOL POUR: "écritures à lettrer", "soldes ouverts 411/401", "compte client/fournisseur non soldé".',
+    parameters: {
+      type: 'object',
+      properties: {
+        account_type: { type: 'string', description: 'client (411) ou supplier (401)', enum: ['client', 'supplier'] },
+        limit: { type: 'number', description: 'Nombre max' }
       }
     }
   }

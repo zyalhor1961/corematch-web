@@ -1,5 +1,5 @@
 /**
- * Mini-ERP Module
+ * Core ERP Module
  * Smart ERP for small businesses (1-10 employees)
  * Supports France (PCG) and US (GAAP)
  */

@@ -28,8 +28,17 @@ export type EntryStatus = 'draft' | 'posted' | 'reversed' | 'locked';
 // Types de journaux
 export type JournalType = 'sale' | 'purchase' | 'bank' | 'cash' | 'misc' | 'opening';
 
-// Types de comptes
-export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+// Types de comptes (français)
+export type AccountType = 'actif' | 'passif' | 'capitaux' | 'produit' | 'charge';
+
+// Mapping pour compatibilité avec anciens codes
+export const AccountTypeMapping = {
+  asset: 'actif',
+  liability: 'passif',
+  equity: 'capitaux',
+  income: 'produit',
+  expense: 'charge',
+} as const;
 
 // Structure d'un compte
 export interface Account {

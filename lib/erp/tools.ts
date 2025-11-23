@@ -305,6 +305,92 @@ export const ERP_TOOLS: ERPToolDefinition[] = [
       },
     },
   },
+  // Bank Reconciliation Tools
+  {
+    name: 'erp_list_bank_transactions',
+    description: 'LISTE LES TRANSACTIONS BANCAIRES. Utilise pour: "transactions banque", "mouvements bancaires", "relevé bancaire", "opérations bancaires".',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          description: 'Statut de réconciliation',
+          enum: ['unmatched', 'suggested', 'matched', 'ignored', 'all'],
+        },
+        direction: {
+          type: 'string',
+          description: 'Type de mouvement',
+          enum: ['credit', 'debit', 'all'],
+        },
+        dateFrom: {
+          type: 'string',
+          description: 'Date de début',
+        },
+        dateTo: {
+          type: 'string',
+          description: 'Date de fin',
+        },
+        limit: {
+          type: 'number',
+          description: 'Nombre max',
+        },
+      },
+    },
+  },
+  {
+    name: 'erp_get_reconciliation_stats',
+    description: 'STATISTIQUES DE RAPPROCHEMENT BANCAIRE. Utilise pour: "état rapprochement", "transactions non rapprochées", "stats banque".',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'erp_unmatched_transactions',
+    description: 'TRANSACTIONS BANCAIRES NON RAPPROCHÉES. Utilise pour: "transactions à rapprocher", "non rapprochées", "rapprochement en attente".',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Nombre max',
+        },
+      },
+    },
+  },
+  // Lettrage Tools
+  {
+    name: 'erp_get_lettrage_stats',
+    description: 'STATISTIQUES DE LETTRAGE COMPTABLE. Utilise pour: "état lettrage", "écritures non lettrées", "solde clients/fournisseurs 411/401".',
+    parameters: {
+      type: 'object',
+      properties: {
+        account_type: {
+          type: 'string',
+          description: 'Type de compte',
+          enum: ['client', 'supplier'],
+        },
+      },
+    },
+  },
+  {
+    name: 'erp_unlettred_entries',
+    description: 'ÉCRITURES COMPTABLES NON LETTRÉES. Utilise pour: "écritures à lettrer", "soldes ouverts", "compte 411 ou 401 non soldé".',
+    parameters: {
+      type: 'object',
+      properties: {
+        account_type: {
+          type: 'string',
+          description: 'client (411) ou supplier (401)',
+          enum: ['client', 'supplier'],
+        },
+        limit: {
+          type: 'number',
+          description: 'Nombre max',
+        },
+      },
+    },
+  },
 ];
 
 // =============================================================================
@@ -361,6 +447,23 @@ export async function executeERPTool(
 
     case 'erp_top_suppliers':
       return topSuppliers(supabase, orgId, params);
+
+    // Bank Reconciliation Tools
+    case 'erp_list_bank_transactions':
+      return listBankTransactions(supabase, orgId, params);
+
+    case 'erp_get_reconciliation_stats':
+      return getReconciliationStats(supabase, orgId);
+
+    case 'erp_unmatched_transactions':
+      return unmatchedTransactions(supabase, orgId, params);
+
+    // Lettrage Tools
+    case 'erp_get_lettrage_stats':
+      return getLettrageStats(supabase, orgId, params);
+
+    case 'erp_unlettred_entries':
+      return unlettredEntries(supabase, orgId, params);
 
     default:
       throw new Error(`Unknown ERP tool: ${toolName}`);
@@ -999,6 +1102,250 @@ async function topSuppliers(
       { key: 'total_purchased', label: 'Total achats', type: 'currency' },
       { key: 'percentage', label: '%', type: 'percentage' },
       { key: 'invoice_count', label: 'Factures', type: 'number' },
+    ] as ColumnDefinition[],
+  };
+}
+
+// =============================================================================
+// Bank Reconciliation Tools
+// =============================================================================
+
+async function listBankTransactions(
+  supabase: SupabaseClient,
+  orgId: string,
+  params: { status?: string; direction?: string; dateFrom?: string; dateTo?: string; limit?: number }
+) {
+  let query = supabase
+    .from('erp_bank_transactions')
+    .select(`
+      id, operation_date, amount, direction, label_raw, counterparty_name,
+      reconciliation_status, reconciliation_score,
+      bank_account:erp_bank_accounts(label, bank_name)
+    `)
+    .eq('org_id', orgId)
+    .order('operation_date', { ascending: false })
+    .limit(params.limit || 50);
+
+  if (params.status && params.status !== 'all') {
+    query = query.eq('reconciliation_status', params.status);
+  }
+
+  if (params.direction && params.direction !== 'all') {
+    query = query.eq('direction', params.direction);
+  }
+
+  if (params.dateFrom) {
+    query = query.gte('operation_date', params.dateFrom);
+  }
+
+  if (params.dateTo) {
+    query = query.lte('operation_date', params.dateTo);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  const rows = (data || []).map(tx => ({
+    ...tx,
+    bank_account_label: (tx.bank_account as any)?.label || 'N/A',
+    amount_signed: tx.direction === 'debit' ? -tx.amount : tx.amount,
+  }));
+
+  return {
+    rows,
+    columns: [
+      { key: 'operation_date', label: 'Date', type: 'date' },
+      { key: 'label_raw', label: 'Libellé', type: 'string' },
+      { key: 'counterparty_name', label: 'Tiers', type: 'string' },
+      { key: 'amount_signed', label: 'Montant', type: 'currency' },
+      { key: 'direction', label: 'Sens', type: 'string' },
+      { key: 'reconciliation_status', label: 'Rapprochement', type: 'string' },
+      { key: 'bank_account_label', label: 'Compte', type: 'string' },
+    ] as ColumnDefinition[],
+  };
+}
+
+async function getReconciliationStats(supabase: SupabaseClient, orgId: string) {
+  // Get counts by status
+  const { data: transactions } = await supabase
+    .from('erp_bank_transactions')
+    .select('reconciliation_status, amount, direction')
+    .eq('org_id', orgId);
+
+  const txs = transactions || [];
+
+  const stats = {
+    total_transactions: txs.length,
+    unmatched: txs.filter(tx => tx.reconciliation_status === 'unmatched').length,
+    suggested: txs.filter(tx => tx.reconciliation_status === 'suggested').length,
+    matched: txs.filter(tx => tx.reconciliation_status === 'matched').length,
+    ignored: txs.filter(tx => tx.reconciliation_status === 'ignored').length,
+    total_credits: txs.filter(tx => tx.direction === 'credit').reduce((sum, tx) => sum + tx.amount, 0),
+    total_debits: txs.filter(tx => tx.direction === 'debit').reduce((sum, tx) => sum + tx.amount, 0),
+    unmatched_credits: txs.filter(tx => tx.direction === 'credit' && tx.reconciliation_status === 'unmatched')
+      .reduce((sum, tx) => sum + tx.amount, 0),
+    unmatched_debits: txs.filter(tx => tx.direction === 'debit' && tx.reconciliation_status === 'unmatched')
+      .reduce((sum, tx) => sum + tx.amount, 0),
+  };
+
+  const matchRate = txs.length > 0
+    ? Math.round((stats.matched / txs.length) * 100)
+    : 0;
+
+  return {
+    stats: {
+      ...stats,
+      match_rate: matchRate,
+    },
+    summary: `${stats.unmatched} transactions non rapprochées sur ${stats.total_transactions} (taux: ${matchRate}%)`,
+    columns: [
+      { key: 'total_transactions', label: 'Total transactions', type: 'number' },
+      { key: 'matched', label: 'Rapprochées', type: 'number' },
+      { key: 'unmatched', label: 'Non rapprochées', type: 'number' },
+      { key: 'match_rate', label: 'Taux rapprochement', type: 'percentage' },
+      { key: 'unmatched_credits', label: 'Crédits non rapprochés', type: 'currency' },
+      { key: 'unmatched_debits', label: 'Débits non rapprochés', type: 'currency' },
+    ] as ColumnDefinition[],
+  };
+}
+
+async function unmatchedTransactions(
+  supabase: SupabaseClient,
+  orgId: string,
+  params: { limit?: number }
+) {
+  const { data, error } = await supabase
+    .from('erp_bank_transactions')
+    .select(`
+      id, operation_date, amount, direction, label_raw, counterparty_name,
+      bank_account:erp_bank_accounts(label)
+    `)
+    .eq('org_id', orgId)
+    .eq('reconciliation_status', 'unmatched')
+    .order('operation_date', { ascending: false })
+    .limit(params.limit || 30);
+
+  if (error) throw error;
+
+  const rows = (data || []).map(tx => ({
+    ...tx,
+    bank_account_label: (tx.bank_account as any)?.label || 'N/A',
+    amount_signed: tx.direction === 'debit' ? -tx.amount : tx.amount,
+  }));
+
+  const totalCredits = rows.filter(r => r.direction === 'credit').reduce((sum, r) => sum + r.amount, 0);
+  const totalDebits = rows.filter(r => r.direction === 'debit').reduce((sum, r) => sum + r.amount, 0);
+
+  return {
+    rows,
+    stats: {
+      count: rows.length,
+      total_credits: totalCredits,
+      total_debits: totalDebits,
+      net: totalCredits - totalDebits,
+    },
+    columns: [
+      { key: 'operation_date', label: 'Date', type: 'date' },
+      { key: 'label_raw', label: 'Libellé', type: 'string' },
+      { key: 'counterparty_name', label: 'Tiers', type: 'string' },
+      { key: 'amount_signed', label: 'Montant', type: 'currency' },
+      { key: 'direction', label: 'Sens', type: 'string' },
+      { key: 'bank_account_label', label: 'Compte', type: 'string' },
+    ] as ColumnDefinition[],
+  };
+}
+
+// =============================================================================
+// Lettrage Tools
+// =============================================================================
+
+async function getLettrageStats(
+  supabase: SupabaseClient,
+  orgId: string,
+  params: { account_type?: string }
+) {
+  const accountType = params.account_type || 'client';
+  const accountPrefix = accountType === 'supplier' ? '401' : '411';
+
+  // Get entries
+  const { data: entries } = await supabase
+    .from('erp_journal_entries')
+    .select('debit, credit, is_lettred')
+    .eq('org_id', orgId)
+    .like('account_code', `${accountPrefix}%`);
+
+  const allEntries = entries || [];
+
+  const unlettred = allEntries.filter(e => !e.is_lettred);
+  const lettred = allEntries.filter(e => e.is_lettred);
+
+  const stats = {
+    total_entries: allEntries.length,
+    lettred_entries: lettred.length,
+    unlettred_entries: unlettred.length,
+    lettrage_rate: allEntries.length > 0
+      ? Math.round((lettred.length / allEntries.length) * 100)
+      : 0,
+    unlettred_debit: unlettred.reduce((sum, e) => sum + (e.debit || 0), 0),
+    unlettred_credit: unlettred.reduce((sum, e) => sum + (e.credit || 0), 0),
+    unlettred_balance: unlettred.reduce((sum, e) => sum + (e.debit || 0) - (e.credit || 0), 0),
+    account_type: accountType,
+    account_prefix: accountPrefix,
+  };
+
+  return {
+    stats,
+    summary: `${stats.unlettred_entries} écritures non lettrées sur ${stats.total_entries} (compte ${accountPrefix})`,
+    columns: [
+      { key: 'total_entries', label: 'Total écritures', type: 'number' },
+      { key: 'lettred_entries', label: 'Lettrées', type: 'number' },
+      { key: 'unlettred_entries', label: 'Non lettrées', type: 'number' },
+      { key: 'lettrage_rate', label: 'Taux lettrage', type: 'percentage' },
+      { key: 'unlettred_balance', label: 'Solde non lettré', type: 'currency' },
+    ] as ColumnDefinition[],
+  };
+}
+
+async function unlettredEntries(
+  supabase: SupabaseClient,
+  orgId: string,
+  params: { account_type?: string; limit?: number }
+) {
+  const accountType = params.account_type || 'client';
+  const accountPrefix = accountType === 'supplier' ? '401' : '411';
+
+  const { data, error } = await supabase
+    .from('erp_journal_entries')
+    .select('id, entry_date, piece_number, account_code, account_label, label, debit, credit')
+    .eq('org_id', orgId)
+    .like('account_code', `${accountPrefix}%`)
+    .eq('is_lettred', false)
+    .order('entry_date', { ascending: false })
+    .limit(params.limit || 50);
+
+  if (error) throw error;
+
+  const rows = data || [];
+  const totalDebit = rows.reduce((sum, e) => sum + (e.debit || 0), 0);
+  const totalCredit = rows.reduce((sum, e) => sum + (e.credit || 0), 0);
+
+  return {
+    rows,
+    stats: {
+      count: rows.length,
+      total_debit: totalDebit,
+      total_credit: totalCredit,
+      balance: totalDebit - totalCredit,
+    },
+    columns: [
+      { key: 'entry_date', label: 'Date', type: 'date' },
+      { key: 'piece_number', label: 'Pièce', type: 'string' },
+      { key: 'account_code', label: 'Compte', type: 'string' },
+      { key: 'account_label', label: 'Tiers', type: 'string' },
+      { key: 'label', label: 'Libellé', type: 'string' },
+      { key: 'debit', label: 'Débit', type: 'currency' },
+      { key: 'credit', label: 'Crédit', type: 'currency' },
     ] as ColumnDefinition[],
   };
 }

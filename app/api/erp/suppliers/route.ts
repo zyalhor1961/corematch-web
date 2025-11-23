@@ -90,7 +90,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, company_name, address, city, postal_code, country, vat_number, payment_terms } = body;
+    const {
+      name, email, phone, company_name, address, city, postal_code, country, vat_number,
+      siren, siret, naf_code, activite, mode_reglement, delai_paiement, iban, bic, banque, notes
+    } = body;
 
     if (!name) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
@@ -109,7 +112,16 @@ export async function POST(request: NextRequest) {
         postal_code,
         country: country || 'FR',
         vat_number,
-        payment_terms: payment_terms || 30,
+        siren,
+        siret,
+        naf_code,
+        activite,
+        mode_reglement: mode_reglement || 'virement',
+        delai_paiement: delai_paiement || 30,
+        iban,
+        bic,
+        banque,
+        notes,
       })
       .select()
       .single();

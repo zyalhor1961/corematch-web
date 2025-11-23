@@ -153,6 +153,11 @@ export async function GET(request: NextRequest) {
           'list_cvs',
           'get_overview_stats',
           'search_documents',
+          'erp_list_bank_transactions',
+          'erp_get_reconciliation_stats',
+          'erp_unmatched_transactions',
+          'erp_get_lettrage_stats',
+          'erp_unlettred_entries',
         ],
       },
     });

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DateInput } from '@/components/ui/date-input';
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import {
   XCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/erp/formatters';
 
 interface JournalLine {
   id: string;
@@ -76,9 +78,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
-}
 
 function getStatusBadge(status: string) {
   const statusMap: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
@@ -418,21 +417,18 @@ export default function AccountingPage() {
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-400" />
-            <Input
-              type="date"
+            <DateInput
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-[150px] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+              onChange={(value) => setDateFrom(value)}
               placeholder="Du"
+              className="w-[160px]"
             />
             <span className="text-gray-400">-</span>
-            <Input
-              type="date"
+            <DateInput
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-[150px] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+              onChange={(value) => setDateTo(value)}
               placeholder="Au"
+              className="w-[160px]"
             />
           </div>
           {(journalFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo) && (

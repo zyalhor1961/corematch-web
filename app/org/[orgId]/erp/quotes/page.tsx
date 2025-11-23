@@ -27,6 +27,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/erp/formatters';
 
 interface Quote {
   id: string;
@@ -50,10 +51,6 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
 }
 
 function getStatusBadge(status: string) {

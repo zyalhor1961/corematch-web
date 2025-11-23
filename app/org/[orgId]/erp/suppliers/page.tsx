@@ -5,6 +5,20 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -40,12 +54,31 @@ interface Supplier {
   postal_code?: string;
   country?: string;
   vat_number?: string;
-  payment_terms?: number;
+  siren?: string;
+  siret?: string;
+  naf_code?: string;
+  activite?: string;
+  mode_reglement?: string;
+  delai_paiement?: number;
+  iban?: string;
+  bic?: string;
+  banque?: string;
+  notes?: string;
   total_purchased: number;
   total_outstanding: number;
   invoice_count: number;
   created_at: string;
 }
+
+const MODES_REGLEMENT = [
+  { value: 'virement', label: 'Virement bancaire' },
+  { value: 'cheque', label: 'Chèque' },
+  { value: 'cb', label: 'Carte bancaire' },
+  { value: 'especes', label: 'Espèces' },
+  { value: 'prelevement', label: 'Prélèvement automatique' },
+  { value: 'lcr', label: 'LCR' },
+  { value: 'traite', label: 'Traite' },
+];
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -86,6 +119,16 @@ export default function SuppliersPage() {
     city: '',
     postal_code: '',
     vat_number: '',
+    siren: '',
+    siret: '',
+    naf_code: '',
+    activite: '',
+    mode_reglement: 'virement',
+    delai_paiement: 30,
+    iban: '',
+    bic: '',
+    banque: '',
+    notes: '',
   });
 
   async function fetchSuppliers() {
@@ -133,7 +176,11 @@ export default function SuppliersPage() {
       if (!res.ok) throw new Error('Failed to create supplier');
 
       setDialogOpen(false);
-      setNewSupplier({ name: '', email: '', phone: '', company_name: '', address: '', city: '', postal_code: '', vat_number: '' });
+      setNewSupplier({
+        name: '', email: '', phone: '', company_name: '', address: '', city: '', postal_code: '', vat_number: '',
+        siren: '', siret: '', naf_code: '', activite: '', mode_reglement: 'virement', delai_paiement: 30,
+        iban: '', bic: '', banque: '', notes: ''
+      });
       fetchSuppliers();
     } catch (err) {
       console.error('Error creating supplier:', err);
@@ -182,7 +229,7 @@ export default function SuppliersPage() {
               Nouveau fournisseur
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <DialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 max-w-2xl max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleCreateSupplier}>
               <DialogHeader>
                 <DialogTitle className="text-gray-900 dark:text-white">Nouveau fournisseur</DialogTitle>
@@ -190,63 +237,227 @@ export default function SuppliersPage() {
                   Ajoutez un nouveau fournisseur à votre carnet
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">Nom *</Label>
-                  <Input
-                    id="name"
-                    value={newSupplier.name}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
-                    placeholder="Nom du contact"
-                    required
-                    className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="company" className="text-gray-700 dark:text-gray-300">Entreprise</Label>
-                  <Input
-                    id="company"
-                    value={newSupplier.company_name}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, company_name: e.target.value })}
-                    placeholder="Nom de l'entreprise"
-                    className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+
+              <Tabs defaultValue="general" className="mt-4">
+                <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-700">
+                  <TabsTrigger value="general" className="text-gray-700 dark:text-gray-300">Général</TabsTrigger>
+                  <TabsTrigger value="legal" className="text-gray-700 dark:text-gray-300">Légal</TabsTrigger>
+                  <TabsTrigger value="bank" className="text-gray-700 dark:text-gray-300">Bancaire</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="general" className="space-y-4 mt-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
+                    <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">Nom du contact *</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      value={newSupplier.email}
-                      onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
-                      placeholder="contact@fournisseur.com"
+                      id="name"
+                      value={newSupplier.name}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                      placeholder="Jean Dupont"
+                      required
                       className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="phone" className="text-gray-700 dark:text-gray-300">Téléphone</Label>
+                    <Label htmlFor="company" className="text-gray-700 dark:text-gray-300">Raison sociale</Label>
                     <Input
-                      id="phone"
-                      value={newSupplier.phone}
-                      onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
-                      placeholder="+33 1 23 45 67 89"
+                      id="company"
+                      value={newSupplier.company_name}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, company_name: e.target.value })}
+                      placeholder="Entreprise SAS"
                       className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="vat" className="text-gray-700 dark:text-gray-300">N° TVA</Label>
-                  <Input
-                    id="vat"
-                    value={newSupplier.vat_number}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, vat_number: e.target.value })}
-                    placeholder="FR12345678901"
-                    className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newSupplier.email}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
+                        placeholder="contact@fournisseur.com"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="phone" className="text-gray-700 dark:text-gray-300">Téléphone</Label>
+                      <Input
+                        id="phone"
+                        value={newSupplier.phone}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
+                        placeholder="+33 1 23 45 67 89"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="address" className="text-gray-700 dark:text-gray-300">Adresse</Label>
+                    <Input
+                      id="address"
+                      value={newSupplier.address}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })}
+                      placeholder="123 rue du Commerce"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="postal_code" className="text-gray-700 dark:text-gray-300">Code postal</Label>
+                      <Input
+                        id="postal_code"
+                        value={newSupplier.postal_code}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, postal_code: e.target.value })}
+                        placeholder="75001"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="city" className="text-gray-700 dark:text-gray-300">Ville</Label>
+                      <Input
+                        id="city"
+                        value={newSupplier.city}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, city: e.target.value })}
+                        placeholder="Paris"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={newSupplier.notes}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, notes: e.target.value })}
+                      placeholder="Notes sur le fournisseur..."
+                      rows={2}
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="legal" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="siren" className="text-gray-700 dark:text-gray-300">SIREN</Label>
+                      <Input
+                        id="siren"
+                        value={newSupplier.siren}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, siren: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                        placeholder="123456789"
+                        maxLength={9}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="siret" className="text-gray-700 dark:text-gray-300">SIRET</Label>
+                      <Input
+                        id="siret"
+                        value={newSupplier.siret}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, siret: e.target.value.replace(/\D/g, '').slice(0, 14) })}
+                        placeholder="12345678900001"
+                        maxLength={14}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="vat" className="text-gray-700 dark:text-gray-300">N° TVA intracommunautaire</Label>
+                      <Input
+                        id="vat"
+                        value={newSupplier.vat_number}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, vat_number: e.target.value })}
+                        placeholder="FR12345678901"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="naf" className="text-gray-700 dark:text-gray-300">Code NAF/APE</Label>
+                      <Input
+                        id="naf"
+                        value={newSupplier.naf_code}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, naf_code: e.target.value })}
+                        placeholder="6201Z"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="activite" className="text-gray-700 dark:text-gray-300">Activité</Label>
+                    <Input
+                      id="activite"
+                      value={newSupplier.activite}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, activite: e.target.value })}
+                      placeholder="Programmation informatique"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="mode_reglement" className="text-gray-700 dark:text-gray-300">Mode de règlement</Label>
+                      <Select value={newSupplier.mode_reglement} onValueChange={(v) => setNewSupplier({ ...newSupplier, mode_reglement: v })}>
+                        <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                          {MODES_REGLEMENT.map((mode) => (
+                            <SelectItem key={mode.value} value={mode.value} className="text-gray-900 dark:text-white">
+                              {mode.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="delai" className="text-gray-700 dark:text-gray-300">Délai de paiement (jours)</Label>
+                      <Input
+                        id="delai"
+                        type="number"
+                        min={0}
+                        value={newSupplier.delai_paiement}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, delai_paiement: parseInt(e.target.value) || 30 })}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="bank" className="space-y-4 mt-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="banque" className="text-gray-700 dark:text-gray-300">Banque</Label>
+                    <Input
+                      id="banque"
+                      value={newSupplier.banque}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, banque: e.target.value })}
+                      placeholder="BNP Paribas"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="iban" className="text-gray-700 dark:text-gray-300">IBAN</Label>
+                    <Input
+                      id="iban"
+                      value={newSupplier.iban}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, iban: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
+                      placeholder="FR7630004000031234567890143"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bic" className="text-gray-700 dark:text-gray-300">BIC/SWIFT</Label>
+                    <Input
+                      id="bic"
+                      value={newSupplier.bic}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, bic: e.target.value.toUpperCase() })}
+                      placeholder="BNPAFRPP"
+                      maxLength={11}
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-mono"
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
                   Annuler
                 </Button>

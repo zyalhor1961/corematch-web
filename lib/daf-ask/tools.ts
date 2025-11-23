@@ -712,6 +712,12 @@ export async function executeTool(
     case 'erp_get_cashflow':
     case 'erp_top_clients':
     case 'erp_top_suppliers':
+    // Bank Reconciliation & Lettrage Tools
+    case 'erp_list_bank_transactions':
+    case 'erp_get_reconciliation_stats':
+    case 'erp_unmatched_transactions':
+    case 'erp_get_lettrage_stats':
+    case 'erp_unlettred_entries':
       return await executeERPTool(toolName, args, supabase, orgId);
 
     default:

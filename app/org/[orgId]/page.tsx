@@ -23,7 +23,11 @@ import {
   Sparkles,
   Receipt,
   Wallet,
-  Building2
+  Building2,
+  Lightbulb,
+  Bell,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 
 // Define types for our data to ensure type safety
@@ -232,13 +236,116 @@ export default function OrganizationOverview() {
         </div>
       </div>
 
+      {/* AI Daily Briefing */}
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 p-6 rounded-lg shadow-sm border border-purple-100 dark:border-purple-800/30">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Briefing du jour</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline" size="sm" className="border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/30">
+            <Link href={`/org/${orgId}/daf?tab=ask`}>
+              <Sparkles className="w-4 h-4 mr-2 text-purple-600" />
+              Demander à l'IA
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Quick Actions */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Actions suggérées</h3>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <Link href={`/org/${orgId}/erp/invoices`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+                  <ChevronRight className="w-3 h-3" />
+                  Vérifier les factures en attente
+                </Link>
+              </li>
+              <li>
+                <Link href={`/org/${orgId}/daf`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+                  <ChevronRight className="w-3 h-3" />
+                  Traiter les documents récents
+                </Link>
+              </li>
+              <li>
+                <Link href={`/org/${orgId}/erp/bank`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+                  <ChevronRight className="w-3 h-3" />
+                  Rapprocher les transactions
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Alerts */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="w-4 h-4 text-blue-500" />
+              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Alertes</h3>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2">
+                <span className="w-2 h-2 bg-amber-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                <span className="text-gray-600 dark:text-gray-400">Quota CV: {stats.analyzedCandidates}/{quotaLimits.cv === Infinity ? '∞' : quotaLimits.cv} utilisé</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                <span className="text-gray-600 dark:text-gray-400">{stats.documentCount} documents traités</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-2 h-2 bg-blue-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                <span className="text-gray-600 dark:text-gray-400">{stats.projectCount} projet{stats.projectCount > 1 ? 's' : ''} actif{stats.projectCount > 1 ? 's' : ''}</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Quick Ask */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarDays className="w-4 h-4 text-green-500" />
+              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Questions rapides</h3>
+            </div>
+            <div className="space-y-2">
+              <Link
+                href={`/org/${orgId}/daf?tab=ask&q=Donne moi les factures non réglées`}
+                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
+              >
+                → Factures non réglées
+              </Link>
+              <Link
+                href={`/org/${orgId}/daf?tab=ask&q=Résumé de mon activité ce mois`}
+                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
+              >
+                → Résumé du mois
+              </Link>
+              <Link
+                href={`/org/${orgId}/daf?tab=ask&q=Quels sont mes principaux clients ?`}
+                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
+              >
+                → Mes principaux clients
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ERP Quick Access */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-sm border border-blue-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Receipt className="w-5 h-5 text-blue-600" />
-              Mini-ERP
+              Core ERP
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">Gérez votre facturation et comptabilité</p>
           </div>

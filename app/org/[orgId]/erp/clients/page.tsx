@@ -7,6 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +54,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/erp/formatters';
 
 interface Client {
   id: string;
@@ -48,11 +63,36 @@ interface Client {
   phone?: string;
   company_name?: string;
   category?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  vat_number?: string;
+  siren?: string;
+  siret?: string;
+  naf_code?: string;
+  activite?: string;
+  mode_reglement?: string;
+  delai_paiement?: number;
+  iban?: string;
+  bic?: string;
+  banque?: string;
+  notes?: string;
   total_invoiced: number;
   total_outstanding: number;
   invoice_count: number;
   created_at: string;
 }
+
+const MODES_REGLEMENT = [
+  { value: 'virement', label: 'Virement bancaire' },
+  { value: 'cheque', label: 'Chèque' },
+  { value: 'cb', label: 'Carte bancaire' },
+  { value: 'especes', label: 'Espèces' },
+  { value: 'prelevement', label: 'Prélèvement automatique' },
+  { value: 'lcr', label: 'LCR' },
+  { value: 'traite', label: 'Traite' },
+];
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -63,9 +103,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
-}
 
 export default function ClientsPage() {
   const params = useParams();
@@ -93,6 +130,20 @@ export default function ClientsPage() {
     email: '',
     phone: '',
     company_name: '',
+    address: '',
+    city: '',
+    postal_code: '',
+    vat_number: '',
+    siren: '',
+    siret: '',
+    naf_code: '',
+    activite: '',
+    mode_reglement: 'virement',
+    delai_paiement: 30,
+    iban: '',
+    bic: '',
+    banque: '',
+    notes: '',
   });
 
   async function fetchClients() {
@@ -140,7 +191,11 @@ export default function ClientsPage() {
       if (!res.ok) throw new Error('Failed to create client');
 
       setDialogOpen(false);
-      setNewClient({ name: '', email: '', phone: '', company_name: '' });
+      setNewClient({
+        name: '', email: '', phone: '', company_name: '', address: '', city: '', postal_code: '', vat_number: '',
+        siren: '', siret: '', naf_code: '', activite: '', mode_reglement: 'virement', delai_paiement: 30,
+        iban: '', bic: '', banque: '', notes: ''
+      });
       fetchClients();
     } catch (err) {
       console.error('Error creating client:', err);
@@ -189,59 +244,239 @@ export default function ClientsPage() {
               Nouveau client
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 max-w-2xl max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleCreateClient}>
               <DialogHeader>
-                <DialogTitle>Nouveau client</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-gray-900 dark:text-white">Nouveau client</DialogTitle>
+                <DialogDescription className="text-gray-600 dark:text-gray-400">
                   Ajoutez un nouveau client à votre carnet d'adresses
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Nom *</Label>
-                  <Input
-                    id="name"
-                    value={newClient.name}
-                    onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                    placeholder="Jean Dupont"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="company">Entreprise</Label>
-                  <Input
-                    id="company"
-                    value={newClient.company_name}
-                    onChange={(e) => setNewClient({ ...newClient, company_name: e.target.value })}
-                    placeholder="Acme Inc."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newClient.email}
-                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                    placeholder="jean@example.com"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Téléphone</Label>
-                  <Input
-                    id="phone"
-                    value={newClient.phone}
-                    onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                    placeholder="+33 6 12 34 56 78"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+
+              <Tabs defaultValue="general" className="mt-4">
+                <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-700">
+                  <TabsTrigger value="general" className="text-gray-700 dark:text-gray-300">Général</TabsTrigger>
+                  <TabsTrigger value="legal" className="text-gray-700 dark:text-gray-300">Légal</TabsTrigger>
+                  <TabsTrigger value="bank" className="text-gray-700 dark:text-gray-300">Bancaire</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="general" className="space-y-4 mt-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">Nom du contact *</Label>
+                    <Input
+                      id="name"
+                      value={newClient.name}
+                      onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                      placeholder="Jean Dupont"
+                      required
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="company" className="text-gray-700 dark:text-gray-300">Raison sociale</Label>
+                    <Input
+                      id="company"
+                      value={newClient.company_name}
+                      onChange={(e) => setNewClient({ ...newClient, company_name: e.target.value })}
+                      placeholder="Entreprise SAS"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newClient.email}
+                        onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                        placeholder="contact@client.com"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="phone" className="text-gray-700 dark:text-gray-300">Téléphone</Label>
+                      <Input
+                        id="phone"
+                        value={newClient.phone}
+                        onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                        placeholder="+33 6 12 34 56 78"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="address" className="text-gray-700 dark:text-gray-300">Adresse</Label>
+                    <Input
+                      id="address"
+                      value={newClient.address}
+                      onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
+                      placeholder="123 rue du Commerce"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="postal_code" className="text-gray-700 dark:text-gray-300">Code postal</Label>
+                      <Input
+                        id="postal_code"
+                        value={newClient.postal_code}
+                        onChange={(e) => setNewClient({ ...newClient, postal_code: e.target.value })}
+                        placeholder="75001"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="city" className="text-gray-700 dark:text-gray-300">Ville</Label>
+                      <Input
+                        id="city"
+                        value={newClient.city}
+                        onChange={(e) => setNewClient({ ...newClient, city: e.target.value })}
+                        placeholder="Paris"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={newClient.notes}
+                      onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
+                      placeholder="Notes sur le client..."
+                      rows={2}
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="legal" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="siren" className="text-gray-700 dark:text-gray-300">SIREN</Label>
+                      <Input
+                        id="siren"
+                        value={newClient.siren}
+                        onChange={(e) => setNewClient({ ...newClient, siren: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                        placeholder="123456789"
+                        maxLength={9}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="siret" className="text-gray-700 dark:text-gray-300">SIRET</Label>
+                      <Input
+                        id="siret"
+                        value={newClient.siret}
+                        onChange={(e) => setNewClient({ ...newClient, siret: e.target.value.replace(/\D/g, '').slice(0, 14) })}
+                        placeholder="12345678900001"
+                        maxLength={14}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="vat" className="text-gray-700 dark:text-gray-300">N° TVA intracommunautaire</Label>
+                      <Input
+                        id="vat"
+                        value={newClient.vat_number}
+                        onChange={(e) => setNewClient({ ...newClient, vat_number: e.target.value })}
+                        placeholder="FR12345678901"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="naf" className="text-gray-700 dark:text-gray-300">Code NAF/APE</Label>
+                      <Input
+                        id="naf"
+                        value={newClient.naf_code}
+                        onChange={(e) => setNewClient({ ...newClient, naf_code: e.target.value })}
+                        placeholder="6201Z"
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="activite" className="text-gray-700 dark:text-gray-300">Activité</Label>
+                    <Input
+                      id="activite"
+                      value={newClient.activite}
+                      onChange={(e) => setNewClient({ ...newClient, activite: e.target.value })}
+                      placeholder="Programmation informatique"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="mode_reglement" className="text-gray-700 dark:text-gray-300">Mode de règlement</Label>
+                      <Select value={newClient.mode_reglement} onValueChange={(v) => setNewClient({ ...newClient, mode_reglement: v })}>
+                        <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                          {MODES_REGLEMENT.map((mode) => (
+                            <SelectItem key={mode.value} value={mode.value} className="text-gray-900 dark:text-white">
+                              {mode.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="delai" className="text-gray-700 dark:text-gray-300">Délai de paiement (jours)</Label>
+                      <Input
+                        id="delai"
+                        type="number"
+                        min={0}
+                        value={newClient.delai_paiement}
+                        onChange={(e) => setNewClient({ ...newClient, delai_paiement: parseInt(e.target.value) || 30 })}
+                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="bank" className="space-y-4 mt-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="banque" className="text-gray-700 dark:text-gray-300">Banque</Label>
+                    <Input
+                      id="banque"
+                      value={newClient.banque}
+                      onChange={(e) => setNewClient({ ...newClient, banque: e.target.value })}
+                      placeholder="BNP Paribas"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="iban" className="text-gray-700 dark:text-gray-300">IBAN</Label>
+                    <Input
+                      id="iban"
+                      value={newClient.iban}
+                      onChange={(e) => setNewClient({ ...newClient, iban: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
+                      placeholder="FR7630004000031234567890143"
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bic" className="text-gray-700 dark:text-gray-300">BIC/SWIFT</Label>
+                    <Input
+                      id="bic"
+                      value={newClient.bic}
+                      onChange={(e) => setNewClient({ ...newClient, bic: e.target.value.toUpperCase() })}
+                      placeholder="BNPAFRPP"
+                      maxLength={11}
+                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-mono"
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
                   Annuler
                 </Button>
-                <Button type="submit" disabled={saving || !newClient.name.trim()}>
+                <Button type="submit" disabled={saving || !newClient.name.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
                   {saving ? 'Création...' : 'Créer le client'}
                 </Button>
               </DialogFooter>

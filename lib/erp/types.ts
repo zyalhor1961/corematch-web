@@ -1,5 +1,5 @@
 /**
- * Mini-ERP Types
+ * Core ERP Types
  * TypeScript types for all ERP entities
  */
 

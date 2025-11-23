@@ -12,6 +12,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useState } from 'react';
+import { formatDate } from '@/lib/erp/formatters';
 
 interface JournalLine {
   id: string;
@@ -49,10 +50,6 @@ function formatCurrency(amount: number): string {
     currency: 'EUR',
     minimumFractionDigits: 2,
   }).format(amount);
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
 }
 
 function getStatusConfig(status: string) {

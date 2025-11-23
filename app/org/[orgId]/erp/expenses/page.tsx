@@ -35,12 +35,16 @@ import {
   Building2
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/erp/formatters';
+import { DateInput } from '@/components/ui/date-input';
 
 interface Expense {
   id: string;
   description: string;
   amount: number;
+  amount_ht?: number;
   vat_amount: number;
+  vat_rate?: number;
   category: string;
   expense_date: string;
   payment_method?: string;
@@ -48,7 +52,6 @@ interface Expense {
   supplier?: {
     id: string;
     name: string;
-    company_name?: string;
   };
 }
 
@@ -74,9 +77,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR');
-}
 
 function getCategoryLabel(value: string): string {
   return categories.find(c => c.value === value)?.label || value;
@@ -117,13 +117,49 @@ export default function ExpensesPage() {
 
   const [newExpense, setNewExpense] = useState({
     description: '',
-    amount: '',
+    amount_ht: '',
+    vat_rate: '20',
     vat_amount: '',
     category: 'other',
     expense_date: new Date().toISOString().split('T')[0],
     payment_method: 'card',
     reference: '',
   });
+
+  // Calcul automatique TVA et TTC
+  const calculatedVat = newExpense.amount_ht && newExpense.vat_rate
+    ? (parseFloat(newExpense.amount_ht) * parseFloat(newExpense.vat_rate) / 100).toFixed(2)
+    : '0.00';
+
+  const displayVat = newExpense.vat_amount || calculatedVat;
+
+  const calculatedTTC = newExpense.amount_ht
+    ? (parseFloat(newExpense.amount_ht) + parseFloat(displayVat)).toFixed(2)
+    : '0.00';
+
+  // Handler pour recalculer quand on change HT ou taux
+  const handleHTChange = (value: string) => {
+    setNewExpense({
+      ...newExpense,
+      amount_ht: value,
+      vat_amount: '', // Reset pour recalculer
+    });
+  };
+
+  const handleVatRateChange = (value: string) => {
+    setNewExpense({
+      ...newExpense,
+      vat_rate: value,
+      vat_amount: '', // Reset pour recalculer
+    });
+  };
+
+  const handleVatAmountChange = (value: string) => {
+    setNewExpense({
+      ...newExpense,
+      vat_amount: value, // Saisie manuelle de la TVA
+    });
+  };
 
   async function fetchExpenses() {
     setLoading(true);
@@ -156,7 +192,7 @@ export default function ExpensesPage() {
 
   async function handleCreateExpense(e: React.FormEvent) {
     e.preventDefault();
-    if (!newExpense.description.trim() || !newExpense.amount) return;
+    if (!newExpense.description.trim() || !newExpense.amount_ht) return;
 
     setSaving(true);
     try {
@@ -165,18 +201,27 @@ export default function ExpensesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           org_id: orgId,
-          ...newExpense,
-          amount: parseFloat(newExpense.amount) || 0,
-          vat_amount: parseFloat(newExpense.vat_amount) || 0,
+          description: newExpense.description,
+          amount_ht: parseFloat(newExpense.amount_ht) || 0,
+          vat_rate: parseFloat(newExpense.vat_rate) || 20,
+          vat_amount: parseFloat(displayVat) || 0,
+          category: newExpense.category,
+          expense_date: newExpense.expense_date,
+          payment_method: newExpense.payment_method,
+          reference: newExpense.reference,
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to create expense');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to create expense');
+      }
 
       setDialogOpen(false);
       setNewExpense({
         description: '',
-        amount: '',
+        amount_ht: '',
+        vat_rate: '20',
         vat_amount: '',
         category: 'other',
         expense_date: new Date().toISOString().split('T')[0],
@@ -184,8 +229,9 @@ export default function ExpensesPage() {
         reference: '',
       });
       fetchExpenses();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating expense:', err);
+      alert('Erreur: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -251,31 +297,56 @@ export default function ExpensesPage() {
                     className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                   />
                 </div>
+                {/* Montant HT */}
+                <div className="grid gap-2">
+                  <Label htmlFor="amount_ht" className="text-gray-700 dark:text-gray-300">Montant HT *</Label>
+                  <Input
+                    id="amount_ht"
+                    type="number"
+                    step="0.01"
+                    value={newExpense.amount_ht}
+                    onChange={(e) => handleHTChange(e.target.value)}
+                    placeholder="0.00"
+                    required
+                    className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {/* TVA: Taux et Montant */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="amount" className="text-gray-700 dark:text-gray-300">Montant TTC *</Label>
+                    <Label htmlFor="vat_rate" className="text-gray-700 dark:text-gray-300">Taux TVA (%)</Label>
+                    <Select value={newExpense.vat_rate} onValueChange={handleVatRateChange}>
+                      <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                        <SelectItem value="0" className="text-gray-900 dark:text-white">0% (Exonéré)</SelectItem>
+                        <SelectItem value="5.5" className="text-gray-900 dark:text-white">5.5% (Réduit)</SelectItem>
+                        <SelectItem value="10" className="text-gray-900 dark:text-white">10% (Intermédiaire)</SelectItem>
+                        <SelectItem value="20" className="text-gray-900 dark:text-white">20% (Normal)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="vat_amount" className="text-gray-700 dark:text-gray-300">Montant TVA</Label>
                     <Input
-                      id="amount"
+                      id="vat_amount"
                       type="number"
                       step="0.01"
-                      value={newExpense.amount}
-                      onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                      value={displayVat}
+                      onChange={(e) => handleVatAmountChange(e.target.value)}
                       placeholder="0.00"
-                      required
                       className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="vat" className="text-gray-700 dark:text-gray-300">TVA</Label>
-                    <Input
-                      id="vat"
-                      type="number"
-                      step="0.01"
-                      value={newExpense.vat_amount}
-                      onChange={(e) => setNewExpense({ ...newExpense, vat_amount: e.target.value })}
-                      placeholder="0.00"
-                      className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                    />
+                </div>
+
+                {/* Total TTC (calculé) */}
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total TTC</span>
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(parseFloat(calculatedTTC) || 0)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -296,11 +367,10 @@ export default function ExpensesPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="date" className="text-gray-700 dark:text-gray-300">Date</Label>
-                    <Input
+                    <DateInput
                       id="date"
-                      type="date"
                       value={newExpense.expense_date}
-                      onChange={(e) => setNewExpense({ ...newExpense, expense_date: e.target.value })}
+                      onChange={(value) => setNewExpense({ ...newExpense, expense_date: value })}
                       className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
@@ -336,7 +406,7 @@ export default function ExpensesPage() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
                   Annuler
                 </Button>
-                <Button type="submit" disabled={saving || !newExpense.description.trim() || !newExpense.amount} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button type="submit" disabled={saving || !newExpense.description.trim() || !newExpense.amount_ht} className="bg-blue-600 hover:bg-blue-700 text-white">
                   {saving ? 'Création...' : 'Créer'}
                 </Button>
               </DialogFooter>

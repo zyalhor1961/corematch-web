@@ -9,7 +9,10 @@ import {
   ShoppingCart,
   Receipt,
   BookOpen,
-  ArrowRight
+  Landmark,
+  Link2,
+  ArrowRight,
+  ListTree,
 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/erp/formatters';
 import type { ModuleStats } from '@/lib/erp/queries';
@@ -155,12 +158,45 @@ export function ERPModuleGrid({ orgId, stats, loading = false }: ERPModuleGridPr
       stat2Label: 'Journaux',
       stat2Value: '4',
     },
+    {
+      title: 'Banque',
+      description: 'Rapprochement bancaire intelligent',
+      href: `/org/${orgId}/erp/bank`,
+      icon: <Landmark className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />,
+      iconBg: 'bg-cyan-100 dark:bg-cyan-900/30',
+      stat1Label: 'Transactions',
+      stat1Value: '-',
+      stat2Label: 'Non rapprochées',
+      stat2Value: '-',
+    },
+    {
+      title: 'Lettrage',
+      description: 'Rapprocher écritures 411/401',
+      href: `/org/${orgId}/erp/lettrage`,
+      icon: <Link2 className="h-6 w-6 text-violet-600 dark:text-violet-400" />,
+      iconBg: 'bg-violet-100 dark:bg-violet-900/30',
+      stat1Label: 'Non lettrées',
+      stat1Value: '-',
+      stat2Label: 'Solde',
+      stat2Value: '-',
+    },
+    {
+      title: 'Plan Comptable',
+      description: 'PCG 2025 - Gérer les comptes',
+      href: `/org/${orgId}/erp/chart-of-accounts`,
+      icon: <ListTree className="h-6 w-6 text-amber-600 dark:text-amber-400" />,
+      iconBg: 'bg-amber-100 dark:bg-amber-900/30',
+      stat1Label: 'Comptes PCG',
+      stat1Value: '387',
+      stat2Label: 'Personnalisés',
+      stat2Value: '-',
+    },
   ];
 
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
           <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse mb-4" />
             <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />

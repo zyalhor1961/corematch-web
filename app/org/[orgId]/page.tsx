@@ -102,14 +102,73 @@ export default function OrganizationDashboard() {
         </div>
       </div>
 
-      {/* Action Cards (Horizontal Scroll) */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
+      {/* KPI Cards (Workspaces) */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">CV analysés</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">124</h3>
+              <p className="text-xs text-green-600 mt-1 flex items-center"><ArrowUpRight className="w-3 h-3 mr-1" /> +12% ce mois</p>
+            </div>
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600">
+              <Users className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pages DEB</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">850</h3>
+              <p className="text-xs text-gray-500 mt-1">Octobre 2024</p>
+            </div>
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-600">
+              <FileText className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Projets CV</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">3</h3>
+              <p className="text-xs text-blue-600 mt-1">1 actif</p>
+            </div>
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600">
+              <Briefcase className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Docs DEB</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">12</h3>
+              <p className="text-xs text-orange-600 mt-1">2 à valider</p>
+            </div>
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-orange-600">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Briefing du jour & Quick Questions */}
+      <section className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-purple-500" />
-            Actions Suggérées
+            Briefing du jour
           </h2>
-          <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Voir tout</button>
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+            {['Factures non réglées ?', 'Dépenses 2024 ?', 'CV reçus ce mois ?'].map((q, i) => (
+              <button key={i} className="whitespace-nowrap px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full border border-purple-100 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Card 1 */}

@@ -115,32 +115,23 @@ export default function OrganizationLayout({
 
   const roleShortcuts = organization ? getRoleShortcuts(organization.role) : [];
 
-  // Navigation structure with sections
+  // Navigation structure (Flattened as per spec)
   const navigationSections = [
     {
-      title: 'Espace Intelligent',
+      title: 'Workspaces',
       icon: Sparkles,
       items: [
-        { name: 'Recrutement IA', href: `/org/${orgId}/cv`, icon: Users, aiPowered: true },
-        { name: 'Assistant DAF', href: `/org/${orgId}/daf`, icon: FileText, aiPowered: true },
-        { name: 'Déclarations (DEB)', href: `/org/${orgId}/deb`, icon: FileText, aiPowered: true },
+        { name: 'Vue d\'ensemble', href: `/org/${orgId}`, icon: BarChart3 },
+        { name: 'CV Studio', href: `/org/${orgId}/cv`, icon: Users, aiPowered: true },
+        { name: 'DAF Docs', href: `/org/${orgId}/daf`, icon: FileText, aiPowered: true },
+        { name: 'DEB Assistant Pro', href: `/org/${orgId}/deb`, icon: FileText, aiPowered: true },
+        { name: 'Core ERP', href: `/org/${orgId}/erp`, icon: Receipt },
       ],
     },
     {
-      title: 'Gestion',
-      icon: Receipt,
-      items: [
-        { name: 'Pilotage', href: `/org/${orgId}/erp`, icon: BarChart3 },
-        { name: 'Clients', href: `/org/${orgId}/erp/clients`, icon: Users },
-        { name: 'Fournisseurs', href: `/org/${orgId}/erp/suppliers`, icon: Building2 },
-        { name: 'Factures', href: `/org/${orgId}/erp/invoices`, icon: FileText },
-      ],
-    },
-    {
-      title: 'Configuration',
+      title: 'Paramètres',
       icon: Settings,
       items: [
-        { name: 'Abonnement', href: `/org/${orgId}/billing`, icon: CreditCard },
         { name: 'Paramètres', href: `/org/${orgId}/settings`, icon: Settings },
       ],
     },

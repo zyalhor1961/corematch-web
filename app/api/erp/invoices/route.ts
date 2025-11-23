@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         *,
         client:erp_clients(id, name, email, company_name)
       `, { count: 'exact' })
-      .eq('org_id', orgId)
+      // .eq('org_id', orgId)
       .order('invoice_date', { ascending: false })
       .range(offset, offset + limit - 1);
 

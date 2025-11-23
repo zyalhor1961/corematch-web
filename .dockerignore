@@ -1,0 +1,32 @@
+# Ignore node_modules
+node_modules
+npm-debug.log
+
+# Ignore .next build output
+.next
+
+# Ignore .env files (secrets should be set in Railway)
+.env
+.env.local
+.env*.local
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore IDE
+.vscode
+.idea
+
+# Ignore Python service (deployed separately)
+python-service
+
+# Ignore documentation
+*.md
+!README.md
+
+# Ignore test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx

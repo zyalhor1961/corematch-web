@@ -85,6 +85,12 @@
   --color-cm-surface: var(--cm-surface);
   --color-cm-bg: var(--cm-bg);
 
+  /* Nebula Theme Colors */
+  --color-deep-void: #020617;
+  --color-navy-glass: #0F172A;
+  --color-neon-teal: #00B4D8;
+  --color-agent-purple: #A78BFA;
+
   --radius-card: var(--cm-card-radius);
 
   --font-sans: var(--font-geist-sans);

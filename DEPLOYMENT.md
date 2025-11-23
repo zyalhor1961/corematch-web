@@ -1,355 +1,243 @@
-# Guide de déploiement CoreMatch
+# Production Deployment Guide
 
-Ce guide vous accompagne dans le déploiement de CoreMatch en production.
+## Overview
+This guide covers deploying CoreMatch OS to production using Railway for both the Next.js frontend and Python Brain microservice.
 
-## 📋 Checklist pré-déploiement
+## Architecture
 
-- [ ] Comptes créés (Supabase, Stripe, OpenAI, Azure, Vercel)
-- [ ] Domaine configuré (DNS pointant vers Vercel)
-- [ ] SSL/TLS configuré
-- [ ] Variables d'environnement définies
-- [ ] Base de données migrée
-- [ ] Tests effectués en staging
+```
+┌─────────────────────────┐
+│   Railway Service 1     │
+│   Next.js Frontend      │
+│   Port: 3000            │
+└───────────┬─────────────┘
+            │
+            ├──────────────────────┐
+            │                      │
+            ▼                      ▼
+┌─────────────────────┐  ┌─────────────────────┐
+│   Railway Service 2 │  │   Supabase          │
+│   Python Brain      │  │   Database          │
+│   Port: 8000        │  │   Realtime          │
+└─────────────────────┘  └─────────────────────┘
+```
 
-## 🏗️ Étape 1: Configuration Supabase
+## Prerequisites
 
-### 1.1 Créer le projet
+1. **Railway Account**: Sign up at [railway.app](https://railway.app)
+2. **GitHub Repository**: Push your code to GitHub
+3. **Supabase Project**: Production Supabase instance
+4. **Environment Variables**: Prepare all secrets
+
+## Part 1: Deploy Python Brain Service
+
+### Step 1: Create New Railway Project
+1. Go to [railway.app/new](https://railway.app/new)
+2. Click "Deploy from GitHub repo"
+3. Select your repository
+4. Click "Add variables" before deploying
+
+### Step 2: Configure Python Service
+1. **Root Directory**: Set to `python-service`
+2. **Build Command**: (Auto-detected from Dockerfile)
+3. **Start Command**: (Auto-detected from Dockerfile)
+
+### Step 3: Add Environment Variables
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your_service_role_key_here
+```
+
+### Step 4: Deploy
+1. Click "Deploy"
+2. Wait for build to complete
+3. Railway will assign a URL like: `https://python-service-production-xxxx.up.railway.app`
+4. **Copy this URL** - you'll need it for Next.js
+
+### Step 5: Verify Python Service
 ```bash
-# Via l'interface Supabase
-1. Aller sur https://supabase.com
-2. Créer un nouveau projet
-3. Choisir la région: Europe (eu-west-1)
-4. Attendre la création (2-3 minutes)
+curl https://your-python-service.up.railway.app/
+# Should return: {"status": "CoreMatch Brain is operational 🧠"}
 ```
 
-### 1.2 Exécuter les migrations
-```sql
--- Dans SQL Editor de Supabase, exécuter dans l'ordre :
--- 1. supabase/migrations/001_initial_schema.sql
--- 2. supabase/migrations/002_rls_policies.sql  
--- 3. supabase/migrations/003_indexes_functions.sql
+## Part 2: Deploy Next.js Frontend
+
+### Step 1: Create Second Railway Service
+1. In the same Railway project, click "New Service"
+2. Select "GitHub Repo" again
+3. Choose the same repository
+4. This time, configure for Next.js (root directory)
+
+### Step 2: Configure Next.js Service
+1. **Root Directory**: `.` (root)
+2. **Build Command**: `npm run build`
+3. **Start Command**: `node server.js`
+
+### Step 3: Add Environment Variables
+```env
+# Supabase (Public)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+
+# Python Brain Service (Internal)
+PYTHON_SERVICE_URL=https://your-python-service.up.railway.app
+
+# Other environment variables
+NODE_ENV=production
 ```
 
-### 1.3 Configurer l'authentification
+### Step 4: Deploy
+1. Click "Deploy"
+2. Wait for build (may take 3-5 minutes)
+3. Railway will assign a URL like: `https://corematch-production-xxxx.up.railway.app`
+
+### Step 5: Verify Next.js
+1. Visit your Railway URL
+2. Navigate to an invoice detail page
+3. Click "Analyze" to test the full integration
+
+## Part 3: Custom Domain (Optional)
+
+### For Next.js Service
+1. Go to Railway project → Next.js service → Settings
+2. Click "Generate Domain" or "Custom Domain"
+3. Add your domain: `app.corematch.com`
+4. Update DNS records as instructed
+
+### For Python Service
+1. Usually kept internal (not public)
+2. If needed, add domain: `brain.corematch.com`
+
+## Environment Variables Reference
+
+### Next.js Service
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://xxx.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | `eyJhbGc...` |
+| `PYTHON_SERVICE_URL` | Python Brain URL | `https://brain.railway.app` |
+| `NODE_ENV` | Environment | `production` |
+
+### Python Service
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SUPABASE_URL` | Supabase project URL | `https://xxx.supabase.co` |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key | `eyJhbGc...` |
+
+## Troubleshooting
+
+### Build Fails: "Module not found"
+**Solution**: Check `package.json` includes all dependencies
 ```bash
-# Dans Authentication > Settings
-1. Activer "Enable email confirmations": false (pour simplifier)
-2. Ajouter Google OAuth:
-   - Client ID: from Google Console
-   - Client Secret: from Google Console
-   - Redirect URL: https://your-project.supabase.co/auth/v1/callback
-3. Ajouter Site URL: https://yourdomain.com
+npm install
+npm run build  # Test locally first
 ```
 
-### 1.4 Configurer Storage
+### Python Service: "Supabase connection failed"
+**Solution**: 
+- Verify `SUPABASE_SERVICE_KEY` is the **service role** key (not anon)
+- Check Supabase project is not paused
+- Test connection locally first
+
+### Next.js: "Failed to reach Neural Core"
+**Solution**:
+- Verify `PYTHON_SERVICE_URL` points to Railway Python service
+- Check Python service is deployed and running
+- Test Python service health endpoint
+
+### CORS Errors
+**Solution**: Python service already has CORS configured for production
+```python
+# In main.py - already configured
+allow_origins=["http://localhost:3001", "http://localhost:3000"]
+```
+Update to include your production domain:
+```python
+allow_origins=["https://your-app.railway.app"]
+```
+
+## Monitoring
+
+### Railway Logs
 ```bash
-# Dans Storage, créer 3 buckets PRIVÉS:
-1. cv (pour les CV uploadés)
-2. deb-docs (pour les documents PDF)  
-3. deb-exports (pour les CSV générés)
+# View Next.js logs
+railway logs --service nextjs
 
-# Policies par défaut (buckets privés avec RLS)
+# View Python logs
+railway logs --service python
 ```
 
-## 🎨 Étape 2: Configuration Vercel
+### Supabase Monitoring
+1. Go to Supabase Dashboard
+2. Check "Database" → "Logs"
+3. Monitor `jobs` table for agent activity
 
-### 2.1 Connecter le repository
-```bash
-# Via l'interface Vercel
-1. Aller sur https://vercel.com
-2. Importer le repository GitHub
-3. Framework Preset: Next.js
-4. Build Command: npm run build
-5. Output Directory: .next
-```
+## Scaling
 
-### 2.2 Variables d'environnement
-```bash
-# Dans Project Settings > Environment Variables
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+### Horizontal Scaling
+Railway auto-scales based on traffic. For manual control:
+1. Go to Service → Settings
+2. Adjust "Replicas" (Pro plan required)
 
-OPENAI_API_KEY=sk-proj-xxxxx
+### Database Connection Pooling
+For high traffic, enable Supabase connection pooling:
+1. Supabase Dashboard → Settings → Database
+2. Enable "Connection Pooling"
+3. Use pooled connection string
 
-STRIPE_PUBLIC_KEY=pk_live_xxxxx
-STRIPE_SECRET_KEY=sk_live_xxxxx  
-STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+## Security Checklist
 
-AZURE_DOCINTEL_ENDPOINT=https://xxxxx.cognitiveservices.azure.com/
-AZURE_DOCINTEL_KEY=xxxxx
+- [ ] All secrets in Railway environment variables (not in code)
+- [ ] Supabase RLS policies enabled
+- [ ] CORS configured for production domain
+- [ ] HTTPS enforced (Railway does this automatically)
+- [ ] Service role key never exposed to client
+- [ ] Rate limiting configured (optional)
 
-N8N_WEBHOOK_DEB_INGEST_URL=https://xxxxx.app.n8n.cloud/webhook/deb/ingest
+## Cost Estimation
 
-NEXT_PUBLIC_APP_URL=https://yourdomain.com
-```
+### Railway (Hobby Plan - $5/month)
+- 2 services (Next.js + Python)
+- 500 hours/month execution time
+- Shared CPU/RAM
 
-### 2.3 Domaine personnalisé
-```bash
-# Dans Project Settings > Domains
-1. Ajouter votre domaine: yourdomain.com
-2. Configurer les DNS records chez votre registrar
-3. Attendre la validation SSL (5-10 minutes)
-```
+### Railway (Pro Plan - $20/month)
+- Unlimited services
+- Dedicated resources
+- Custom domains
+- Better performance
 
-## 💳 Étape 3: Configuration Stripe
+### Supabase (Free Tier)
+- 500MB database
+- 1GB file storage
+- 2GB bandwidth
+- Realtime included
 
-### 3.1 Créer les produits
-```bash
-# Via Stripe Dashboard > Products
-1. Produit: CoreMatch Starter
-   - Prix: €49.00 EUR / mois
-   - ID: price_starter_monthly
-   
-2. Produit: CoreMatch Pro  
-   - Prix: €149.00 EUR / mois
-   - ID: price_pro_monthly
-   
-3. Produit: CoreMatch Scale
-   - Prix: €399.00 EUR / mois
-   - ID: price_scale_monthly
-```
+## Next Steps After Deployment
 
-### 3.2 Configurer les webhooks
-```bash
-# Dans Developers > Webhooks > Add endpoint
-Endpoint URL: https://yourdomain.com/api/billing/webhook
+1. **Monitor Performance**: Use Railway metrics
+2. **Set Up Alerts**: Configure Railway notifications
+3. **Add Analytics**: Integrate Vercel Analytics or similar
+4. **Enable Caching**: Add Redis for session management
+5. **CI/CD Pipeline**: Automate deployments with GitHub Actions
 
-Events à sélectionner:
-- checkout.session.completed
-- invoice.payment_succeeded  
-- invoice.payment_failed
-- customer.subscription.updated
-- customer.subscription.deleted
+## Alternative: Vercel Deployment
 
-# Copier le webhook secret dans STRIPE_WEBHOOK_SECRET
-```
+If you prefer Vercel for Next.js:
 
-### 3.3 Activer Customer Portal
-```bash
-# Dans Settings > Billing > Customer Portal
-1. Activer le portail client
-2. Configurer les options:
-   - Allow customers to update payment methods: ✓
-   - Allow customers to update billing details: ✓
-   - Allow customers to view invoices: ✓
-   - Allow customers to cancel subscriptions: ✓
-```
+### Next.js on Vercel
+1. Import GitHub repo to Vercel
+2. Add environment variables
+3. Deploy
 
-## 🤖 Étape 4: Configuration OpenAI
+### Python on Railway
+1. Keep Python service on Railway
+2. Update `PYTHON_SERVICE_URL` in Vercel
 
-### 4.1 Créer la clé API
-```bash
-# Via OpenAI Platform
-1. Aller sur https://platform.openai.com
-2. API Keys > Create new secret key  
-3. Copier dans OPENAI_API_KEY
-4. Configurer les limites de débit (optionnel)
-```
+This hybrid approach works well for Next.js-heavy apps.
 
-## 🧠 Étape 5: Configuration Azure Document Intelligence
+## Support
 
-### 5.1 Créer la ressource
-```bash
-# Via Azure Portal
-1. Créer une ressource > AI + Machine Learning
-2. Form Recognizer / Document Intelligence
-3. Région: West Europe (pour la conformité EU)
-4. Pricing tier: F0 (gratuit) ou S0 (payant)
-```
-
-### 5.2 Récupérer les credentials
-```bash
-# Dans la ressource créée > Keys and Endpoint
-AZURE_DOCINTEL_ENDPOINT=https://xxxxx.cognitiveservices.azure.com/
-AZURE_DOCINTEL_KEY=xxxxx (Key 1)
-```
-
-## 🔄 Étape 6: Configuration n8n (optionnel)
-
-### 6.1 Créer l'instance
-```bash
-# Via n8n.cloud  
-1. Créer un compte sur https://n8n.cloud
-2. Créer une nouvelle instance
-3. Attendre le déploiement
-```
-
-### 6.2 Importer le workflow
-```bash
-# Dans n8n Editor
-1. Importer n8n/workflows/deb-processing.json
-2. Configurer les credentials:
-   - Supabase (HTTP Header Auth avec SERVICE_ROLE_KEY)
-   - OpenAI API Key
-   - Azure Document Intelligence
-3. Activer le workflow
-4. Copier l'URL webhook dans N8N_WEBHOOK_DEB_INGEST_URL
-```
-
-## 🛡️ Étape 7: Configuration DNS et sécurité
-
-### 7.1 Cloudflare (recommandé)
-```bash
-# Configuration DNS
-1. Ajouter le domaine à Cloudflare
-2. Configurer les records:
-   - A record: @ -> Vercel IP
-   - CNAME: www -> yourdomain.com
-3. Proxy status: Orange (proxy activé)
-4. SSL/TLS: Full (strict)
-```
-
-### 7.2 Sécurité supplémentaire
-```bash
-# Dans Cloudflare Security
-1. Security Level: Medium
-2. Challenge Passage: 1 hour  
-3. Browser Integrity Check: On
-4. Hotlink Protection: On
-```
-
-## 🧪 Étape 8: Tests de validation
-
-### 8.1 Tests fonctionnels
-```bash
-# Tester manuellement:
-1. Inscription utilisateur ✓
-2. Création organisation ✓  
-3. Upload CV et analyse ✓
-4. Upload document DEB et traitement ✓
-5. Paiement Stripe ✓
-6. Export CSV ✓
-```
-
-### 8.2 Tests de charge (optionnel)
-```bash
-# Avec Artillery ou équivalent
-1. Test d'authentification (100 users)
-2. Test d'upload CV (50 concurrent)
-3. Test API endpoints
-```
-
-## 📊 Étape 9: Monitoring et observabilité
-
-### 9.1 Dashboards à configurer
-```bash
-# Vercel Analytics (intégré)
-# Supabase Dashboard (DB metrics)
-# Stripe Dashboard (payments)
-# OpenAI Usage Dashboard
-# Azure Portal (Document Intelligence)
-```
-
-### 9.2 Alertes recommandées
-```bash
-1. Erreur 5xx > 5% (Vercel)
-2. Latence DB > 1s (Supabase)
-3. Paiement échoué (Stripe webhook)
-4. Quota OpenAI > 90%
-5. Quota Azure > 90%
-```
-
-## 🔄 Étape 10: Sauvegarde et récupération
-
-### 10.1 Sauvegarde base de données
-```bash
-# Via Supabase CLI (quotidien recommandé)
-supabase db dump --local > backup-$(date +%Y%m%d).sql
-
-# Ou via l'interface Supabase > Settings > Database
-```
-
-### 10.2 Plan de récupération
-```bash
-1. Backup automatique Supabase (7 jours)
-2. Repository Git (code source)
-3. Variables d'environnement documentées
-4. Procédures de rollback Vercel
-```
-
-## 🚀 Déploiement final
-
-### Checklist finale
-```bash
-- [ ] Domaine et SSL fonctionnels
-- [ ] Base de données accessible et migrée  
-- [ ] Authentification testée (email + Google)
-- [ ] Paiements Stripe testés
-- [ ] Upload et traitement CV fonctionnels
-- [ ] Upload et traitement DEB fonctionnels
-- [ ] Webhooks configurés et testés
-- [ ] Monitoring configuré
-- [ ] Sauvegardes configurées
-```
-
-### Mise en production
-```bash
-1. Final deploy sur Vercel
-2. Test complet du funnel utilisateur  
-3. Monitoring des premiers utilisateurs
-4. Documentation mise à jour
-```
-
-## 🆘 Troubleshooting
-
-### Problèmes courants
-
-**1. Erreur CORS**
-```bash
-# Vérifier dans Supabase > Settings > API
-- Site URL: https://yourdomain.com
-- Additional URLs: https://www.yourdomain.com
-```
-
-**2. Webhook Stripe non reçu**  
-```bash
-# Vérifier:
-- URL webhook correcte
-- Secret webhook dans env vars
-- Événements sélectionnés
-- Logs Vercel Functions
-```
-
-**3. Upload files échoue**
-```bash
-# Vérifier:
-- Buckets créés et privés
-- Policies RLS configurées
-- Signed URLs générées correctement
-```
-
-**4. OCR Azure timeout**
-```bash
-# Vérifier:
-- Endpoint et région corrects
-- Quota non dépassé
-- Taille des fichiers < 50MB
-```
-
-### Logs utiles
-```bash
-# Vercel Functions
-vercel logs --tail
-
-# Supabase  
-# Via Dashboard > Logs Explorer
-
-# Stripe
-# Via Dashboard > Events
-
-# n8n
-# Via workflow execution logs
-```
-
-## 📞 Support
-
-En cas de problème:
-1. Vérifier les logs (Vercel, Supabase, Stripe)
-2. Tester en local avec les mêmes env vars  
-3. Consulter la documentation des services
-4. Contacter le support technique
-
----
-
-**✅ Votre application CoreMatch est maintenant prête pour la production !**
+- Railway Docs: https://docs.railway.app
+- Supabase Docs: https://supabase.com/docs
+- Next.js Deployment: https://nextjs.org/docs/deployment

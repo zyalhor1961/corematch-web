@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
+import PageContainer from '@/components/ui/PageContainer';
 import {
   Select,
   SelectContent,
@@ -298,269 +299,275 @@ export default function NewInvoicePage() {
   const prevStep = () => setCurrentStep(curr => Math.max(curr - 1, 1));
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-8">
-      {/* Header & Steps */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <FileText className="h-8 w-8 text-blue-600" />
-              Nouvelle Facture
-            </h1>
-            <p className="text-gray-500 mt-1">Créez une facture en 3 étapes simples</p>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            {restored && <span className="flex items-center gap-1 text-green-600"><RotateCcw className="w-3 h-3" /> Brouillon restauré</span>}
-          </div>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="relative flex justify-between items-center w-full max-w-2xl mx-auto">
-          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 dark:bg-gray-700 -z-10"></div>
-          {STEPS.map((step) => {
-            const Icon = step.icon;
-            const isActive = currentStep >= step.id;
-            const isCurrent = currentStep === step.id;
-            return (
-              <div key={step.id} className="flex flex-col items-center gap-2 bg-background px-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
-                  }`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : 'text-gray-500'}`}>
-                  {step.title}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 animate-in slide-in-from-top-2">
-          <p className="text-red-700 dark:text-red-400 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" /> {error}
-          </p>
-        </div>
-      )}
-
-      {/* Step Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm min-h-[400px] p-8 relative overflow-hidden">
-
-        {/* Step 1: Client & Infos */}
-        {currentStep === 1 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-3">
-                <Label htmlFor="client" className="text-base font-semibold">Client</Label>
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-                    <SelectValue placeholder="Sélectionner un client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name} {client.company_name && `- ${client.company_name}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Sélectionnez le destinataire de la facture</span>
-                  <Link href={`/org/${orgId}/erp/clients?action=new`} className="text-blue-600 hover:underline">+ Nouveau client</Link>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="reference" className="text-base font-semibold flex justify-between">
-                  Référence
-                  {reference && <span className="text-xs font-normal text-blue-600 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Généré par IA</span>}
-                </Label>
-                <Input
-                  id="reference"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                  placeholder="Ex: FACT-2024-001"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="invoiceDate" className="text-base font-semibold">Date d'émission</Label>
-                <DateInput
-                  id="invoiceDate"
-                  value={invoiceDate}
-                  onChange={setInvoiceDate}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="dueDate" className="text-base font-semibold">Date d'échéance</Label>
-                <DateInput
-                  id="dueDate"
-                  value={dueDate}
-                  onChange={setDueDate}
-                />
-              </div>
+    <PageContainer
+      title="Nouvelle Facture"
+      breadcrumbs={[
+        { label: 'Factures', href: `/org/${orgId}/erp/invoices` },
+        { label: 'Nouvelle' }
+      ]}
+    >
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* Header & Steps */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 mt-1">Créez une facture en 3 étapes simples</p>
             </div>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              {restored && <span className="flex items-center gap-1 text-green-400"><RotateCcw className="w-3 h-3" /> Brouillon restauré</span>}
+            </div>
+          </div>
+
+          {/* Progress Steps */}
+          <div className="relative flex justify-between items-center w-full max-w-2xl mx-auto">
+            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -z-10"></div>
+            {STEPS.map((step) => {
+              const Icon = step.icon;
+              const isActive = currentStep >= step.id;
+              const isCurrent = currentStep === step.id;
+              return (
+                <div key={step.id} className="flex flex-col items-center gap-2 bg-slate-900 px-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-800 text-slate-500 border border-white/10'
+                    }`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <span className={`text-sm font-medium ${isCurrent ? 'text-blue-400' : 'text-slate-500'}`}>
+                    {step.title}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 animate-in slide-in-from-top-2">
+            <p className="text-red-400 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" /> {error}
+            </p>
           </div>
         )}
 
-        {/* Step 2: Lignes */}
-        {currentStep === 2 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Articles & Services</h3>
-              <Button onClick={addLine} variant="outline" size="sm">
-                <Plus className="w-4 h-4 mr-2" /> Ajouter une ligne
-              </Button>
-            </div>
+        {/* Step Content */}
+        <div className="bg-slate-900/40 rounded-xl border border-white/10 shadow-sm min-h-[400px] p-8 relative overflow-hidden backdrop-blur-sm">
 
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
-                  <tr>
-                    <th className="p-3 text-left font-medium text-gray-500">Description</th>
-                    <th className="p-3 text-right font-medium text-gray-500 w-24">Qté</th>
-                    <th className="p-3 text-right font-medium text-gray-500 w-32">Prix HT</th>
-                    <th className="p-3 text-right font-medium text-gray-500 w-24">TVA</th>
-                    <th className="p-3 text-right font-medium text-gray-500 w-32">Total HT</th>
-                    <th className="p-3 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {lines.map((line) => (
-                    <tr key={line.id} className="group hover:bg-gray-50 dark:hover:bg-gray-900/20">
-                      <td className="p-2">
-                        <div className="flex flex-col gap-1">
-                          <Select value={line.product_id || 'none'} onValueChange={(v) => v !== 'none' && selectProduct(line.id, v)}>
-                            <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-xs text-gray-500 focus:ring-0 w-fit">
-                              <SelectValue placeholder="Sélectionner un produit (optionnel)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+          {/* Step 1: Client & Infos */}
+          {currentStep === 1 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-3">
+                  <Label htmlFor="client" className="text-base font-semibold text-slate-200">Client</Label>
+                  <Select value={clientId} onValueChange={setClientId}>
+                    <SelectTrigger className="h-12 bg-slate-800/50 border-white/10 text-slate-200">
+                      <SelectValue placeholder="Sélectionner un client" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 text-slate-200">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} {client.company_name && `- ${client.company_name}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Sélectionnez le destinataire de la facture</span>
+                    <Link href={`/org/${orgId}/erp/clients?action=new`} className="text-blue-400 hover:underline">+ Nouveau client</Link>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="reference" className="text-base font-semibold text-slate-200 flex justify-between">
+                    Référence
+                    {reference && <span className="text-xs font-normal text-blue-400 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Généré par IA</span>}
+                  </Label>
+                  <Input
+                    id="reference"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    className="h-12 bg-slate-800/50 border-white/10 text-slate-200 placeholder:text-slate-600"
+                    placeholder="Ex: FACT-2024-001"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="invoiceDate" className="text-base font-semibold text-slate-200">Date d'émission</Label>
+                  <DateInput
+                    id="invoiceDate"
+                    value={invoiceDate}
+                    onChange={setInvoiceDate}
+                    className="bg-slate-800/50 border-white/10 text-slate-200"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="dueDate" className="text-base font-semibold text-slate-200">Date d'échéance</Label>
+                  <DateInput
+                    id="dueDate"
+                    value={dueDate}
+                    onChange={setDueDate}
+                    className="bg-slate-800/50 border-white/10 text-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Lignes */}
+          {currentStep === 2 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-slate-200">Articles & Services</h3>
+                <Button onClick={addLine} variant="outline" size="sm" className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white">
+                  <Plus className="w-4 h-4 mr-2" /> Ajouter une ligne
+                </Button>
+              </div>
+
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/5">
+                    <tr>
+                      <th className="p-3 text-left font-medium text-slate-400">Description</th>
+                      <th className="p-3 text-right font-medium text-slate-400 w-24">Qté</th>
+                      <th className="p-3 text-right font-medium text-slate-400 w-32">Prix HT</th>
+                      <th className="p-3 text-right font-medium text-slate-400 w-24">TVA</th>
+                      <th className="p-3 text-right font-medium text-slate-400 w-32">Total HT</th>
+                      <th className="p-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {lines.map((line) => (
+                      <tr key={line.id} className="group hover:bg-white/5 transition-colors">
+                        <td className="p-2">
+                          <div className="flex flex-col gap-1">
+                            <Select value={line.product_id || 'none'} onValueChange={(v) => v !== 'none' && selectProduct(line.id, v)}>
+                              <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-xs text-slate-500 focus:ring-0 w-fit">
+                                <SelectValue placeholder="Sélectionner un produit (optionnel)" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-900 border-white/10 text-slate-200">
+                                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              value={line.description}
+                              onChange={(e) => updateLine(line.id, { description: e.target.value })}
+                              className="h-9 border-0 bg-transparent p-0 focus-visible:ring-0 font-medium placeholder:font-normal text-slate-200 placeholder:text-slate-600"
+                              placeholder="Description de la prestation..."
+                            />
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <Input type="number" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: parseFloat(e.target.value) || 0 })} className="text-right h-9 bg-transparent border-white/10 text-slate-200" />
+                        </td>
+                        <td className="p-2">
+                          <Input type="number" value={line.unit_price} onChange={(e) => updateLine(line.id, { unit_price: parseFloat(e.target.value) || 0 })} className="text-right h-9 bg-transparent border-white/10 text-slate-200" />
+                        </td>
+                        <td className="p-2">
+                          <Select value={line.vat_rate.toString()} onValueChange={(v) => updateLine(line.id, { vat_rate: parseFloat(v) })}>
+                            <SelectTrigger className="h-9 text-right justify-end bg-transparent border-white/10 text-slate-200"><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-white/10 text-slate-200">
+                              {[0, 5.5, 10, 20].map(rate => <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>)}
                             </SelectContent>
                           </Select>
-                          <Input
-                            value={line.description}
-                            onChange={(e) => updateLine(line.id, { description: e.target.value })}
-                            className="h-9 border-0 bg-transparent p-0 focus-visible:ring-0 font-medium placeholder:font-normal"
-                            placeholder="Description de la prestation..."
-                          />
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <Input type="number" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: parseFloat(e.target.value) || 0 })} className="text-right h-9" />
-                      </td>
-                      <td className="p-2">
-                        <Input type="number" value={line.unit_price} onChange={(e) => updateLine(line.id, { unit_price: parseFloat(e.target.value) || 0 })} className="text-right h-9" />
-                      </td>
-                      <td className="p-2">
-                        <Select value={line.vat_rate.toString()} onValueChange={(v) => updateLine(line.id, { vat_rate: parseFloat(v) })}>
-                          <SelectTrigger className="h-9 text-right justify-end"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {[0, 5.5, 10, 20].map(rate => <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="p-3 text-right font-medium">
-                        {formatCurrency(line.total_ht)}
-                      </td>
-                      <td className="p-2 text-center">
-                        <Button variant="ghost" size="icon" onClick={() => removeLine(line.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-600 hover:bg-red-50">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end">
-              <div className="w-64 space-y-2 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Total HT</span>
-                  <span className="font-medium">{formatCurrency(subtotalHT)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">TVA</span>
-                  <span className="font-medium">{formatCurrency(totalVAT)}</span>
-                </div>
-                <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <span>Total TTC</span>
-                  <span className="text-blue-600">{formatCurrency(totalTTC)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Finalisation */}
-        {currentStep === 3 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Conditions & Notes</h3>
-                <div className="space-y-3">
-                  <Label htmlFor="paymentTerms">Conditions de paiement</Label>
-                  <Input id="paymentTerms" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
-                </div>
-                <div className="space-y-3">
-                  <Label htmlFor="notes">Notes (visible sur la facture)</Label>
-                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
-                </div>
+                        </td>
+                        <td className="p-3 text-right font-medium text-slate-200">
+                          {formatCurrency(line.total_ht)}
+                        </td>
+                        <td className="p-2 text-center">
+                          <Button variant="ghost" size="icon" onClick={() => removeLine(line.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Résumé</h3>
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-6 space-y-4 border border-gray-200 dark:border-gray-700">
-                  <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                      <p className="text-sm text-gray-500">Client</p>
-                      <p className="font-medium">{clients.find(c => c.id === clientId)?.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-500">Date</p>
-                      <p className="font-medium">{new Date(invoiceDate).toLocaleDateString()}</p>
-                    </div>
+              <div className="flex justify-end">
+                <div className="w-64 space-y-2 bg-slate-800/50 p-4 rounded-lg border border-white/5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Total HT</span>
+                    <span className="font-medium text-slate-200">{formatCurrency(subtotalHT)}</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Nombre de lignes</span>
-                      <span>{lines.length}</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">TVA</span>
+                    <span className="font-medium text-slate-200">{formatCurrency(totalVAT)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold pt-2 border-t border-white/10">
+                    <span className="text-white">Total TTC</span>
+                    <span className="text-blue-400">{formatCurrency(totalTTC)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Finalisation */}
+          {currentStep === 3 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg text-slate-200">Conditions & Notes</h3>
+                  <div className="space-y-3">
+                    <Label htmlFor="paymentTerms" className="text-slate-300">Conditions de paiement</Label>
+                    <Input id="paymentTerms" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} className="bg-slate-800/50 border-white/10 text-slate-200" />
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="notes" className="text-slate-300">Notes (visible sur la facture)</Label>
+                    <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="bg-slate-800/50 border-white/10 text-slate-200" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg text-slate-200">Résumé</h3>
+                  <div className="bg-slate-800/50 rounded-lg p-6 space-y-4 border border-white/10">
+                    <div className="flex justify-between items-start pb-4 border-b border-white/10">
+                      <div>
+                        <p className="text-sm text-slate-500">Client</p>
+                        <p className="font-medium text-slate-200">{clients.find(c => c.id === clientId)?.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-500">Date</p>
+                        <p className="font-medium text-slate-200">{new Date(invoiceDate).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between font-bold text-lg pt-2">
-                      <span>Total à payer</span>
-                      <span className="text-blue-600">{formatCurrency(totalTTC)}</span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-slate-400">
+                        <span>Nombre de lignes</span>
+                        <span>{lines.length}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-lg pt-2">
+                        <span className="text-white">Total à payer</span>
+                        <span className="text-blue-400">{formatCurrency(totalTTC)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Actions */}
-      <div className="flex justify-between items-center pt-4">
-        <Button variant="outline" onClick={currentStep === 1 ? () => router.back() : prevStep} disabled={saving}>
-          {currentStep === 1 ? 'Annuler' : 'Précédent'}
-        </Button>
-
-        <div className="flex gap-3">
-          {currentStep < 3 ? (
-            <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Suivant <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          ) : (
-            <Button onClick={handleSubmit} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white">
-              {saving ? 'Création...' : 'Créer la facture'} <CheckCircle className="w-4 h-4 ml-2" />
-            </Button>
           )}
         </div>
+
+        {/* Footer Actions */}
+        <div className="flex justify-between items-center pt-4">
+          <Button variant="outline" onClick={currentStep === 1 ? () => router.back() : prevStep} disabled={saving} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white">
+            {currentStep === 1 ? 'Annuler' : 'Précédent'}
+          </Button>
+
+          <div className="flex gap-3">
+            {currentStep < 3 ? (
+              <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
+                Suivant <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20">
+                {saving ? 'Création...' : 'Créer la facture'} <CheckCircle className="w-4 h-4 ml-2" />
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

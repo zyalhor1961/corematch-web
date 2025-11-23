@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[ERP Invoices] Error:', error);
-      throw new AppError(ErrorType.DATABASE_ERROR, error.message);
+      throw new AppError(ErrorType.INTERNAL_ERROR, error.message);
     }
 
     return NextResponse.json({
@@ -118,10 +118,27 @@ export async function POST(request: NextRequest) {
     const orgId = userOrg.org_id;
     const body: InvoiceInput = await request.json();
 
-    // Get next invoice number
-    const { data: invoiceNumber } = await supabaseAdmin.rpc('get_next_invoice_number', {
-      p_org_id: orgId,
-    });
+    // Generate next invoice number manually to ensure uniqueness
+    const { data: lastInvoice } = await supabaseAdmin
+      .from('erp_invoices')
+      .select('invoice_number')
+      .eq('org_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    let nextNumber = 'INV-00001';
+    if (lastInvoice && lastInvoice.invoice_number) {
+      const lastNum = lastInvoice.invoice_number;
+      // Extract number part (assuming format INV-XXXXX)
+      const matches = lastNum.match(/INV-(\d+)/);
+      if (matches && matches[1]) {
+        const currentSeq = parseInt(matches[1], 10);
+        const nextSeq = currentSeq + 1;
+        nextNumber = `INV-${nextSeq.toString().padStart(5, '0')}`;
+      }
+    }
+    const invoiceNumber = nextNumber;
 
     // Calculate due date
     const invoiceDate = body.invoice_date || new Date().toISOString().split('T')[0];
@@ -154,7 +171,7 @@ export async function POST(request: NextRequest) {
 
     if (invoiceError) {
       console.error('[ERP Invoices] Create error:', invoiceError);
-      throw new AppError(ErrorType.DATABASE_ERROR, invoiceError.message);
+      throw new AppError(ErrorType.INTERNAL_ERROR, invoiceError.message);
     }
 
     // Create invoice lines if provided

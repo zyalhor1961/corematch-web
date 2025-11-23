@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone', // Enable standalone mode for Docker deployment
   async headers() {
     return [
       {
@@ -21,10 +22,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   // Increase body size limit for large PDF uploads (60-page PDFs)
-  experimental: {
-    // Vercel has a 4.5MB limit by default, increase to 50MB
-    isrMemoryCacheSize: 0,
-  },
+
   // Configure API routes
   serverRuntimeConfig: {
     bodySizeLimit: '50mb',

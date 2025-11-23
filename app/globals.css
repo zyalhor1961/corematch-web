@@ -218,3 +218,23 @@ html.dark {
   background-color: var(--scrollbar-thumb);
   border-radius: 1rem;
 }
+
+/* AG Grid Dark Mode Pagination Fix */
+.ag-theme-alpine-dark .ag-paging-panel {
+  background-color: #0F172A !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: rgb(148, 163, 184) !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button,
+.ag-theme-alpine-dark .ag-paging-page-summary-panel {
+  color: rgb(148, 163, 184) !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button:disabled {
+  color: rgb(71, 85, 105) !important;
+}

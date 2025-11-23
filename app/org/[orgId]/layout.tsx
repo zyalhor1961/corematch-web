@@ -28,7 +28,11 @@ import {
   CheckCircle,
   Landmark,
   TrendingUp,
-  Clock
+  Clock,
+  ShoppingCart,
+  BookOpen,
+  Link2,
+  ClipboardList
 } from 'lucide-react';
 import { CommandBar } from '@/components/CommandBar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -115,7 +119,7 @@ export default function OrganizationLayout({
 
   const roleShortcuts = organization ? getRoleShortcuts(organization.role) : [];
 
-  // Navigation structure (Flattened as per spec)
+  // Navigation structure (Hub-based)
   const navigationSections = [
     {
       title: 'Workspaces',
@@ -125,7 +129,34 @@ export default function OrganizationLayout({
         { name: 'CV Studio', href: `/org/${orgId}/cv`, icon: Users, aiPowered: true },
         { name: 'DAF Docs', href: `/org/${orgId}/daf`, icon: FileText, aiPowered: true },
         { name: 'DEB Assistant Pro', href: `/org/${orgId}/deb`, icon: FileText, aiPowered: true },
-        { name: 'Core ERP', href: `/org/${orgId}/erp`, icon: Receipt },
+      ],
+    },
+    {
+      title: 'Sales Hub',
+      icon: TrendingUp,
+      items: [
+        { name: 'Clients', href: `/org/${orgId}/erp/clients`, icon: Users },
+        { name: 'Devis', href: `/org/${orgId}/erp/quotes`, icon: FileText },
+        { name: 'Factures', href: `/org/${orgId}/erp/invoices`, icon: FileText },
+      ],
+    },
+    {
+      title: 'Purchase Hub',
+      icon: ShoppingCart,
+      items: [
+        { name: 'Fournisseurs', href: `/org/${orgId}/erp/suppliers`, icon: Building2 },
+        { name: 'Achats', href: `/org/${orgId}/erp/purchases`, icon: ShoppingCart },
+        { name: 'Dépenses', href: `/org/${orgId}/erp/expenses`, icon: Receipt },
+      ],
+    },
+    {
+      title: 'Finance Hub',
+      icon: Landmark,
+      items: [
+        { name: 'Journaux', href: `/org/${orgId}/erp/accounting`, icon: BookOpen },
+        { name: 'Banque', href: `/org/${orgId}/erp/bank`, icon: Landmark },
+        { name: 'Lettrage', href: `/org/${orgId}/erp/lettrage`, icon: Link2 },
+        { name: 'Plan Comptable', href: `/org/${orgId}/erp/chart-of-accounts`, icon: ClipboardList },
       ],
     },
     {

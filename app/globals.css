@@ -12,15 +12,19 @@
   --card-foreground: #0f172a;
   --surface: #fafafc;
   --border: #e5e7eb;
-  --ring: #00B4D8; /* Updated to Electric Teal */
-  --brand: #0F172A; /* Deep Ocean Blue */
+  --ring: #00B4D8;
+  /* Updated to Electric Teal */
+  --brand: #0F172A;
+  /* Deep Ocean Blue */
   --brand-foreground: #ffffff;
-  --accent: #00B4D8; /* Electric Teal */
+  --accent: #00B4D8;
+  /* Electric Teal */
   --accent-foreground: #ffffff;
   --success: #16a34a;
   --warning: #f59e0b;
-  --destructive: #FF6B6B; /* Coral Red */
-  
+  --destructive: #FF6B6B;
+  /* Coral Red */
+
   /* CoreMatch Specific Tokens */
   --cm-primary: #0F172A;
   --cm-secondary: #334155;
@@ -32,15 +36,21 @@
 }
 
 .dark {
-  --background: #0B1220; /* Soft dark mode background */
-  --foreground: #e5e7eb;
-  --muted: #94a3b8;
-  --card: #1E293B; /* Soft surfaces */
-  --card-foreground: #e5e7eb;
-  --surface: #0F172A; /* Deep ocean blue */
-  --border: #334155; /* Slate charcoal */
-  --ring: #00B4D8; /* Electric Teal */
-  --brand: #00B4D8; /* Electric Teal for dark mode brand */
+  --background: #111827;
+  /* Lighter dark background (Gray 900) */
+  --foreground: #f3f4f6;
+  --muted: #9ca3af;
+  --card: #1f2937;
+  /* Lighter card background (Gray 800) */
+  --card-foreground: #f3f4f6;
+  --surface: #1f2937;
+  /* Match card for consistency */
+  --border: #374151;
+  /* Lighter border (Gray 700) */
+  --ring: #00B4D8;
+  /* Electric Teal */
+  --brand: #00B4D8;
+  /* Electric Teal for dark mode brand */
   --brand-foreground: #ffffff;
   --accent: #00B4D8;
   --accent-foreground: #ffffff;
@@ -74,7 +84,7 @@
   --color-cm-alert: var(--cm-alert);
   --color-cm-surface: var(--cm-surface);
   --color-cm-bg: var(--cm-bg);
-  
+
   --radius-card: var(--cm-card-radius);
 
   --font-sans: var(--font-geist-sans);
@@ -100,9 +110,16 @@ body {
 a {
   color: var(--brand);
 }
-a:hover { color: color-mix(in oklab, var(--brand) 85%, #000 15%); }
 
-button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
+a:hover {
+  color: color-mix(in oklab, var(--brand) 85%, #000 15%);
+}
+
+button:focus,
+[role="button"]:focus,
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent);
 }
@@ -111,6 +128,7 @@ button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
 .surface {
   background-color: var(--surface);
 }
+
 .card {
   background-color: var(--card);
   color: var(--card-foreground);
@@ -119,7 +137,9 @@ button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
 }
 
 /* Premium accent utility */
-.accent-ring { box-shadow: 0 0 0 2px var(--accent); }
+.accent-ring {
+  box-shadow: 0 0 0 2px var(--accent);
+}
 
 /* AG-Grid Custom Styles */
 .ag-theme-alpine .ag-cell-error {
@@ -156,6 +176,7 @@ button:focus, [role="button"]:focus, input:focus, textarea:focus, select:focus {
   --color-background-100: var(--color-gray-100);
   --color-background-200: var(--color-gray-200);
 }
+
 html.dark {
   --color-background-50: var(--color-slate-900);
   --color-background-100: var(--color-slate-800);
@@ -163,17 +184,31 @@ html.dark {
 }
 
 /* Themed scrollbar (light/dark) */
-*::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-button { display: none; }
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
 
 :root {
   --scrollbar-track: var(--color-background-100);
   --scrollbar-thumb: var(--color-gray-500);
 }
+
 html.dark {
   --scrollbar-track: var(--color-background-100);
   --scrollbar-thumb: var(--color-slate-600);
 }
 
-*::-webkit-scrollbar-track { background-color: var(--scrollbar-track); border-radius: 0 0 1rem 1rem; }
-*::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 1rem; }
+*::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+  border-radius: 0 0 1rem 1rem;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 1rem;
+}

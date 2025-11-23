@@ -33,7 +33,7 @@ interface CommandItem {
   description?: string;
   icon: React.ReactNode;
   action: () => void;
-  category: 'navigation' | 'action' | 'erp' | 'data';
+  category: 'navigation' | 'action' | 'sales' | 'purchase' | 'finance' | 'data';
   keywords?: string[];
 }
 
@@ -62,7 +62,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
     },
     {
       id: 'nav-cv',
-      label: 'CV Screening',
+      label: 'CV Studio',
       description: 'Analyser des CVs',
       icon: <Users className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/cv`),
@@ -88,42 +88,15 @@ export function CommandBar({ orgId }: CommandBarProps) {
       keywords: ['ia', 'question', 'assistant', 'chat'],
     },
 
-    // ERP Navigation
+    // Sales Hub
     {
       id: 'erp-clients',
       label: 'Clients',
       description: 'Gérer les clients',
       icon: <Users className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/clients`),
-      category: 'erp',
+      category: 'sales',
       keywords: ['client', 'contact', 'carnet'],
-    },
-    {
-      id: 'erp-suppliers',
-      label: 'Fournisseurs',
-      description: 'Gérer les fournisseurs',
-      icon: <Building2 className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/suppliers`),
-      category: 'erp',
-      keywords: ['fournisseur', 'achat', 'vendor'],
-    },
-    {
-      id: 'erp-invoices',
-      label: 'Factures clients',
-      description: 'Voir les factures',
-      icon: <FileText className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/invoices`),
-      category: 'erp',
-      keywords: ['facture', 'vente'],
-    },
-    {
-      id: 'erp-bank',
-      label: 'Rapprochement bancaire',
-      description: 'Réconciliation bancaire',
-      icon: <Landmark className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/bank`),
-      category: 'erp',
-      keywords: ['banque', 'rapprochement', 'reconciliation'],
     },
     {
       id: 'erp-quotes',
@@ -131,8 +104,28 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Gérer les devis',
       icon: <FileText className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/quotes`),
-      category: 'erp',
+      category: 'sales',
       keywords: ['devis', 'proposition', 'commercial'],
+    },
+    {
+      id: 'erp-invoices',
+      label: 'Factures clients',
+      description: 'Voir les factures',
+      icon: <FileText className="h-4 w-4" />,
+      action: () => router.push(`/org/${orgId}/erp/invoices`),
+      category: 'sales',
+      keywords: ['facture', 'vente'],
+    },
+
+    // Purchase Hub
+    {
+      id: 'erp-suppliers',
+      label: 'Fournisseurs',
+      description: 'Gérer les fournisseurs',
+      icon: <Building2 className="h-4 w-4" />,
+      action: () => router.push(`/org/${orgId}/erp/suppliers`),
+      category: 'purchase',
+      keywords: ['fournisseur', 'achat', 'vendor'],
     },
     {
       id: 'erp-purchases',
@@ -140,7 +133,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Factures fournisseurs',
       icon: <ShoppingCart className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/purchases`),
-      category: 'erp',
+      category: 'purchase',
       keywords: ['achat', 'depense', 'fournisseur'],
     },
     {
@@ -149,8 +142,19 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Notes de frais & divers',
       icon: <Receipt className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/expenses`),
-      category: 'erp',
+      category: 'purchase',
       keywords: ['frais', 'note', 'ticket'],
+    },
+
+    // Finance Hub
+    {
+      id: 'erp-bank',
+      label: 'Rapprochement bancaire',
+      description: 'Réconciliation bancaire',
+      icon: <Landmark className="h-4 w-4" />,
+      action: () => router.push(`/org/${orgId}/erp/bank`),
+      category: 'finance',
+      keywords: ['banque', 'rapprochement', 'reconciliation'],
     },
     {
       id: 'erp-accounting',
@@ -158,7 +162,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Journaux & Grand Livre',
       icon: <BookOpen className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/accounting`),
-      category: 'erp',
+      category: 'finance',
       keywords: ['compta', 'journal', 'ecriture'],
     },
     {
@@ -167,7 +171,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Lettrage des comptes',
       icon: <Link2 className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/lettrage`),
-      category: 'erp',
+      category: 'finance',
       keywords: ['lettrage', 'rapprochement', 'lien'],
     },
     {
@@ -176,7 +180,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
       description: 'Comptes généraux',
       icon: <ClipboardList className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/chart-of-accounts`),
-      category: 'erp',
+      category: 'finance',
       keywords: ['plan', 'compte', 'pcg'],
     },
 
@@ -189,6 +193,15 @@ export function CommandBar({ orgId }: CommandBarProps) {
       action: () => router.push(`/org/${orgId}/erp/invoices/new`),
       category: 'action',
       keywords: ['creer', 'ajouter', 'facture'],
+    },
+    {
+      id: 'action-new-quote',
+      label: 'Nouveau devis',
+      description: 'Créer un devis client',
+      icon: <Plus className="h-4 w-4" />,
+      action: () => router.push(`/org/${orgId}/erp/quotes/new`),
+      category: 'action',
+      keywords: ['creer', 'ajouter', 'devis'],
     },
     {
       id: 'action-new-client',

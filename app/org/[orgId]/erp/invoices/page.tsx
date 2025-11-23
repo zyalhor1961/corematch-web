@@ -46,6 +46,8 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 // Register AG Grid Modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+import { WorkflowBar, WorkflowStep } from '@/components/ui/WorkflowBar';
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -61,6 +63,21 @@ interface Invoice {
     email?: string;
     company_name?: string;
   };
+}
+
+function getInvoiceWorkflowSteps(invoice: Invoice): WorkflowStep[] {
+  const steps: WorkflowStep[] = [
+    { id: 'draft', label: 'Brouillon', status: 'completed' },
+    { id: 'sent', label: 'Envoyée', status: invoice.status === 'draft' ? 'upcoming' : 'completed' },
+    { id: 'paid', label: 'Payée', status: invoice.status === 'paid' ? 'completed' : invoice.status === 'partial' ? 'current' : 'upcoming' },
+    { id: 'accounting', label: 'Comptabilisée', status: 'upcoming' }, // Mocked for now
+  ];
+
+  if (invoice.status === 'overdue') {
+    steps[2].status = 'current'; // Highlight payment step if overdue
+  }
+
+  return steps;
 }
 
 function formatCurrency(amount: number): string {
@@ -370,6 +387,13 @@ export default function InvoicesPage() {
             </div>
 
             <div className="space-y-6">
+              {/* Workflow Bar */}
+              <div className="mb-6">
+                <WorkflowBar steps={getInvoiceWorkflowSteps(selectedInvoice)} />
+              </div>
+
+
+
               <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-500">Statut</span>

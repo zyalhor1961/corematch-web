@@ -359,6 +359,22 @@ export default function InvoicesPage() {
             <div className="p-4 space-y-2">
               {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full bg-white/5" />)}
             </div>
+          ) : invoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center p-8">
+              <FileText className="w-16 h-16 text-slate-600 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Aucune facture trouvée</h3>
+              <p className="text-slate-400 mb-4">
+                {statusFilter !== 'all' || clientFilter
+                  ? "Aucune facture ne correspond à vos filtres."
+                  : "Commencez par créer votre première facture."}
+              </p>
+              <Link href={`/org/${orgId}/erp/invoices/new`}>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nouvelle facture
+                </Button>
+              </Link>
+            </div>
           ) : (
             <div className="ag-theme-alpine-dark w-full h-full">
               <AgGridReact

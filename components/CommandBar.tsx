@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import {
   Sparkles,
   Command,
   ArrowRight,
+  History,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -32,7 +33,7 @@ interface CommandItem {
   description?: string;
   icon: React.ReactNode;
   action: () => void;
-  category: 'navigation' | 'action' | 'erp';
+  category: 'navigation' | 'action' | 'erp' | 'data';
   keywords?: string[];
 }
 
@@ -44,10 +45,11 @@ export function CommandBar({ orgId }: CommandBarProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [dataResults, setDataResults] = useState<CommandItem[]>([]);
   const router = useRouter();
 
-  // Define all commands
-  const commands: CommandItem[] = useMemo(() => [
+  // Define static commands
+  const staticCommands: CommandItem[] = useMemo(() => [
     // Navigation
     {
       id: 'nav-dashboard',
@@ -85,33 +87,6 @@ export function CommandBar({ orgId }: CommandBarProps) {
       category: 'navigation',
       keywords: ['ia', 'question', 'assistant', 'chat'],
     },
-    {
-      id: 'nav-erp',
-      label: 'Core ERP',
-      description: 'Dashboard ERP',
-      icon: <Receipt className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp`),
-      category: 'navigation',
-      keywords: ['erp', 'comptabilite', 'gestion'],
-    },
-    {
-      id: 'nav-settings',
-      label: 'Paramètres',
-      description: 'Configurer l\'organisation',
-      icon: <Settings className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/settings`),
-      category: 'navigation',
-      keywords: ['config', 'reglages'],
-    },
-    {
-      id: 'nav-billing',
-      label: 'Facturation',
-      description: 'Gérer l\'abonnement',
-      icon: <CreditCard className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/billing`),
-      category: 'navigation',
-      keywords: ['paiement', 'abonnement', 'plan'],
-    },
 
     // ERP Navigation
     {
@@ -142,42 +117,6 @@ export function CommandBar({ orgId }: CommandBarProps) {
       keywords: ['facture', 'vente'],
     },
     {
-      id: 'erp-purchases',
-      label: 'Factures fournisseurs',
-      description: 'Achats et dépenses',
-      icon: <ShoppingCart className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/purchases`),
-      category: 'erp',
-      keywords: ['achat', 'depense', 'fournisseur'],
-    },
-    {
-      id: 'erp-quotes',
-      label: 'Devis',
-      description: 'Gérer les devis',
-      icon: <ClipboardList className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/quotes`),
-      category: 'erp',
-      keywords: ['devis', 'proposition', 'offre'],
-    },
-    {
-      id: 'erp-expenses',
-      label: 'Dépenses',
-      description: 'Notes de frais',
-      icon: <Receipt className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/expenses`),
-      category: 'erp',
-      keywords: ['depense', 'frais', 'note'],
-    },
-    {
-      id: 'erp-accounting',
-      label: 'Journaux comptables',
-      description: 'Écritures comptables',
-      icon: <BookOpen className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/accounting`),
-      category: 'erp',
-      keywords: ['journal', 'ecriture', 'comptabilite'],
-    },
-    {
       id: 'erp-bank',
       label: 'Rapprochement bancaire',
       description: 'Réconciliation bancaire',
@@ -186,87 +125,129 @@ export function CommandBar({ orgId }: CommandBarProps) {
       category: 'erp',
       keywords: ['banque', 'rapprochement', 'reconciliation'],
     },
-    {
-      id: 'erp-lettrage',
-      label: 'Lettrage',
-      description: 'Lettrage comptable',
-      icon: <Link2 className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/lettrage`),
-      category: 'erp',
-      keywords: ['lettrage', 'pointage'],
-    },
 
     // Actions
     {
-      id: 'action-new-client',
-      label: 'Nouveau client',
-      description: 'Créer un client',
-      icon: <Plus className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/clients?action=new`),
-      category: 'action',
-      keywords: ['creer', 'ajouter', 'client'],
-    },
-    {
-      id: 'action-new-supplier',
-      label: 'Nouveau fournisseur',
-      description: 'Créer un fournisseur',
-      icon: <Plus className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/suppliers?action=new`),
-      category: 'action',
-      keywords: ['creer', 'ajouter', 'fournisseur'],
-    },
-    {
       id: 'action-new-invoice',
-      label: 'Nouvelle facture client',
-      description: 'Créer une facture',
+      label: 'Nouvelle facture',
+      description: 'Créer une facture client',
       icon: <Plus className="h-4 w-4" />,
       action: () => router.push(`/org/${orgId}/erp/invoices/new`),
       category: 'action',
       keywords: ['creer', 'ajouter', 'facture'],
     },
     {
-      id: 'action-new-purchase',
-      label: 'Nouvelle facture fournisseur',
-      description: 'Saisir une facture d\'achat',
+      id: 'action-new-client',
+      label: 'Nouveau client',
+      description: 'Ajouter un client',
       icon: <Plus className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/purchases/new`),
+      action: () => router.push(`/org/${orgId}/erp/clients?action=new`),
       category: 'action',
-      keywords: ['creer', 'ajouter', 'achat', 'fournisseur'],
+      keywords: ['creer', 'ajouter', 'client'],
     },
     {
-      id: 'action-new-quote',
-      label: 'Nouveau devis',
-      description: 'Créer un devis',
+      id: 'action-upload',
+      label: 'Uploader un document',
+      description: 'Scanner une facture/document',
       icon: <Plus className="h-4 w-4" />,
-      action: () => router.push(`/org/${orgId}/erp/quotes/new`),
+      action: () => router.push(`/org/${orgId}/daf`),
       category: 'action',
-      keywords: ['creer', 'ajouter', 'devis'],
+      keywords: ['upload', 'scanner', 'importer'],
     },
   ], [orgId, router]);
 
-  // Filter commands based on search
-  const filteredCommands = useMemo(() => {
-    if (!search.trim()) return commands;
+  // Simulate Data Search
+  useEffect(() => {
+    if (!search.trim()) {
+      setDataResults([]);
+      return;
+    }
 
-    const searchLower = search.toLowerCase();
-    return commands.filter(cmd => {
-      const labelMatch = cmd.label.toLowerCase().includes(searchLower);
-      const descMatch = cmd.description?.toLowerCase().includes(searchLower);
-      const keywordMatch = cmd.keywords?.some(k => k.includes(searchLower));
-      return labelMatch || descMatch || keywordMatch;
-    });
-  }, [commands, search]);
+    const timer = setTimeout(() => {
+      const query = search.toLowerCase();
+      const results: CommandItem[] = [];
+
+      // Mock Data - In production this would call an API
+      if (query.includes('facture') || query.includes('inv') || query.match(/\d+/)) {
+        results.push({
+          id: 'inv-123',
+          label: 'Facture #INV-2024-001',
+          description: 'Client: Acme Corp - 1,200.00 €',
+          icon: <FileText className="h-4 w-4 text-blue-500" />,
+          action: () => router.push(`/org/${orgId}/erp/invoices`), // In real app: /invoices/id
+          category: 'data',
+        });
+        results.push({
+          id: 'inv-124',
+          label: 'Facture #INV-2024-002',
+          description: 'Client: Globex Inc - 4,500.00 €',
+          icon: <FileText className="h-4 w-4 text-blue-500" />,
+          action: () => router.push(`/org/${orgId}/erp/invoices`),
+          category: 'data',
+        });
+      }
+
+      if (query.includes('client') || query.includes('acme') || query.includes('globex')) {
+        results.push({
+          id: 'client-1',
+          label: 'Acme Corp',
+          description: 'Client - Paris',
+          icon: <Users className="h-4 w-4 text-green-500" />,
+          action: () => router.push(`/org/${orgId}/erp/clients`),
+          category: 'data',
+        });
+      }
+
+      if (query.includes('anthropic') || query.includes('fourn')) {
+        results.push({
+          id: 'supp-1',
+          label: 'Anthropic',
+          description: 'Fournisseur - AI Services',
+          icon: <Building2 className="h-4 w-4 text-orange-500" />,
+          action: () => router.push(`/org/${orgId}/erp/suppliers`),
+          category: 'data',
+        });
+      }
+
+      setDataResults(results);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search, orgId, router]);
+
+  // Combine and filter commands
+  const filteredCommands = useMemo(() => {
+    let commands = [...staticCommands];
+
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      commands = commands.filter(cmd => {
+        const labelMatch = cmd.label.toLowerCase().includes(searchLower);
+        const descMatch = cmd.description?.toLowerCase().includes(searchLower);
+        const keywordMatch = cmd.keywords?.some(k => k.includes(searchLower));
+        return labelMatch || descMatch || keywordMatch;
+      });
+
+      // Add data results at the top if searching
+      return [...dataResults, ...commands];
+    }
+
+    return commands;
+  }, [staticCommands, search, dataResults]);
 
   // Group commands by category
   const groupedCommands = useMemo(() => {
     const groups: Record<string, CommandItem[]> = {
+      data: [],
       action: [],
       navigation: [],
       erp: [],
     };
 
     filteredCommands.forEach(cmd => {
-      groups[cmd.category].push(cmd);
+      if (groups[cmd.category]) {
+        groups[cmd.category].push(cmd);
+      }
     });
 
     return groups;
@@ -320,6 +301,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
     if (open) {
       setSearch('');
       setSelectedIndex(0);
+      setDataResults([]);
     }
   }, [open]);
 
@@ -332,7 +314,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
   // Calculate flat index for selection
   const getFlatIndex = (category: string, index: number): number => {
     let offset = 0;
-    const categories = ['action', 'navigation', 'erp'];
+    const categories = ['data', 'action', 'navigation', 'erp'];
     for (const cat of categories) {
       if (cat === category) break;
       offset += groupedCommands[cat].length;
@@ -341,6 +323,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
   };
 
   const categoryLabels: Record<string, string> = {
+    data: 'Résultats de recherche',
     action: 'Actions rapides',
     navigation: 'Navigation',
     erp: 'Core ERP',
@@ -348,21 +331,8 @@ export function CommandBar({ orgId }: CommandBarProps) {
 
   return (
     <>
-      {/* Trigger button (optional - can be used in header) */}
-      <button
-        onClick={() => setOpen(true)}
-        className="hidden lg:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-      >
-        <Search className="h-4 w-4" />
-        <span>Rechercher...</span>
-        <kbd className="ml-2 flex items-center gap-0.5 text-xs bg-white dark:bg-gray-900 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
-          <Command className="h-3 w-3" />
-          <span>K</span>
-        </kbd>
-      </button>
-
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl p-0 gap-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 overflow-hidden">
+        <DialogContent className="max-w-xl p-0 gap-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 overflow-hidden shadow-2xl">
           {/* Search input */}
           <div className="flex items-center border-b border-gray-200 dark:border-gray-700 px-4">
             <Search className="h-4 w-4 text-gray-400" />
@@ -373,7 +343,7 @@ export function CommandBar({ orgId }: CommandBarProps) {
                 setSearch(e.target.value);
                 setSelectedIndex(0);
               }}
-              placeholder="Rechercher une commande..."
+              placeholder="Que souhaitez-vous faire ? (ex: Nouvelle facture, Analyse CV...)"
               className="flex-1 px-3 py-4 text-sm bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400"
               autoFocus
             />
@@ -387,17 +357,19 @@ export function CommandBar({ orgId }: CommandBarProps) {
             {filteredCommands.length === 0 ? (
               <div className="py-8 text-center text-gray-500 dark:text-gray-400">
                 <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Aucun résultat pour "{search}"</p>
+                <p>Je ne trouve rien pour "{search}"</p>
+                <p className="text-xs mt-1">Essayez de chercher "Client", "Facture" ou "Analyse"</p>
               </div>
             ) : (
               <>
-                {(['action', 'navigation', 'erp'] as const).map(category => {
+                {(['data', 'action', 'navigation', 'erp'] as const).map(category => {
                   const items = groupedCommands[category];
                   if (items.length === 0) return null;
 
                   return (
                     <div key={category} className="mb-2">
-                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                        {category === 'data' && <History className="w-3 h-3" />}
                         {categoryLabels[category]}
                       </div>
                       {items.map((cmd, idx) => {
@@ -409,11 +381,10 @@ export function CommandBar({ orgId }: CommandBarProps) {
                             key={cmd.id}
                             onClick={() => executeCommand(cmd)}
                             onMouseEnter={() => setSelectedIndex(flatIdx)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                              isSelected
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                            }`}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${isSelected
+                              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                              }`}
                           >
                             <span className={`flex-shrink-0 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                               {cmd.icon}
@@ -440,18 +411,18 @@ export function CommandBar({ orgId }: CommandBarProps) {
           </div>
 
           {/* Footer hints */}
-          <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">↑↓</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">↑↓</kbd>
               naviguer
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">↵</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">↵</kbd>
               sélectionner
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">ESC</kbd>
-              fermer
+              <span className="text-blue-500">Astuce:</span>
+              Tapez "facture" ou "client" pour chercher
             </span>
           </div>
         </DialogContent>

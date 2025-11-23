@@ -1,414 +1,374 @@
- 'use client';
+'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { Button } from '@/app/components/ui/button';
-import { useTheme } from '@/app/components/ThemeProvider';
 import {
+  BarChart3,
   Users,
   FileText,
-  TrendingUp,
-  Clock,
-  AlertTriangle,
-  CheckCircle,
-  Plus,
-  BarChart3,
-  Target,
-  Zap,
   ArrowUpRight,
-  Activity,
-  Brain,
-  Sparkles,
-  Receipt,
-  Wallet,
-  Building2,
-  Lightbulb,
-  Bell,
+  ArrowDownRight,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  MoreHorizontal,
+  Calendar,
+  Filter,
   ChevronRight,
-  CalendarDays
+  Sparkles,
+  ArrowRight,
+  Briefcase,
+  DollarSign
 } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Area,
+  AreaChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  BarChart,
+  Bar
+} from 'recharts';
 
-// Define types for our data to ensure type safety
-interface StatData {
-  totalCandidates: number;
-  analyzedCandidates: number;
-  debPagesCount: number;
-  projectCount: number;
-  documentCount: number;
-  plan: string;
-  status: string;
-}
+// Mock data for sparklines
+const cashFlowData = [
+  { value: 4000 }, { value: 3000 }, { value: 5000 }, { value: 2780 }, { value: 1890 }, { value: 2390 }, { value: 3490 }
+];
+const revenueData = [
+  { value: 2400 }, { value: 1398 }, { value: 9800 }, { value: 3908 }, { value: 4800 }, { value: 3800 }, { value: 4300 }
+];
 
-interface ActivityItem {
-  type: 'cv' | 'deb';
-  title: string;
-  subtitle: string;
-  time: string;
-  status: string;
-  score?: number;
-}
-
-export default function OrganizationOverview() {
+export default function OrganizationDashboard() {
   const params = useParams();
-  const { isDarkMode } = useTheme();
-  const [stats, setStats] = useState<StatData | null>(null);
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
+  const [userName, setUserName] = useState('');
   const orgId = params?.orgId as string;
 
-  const loadDashboardData = useCallback(async (currentOrgId: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // All queries are prepared as promises to be run in parallel
-      const promises = {
-        orgDetails: supabase.from('organizations').select('plan, status').eq('id', currentOrgId).single(),
-        projectCount: supabase.from('projects').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
-        documentCount: supabase.from('documents').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
-        totalCandidates: supabase.from('candidates').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
-        analyzedCandidates: supabase.from('candidates').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('status', 'analyzed'),
-        // TODO: Create this RPC function in Supabase to sum pages
-        debPages: supabase.rpc('sum_pages_for_org', { org_id_param: currentOrgId }),
-        recentCandidates: supabase.from('candidates').select('name, cv_filename, created_at, status, score, projects(name)').eq('org_id', currentOrgId).order('created_at', { ascending: false }).limit(3),
-        recentDocuments: supabase.from('documents').select('filename, supplier_name, created_at, status').eq('org_id', currentOrgId).order('created_at', { ascending: false }).limit(3),
-      };
-
-      // Execute all promises in parallel
-      const results = await Promise.all(Object.values(promises));
-      const [orgResult, projectResult, docResult, totalCandResult, analyzedCandResult, pagesResult, recentCandResult, recentDocResult] = results;
-
-      // Check for errors in each result (except RPC which may not exist yet)
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        // Skip RPC error (index 5 = pagesResult) - graceful fallback if function doesn't exist
-        if (i === 5 && result.error) {
-          console.warn('[Dashboard] RPC sum_pages_for_org not found (migration 004 may not be applied), using fallback');
-          continue;
-        }
-        if (result.error) throw result.error;
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserName(user.email?.split('@')[0] || 'User');
       }
-
-      // Process results
-      const activity = [
-        ...(recentCandResult.data || []).map((c: any) => ({
-          type: 'cv',
-          title: `Nouveau CV analysé: ${c.name || c.cv_filename}`,
-          subtitle: `Projet: ${c.projects?.name || 'N/A'}`,
-          time: c.created_at,
-          status: c.status,
-          score: c.score
-        })),
-        ...(recentDocResult.data || []).map((d: any) => ({
-          type: 'deb',
-          title: `Document traité: ${d.filename}`,
-          subtitle: d.supplier_name || 'Traitement en cours',
-          time: d.created_at,
-          status: d.status
-        }))
-      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 5);
-
-      setStats({
-        totalCandidates: totalCandResult.count || 0,
-        analyzedCandidates: analyzedCandResult.count || 0,
-        debPagesCount: pagesResult.data || 0,
-        projectCount: projectResult.count || 0,
-        documentCount: docResult.count || 0,
-        plan: orgResult.data?.plan || 'starter',
-        status: orgResult.data?.status || 'trialing'
-      });
-
-      setRecentActivity(activity);
-
-    } catch (err: any) {
-      console.error('Error loading dashboard data:', err);
-      setError(err.message || "Une erreur est survenue lors du chargement du tableau de bord.");
-    } finally {
       setIsLoading(false);
-    }
+    };
+    getUser();
   }, []);
 
-  useEffect(() => {
-    if (orgId) {
-      loadDashboardData(orgId);
-    }
-  }, [orgId, loadDashboardData]);
-
-  const getQuotaLimits = (plan: string) => {
-    const limits: Record<string, { cv: number; deb: number }> = {
-      starter: { cv: 200, deb: 200 },
-      pro: { cv: 1000, deb: 1500 },
-      scale: { cv: Infinity, deb: 10000 }
-    };
-    return limits[plan] || limits.starter;
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'analyzed':
-      case 'exported':
-        return <CheckCircle className="w-4 h-4 text-emerald-500" />;
-      case 'processing':
-      case 'parsing':
-        return <Clock className="w-4 h-4 text-amber-500" />;
-      case 'error':
-      case 'needs_review':
-        return <AlertTriangle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Clock className={`w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />;
-    }
-  };
-
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <div className="p-8 text-center text-gray-500">Chargement de votre briefing...</div>;
   }
 
-  if (error || !stats) {
-    return (
-      <div className="bg-red-50 border border-red-200 text-red-800 p-6 rounded-lg text-center">
-        <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold mb-2">Erreur de chargement</h2>
-        <p className="mb-6">{error || "Les données du tableau de bord n'ont pas pu être chargées."}</p>
-        <Button onClick={() => loadDashboardData(orgId)}>Réessayer</Button>
-      </div>
-    );
-  }
-
-  const quotaLimits = getQuotaLimits(stats.plan);
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bonjour';
+    if (hour < 18) return 'Bon après-midi';
+    return 'Bonsoir';
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="sm:flex sm:items-center sm:justify-between">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Vue d'ensemble</h1>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Un résumé de l'activité de votre organisation.</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+            {greeting()}, <span className="text-blue-600 dark:text-blue-400 capitalize">{userName}</span>.
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+            Vous avez 3 actions prioritaires aujourd'hui.
+          </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex space-x-2">
-          <Button asChild variant="outline"><Link href={`/org/${orgId}/erp`}><Receipt className="w-4 h-4 mr-2" /> ERP</Link></Button>
-          <Button asChild variant="outline"><Link href={`/org/${orgId}/deb`}><FileText className="w-4 h-4 mr-2" /> Uploader un document</Link></Button>
-          <Button asChild><Link href={`/org/${orgId}/cv`}><Users className="w-4 h-4 mr-2" /> Nouveau projet CV</Link></Button>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">CV analysés (mois)</p>
-            <Brain className="w-6 h-6 text-blue-500" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.analyzedCandidates} / {quotaLimits.cv === Infinity ? '∞' : quotaLimits.cv}</p>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-2">
-            <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${Math.min((stats.analyzedCandidates / quotaLimits.cv) * 100, 100)}%` }}></div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pages DEB (mois)</p>
-            <FileText className="w-6 h-6 text-green-500" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.debPagesCount} / {quotaLimits.deb}</p>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-2">
-            <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min((stats.debPagesCount / quotaLimits.deb) * 100, 100)}%` }}></div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Projets CV</p>
-            <Target className="w-6 h-6 text-yellow-500" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.projectCount}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Documents DEB</p>
-            <FileText className="w-6 h-6 text-red-500" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.documentCount}</p>
+        <div className="flex gap-2">
+          <button className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Personnaliser
+          </button>
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+            + Nouveau
+          </button>
         </div>
       </div>
 
-      {/* AI Daily Briefing */}
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 p-6 rounded-lg shadow-sm border border-purple-100 dark:border-purple-800/30">
+      {/* Action Cards (Horizontal Scroll) */}
+      <section>
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
-              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Briefing du jour</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </p>
-            </div>
-          </div>
-          <Button asChild variant="outline" size="sm" className="border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/30">
-            <Link href={`/org/${orgId}/daf?tab=ask`}>
-              <Sparkles className="w-4 h-4 mr-2 text-purple-600" />
-              Demander à l'IA
-            </Link>
-          </Button>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            Actions Suggérées
+          </h2>
+          <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Voir tout</button>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Quick Actions */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb className="w-4 h-4 text-amber-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Actions suggérées</h3>
+          {/* Card 1 */}
+          <div className="group relative bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all cursor-pointer">
+            <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-red-500"></div>
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Valider Facture #F2024-089</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Acme Corp • 4,500.00 €</p>
+                <p className="text-xs text-red-500 mt-2 font-medium">Échéance demain</p>
+              </div>
             </div>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href={`/org/${orgId}/erp/invoices`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                  <ChevronRight className="w-3 h-3" />
-                  Vérifier les factures en attente
-                </Link>
-              </li>
-              <li>
-                <Link href={`/org/${orgId}/daf`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                  <ChevronRight className="w-3 h-3" />
-                  Traiter les documents récents
-                </Link>
-              </li>
-              <li>
-                <Link href={`/org/${orgId}/erp/bank`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                  <ChevronRight className="w-3 h-3" />
-                  Rapprocher les transactions
-                </Link>
-              </li>
-            </ul>
+            <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700">Valider</button>
+              <button className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-md hover:bg-gray-200">Ignorer</button>
+            </div>
           </div>
 
-          {/* Alerts */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Bell className="w-4 h-4 text-blue-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Alertes</h3>
+          {/* Card 2 */}
+          <div className="group relative bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all cursor-pointer">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Revoir Candidature</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Jean Dupont • Développeur Fullstack</p>
+                <p className="text-xs text-blue-500 mt-2 font-medium">Match 85%</p>
+              </div>
             </div>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="w-2 h-2 bg-amber-400 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span className="text-gray-600 dark:text-gray-400">Quota CV: {stats.analyzedCandidates}/{quotaLimits.cv === Infinity ? '∞' : quotaLimits.cv} utilisé</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-2 h-2 bg-green-400 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span className="text-gray-600 dark:text-gray-400">{stats.documentCount} documents traités</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-2 h-2 bg-blue-400 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span className="text-gray-600 dark:text-gray-400">{stats.projectCount} projet{stats.projectCount > 1 ? 's' : ''} actif{stats.projectCount > 1 ? 's' : ''}</span>
-              </li>
-            </ul>
+            <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700">Voir CV</button>
+            </div>
           </div>
 
-          {/* Quick Ask */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarDays className="w-4 h-4 text-green-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white text-sm">Questions rapides</h3>
+          {/* Card 3 */}
+          <div className="group relative bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all cursor-pointer">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Préparer DEB</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Déclaration d'Échanges de Biens</p>
+                <p className="text-xs text-gray-500 mt-2">Pour Octobre 2024</p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Link
-                href={`/org/${orgId}/daf?tab=ask&q=Donne moi les factures non réglées`}
-                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
-              >
-                → Factures non réglées
-              </Link>
-              <Link
-                href={`/org/${orgId}/daf?tab=ask&q=Résumé de mon activité ce mois`}
-                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
-              >
-                → Résumé du mois
-              </Link>
-              <Link
-                href={`/org/${orgId}/daf?tab=ask&q=Quels sont mes principaux clients ?`}
-                className="block text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 truncate"
-              >
-                → Mes principaux clients
-              </Link>
+            <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700">Commencer</button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ERP Quick Access */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-sm border border-blue-100 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-blue-600" />
-              Core ERP
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Gérez votre facturation et comptabilité</p>
-          </div>
-          <Button asChild size="sm">
-            <Link href={`/org/${orgId}/erp`}>
-              Accéder au dashboard
-              <ArrowUpRight className="w-4 h-4 ml-1" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link href={`/org/${orgId}/erp/clients`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
-            <Users className="w-6 h-6 text-blue-500 mb-2" />
-            <p className="font-medium text-gray-900 dark:text-white">Clients</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Gérer vos clients</p>
-          </Link>
-          <Link href={`/org/${orgId}/erp/invoices`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
-            <FileText className="w-6 h-6 text-green-500 mb-2" />
-            <p className="font-medium text-gray-900 dark:text-white">Factures</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Créer et suivre</p>
-          </Link>
-          <Link href={`/org/${orgId}/erp/suppliers`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
-            <Building2 className="w-6 h-6 text-orange-500 mb-2" />
-            <p className="font-medium text-gray-900 dark:text-white">Fournisseurs</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Gérer vos achats</p>
-          </Link>
-          <Link href={`/org/${orgId}/daf`} className="bg-white dark:bg-gray-800 p-4 rounded-lg hover:shadow-md transition-shadow">
-            <Wallet className="w-6 h-6 text-purple-500 mb-2" />
-            <p className="font-medium text-gray-900 dark:text-white">Ask DAF</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Assistant IA financier</p>
-          </Link>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Activité récente</h2>
-        <div className="divide-y divide-gray-200 dark:divide-gray-700">
-          {recentActivity.length === 0 ? (
-            <div className="py-8 text-center">
-              <Sparkles className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="font-medium text-gray-900 dark:text-gray-300">Aucune activité récente</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Commencez par créer un projet ou uploader un document.</p>
-            </div>
-          ) : (
-            recentActivity.map((activity, index) => (
-              <div key={index} className="py-4 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className={`p-2 rounded-full ${activity.type === 'cv' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-green-100 dark:bg-green-900'}`}>
-                    {activity.type === 'cv' ? <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" /> : <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />}
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white truncate">{activity.title}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{activity.subtitle}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  {getStatusIcon(activity.status)}
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{new Date(activity.time).toLocaleDateString('fr-FR')}</span>
+      {/* Pulse Metrics (Insight Cards) */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-green-500" />
+          Pulse Financier
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Metric 1 */}
+          <Card className="overflow-hidden border-gray-200 dark:border-gray-700 shadow-sm">
+            <CardContent className="p-0">
+              <div className="p-5">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Chiffre d'Affaires (Mois)</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">24,500 €</h3>
+                  <span className="text-xs font-medium text-green-600 flex items-center">
+                    <ArrowUpRight className="w-3 h-3 mr-0.5" />
+                    +12%
+                  </span>
                 </div>
               </div>
-            ))
-          )}
+              <div className="h-16 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueData}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="url(#colorRevenue)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Metric 2 */}
+          <Card className="overflow-hidden border-gray-200 dark:border-gray-700 shadow-sm">
+            <CardContent className="p-0">
+              <div className="p-5">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Cash Flow</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">12,800 €</h3>
+                  <span className="text-xs font-medium text-red-600 flex items-center">
+                    <ArrowDownRight className="w-3 h-3 mr-0.5" />
+                    -5%
+                  </span>
+                </div>
+              </div>
+              <div className="h-16 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cashFlowData}>
+                    <defs>
+                      <linearGradient id="colorCash" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#colorCash)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Metric 3 */}
+          <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Factures en attente</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">8</h3>
+                </div>
+                <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg text-orange-600">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                  <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: '45%' }}></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">4 en retard de paiement</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Metric 4 */}
+          <Card className="border-gray-200 dark:border-gray-700 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Marge Nette</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">22%</h3>
+                </div>
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg text-purple-600">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <span className="text-green-600 font-medium">+2%</span>
+                <span className="text-gray-500">vs mois dernier</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Recent Activity & Quick Access */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Recent Activity List */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Activité Récente</h2>
+            <div className="flex gap-2">
+              <button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md">
+                <Filter className="w-4 h-4" />
+              </button>
+              <button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {[1, 2, 3, 4, 5].map((item, i) => (
+              <div key={i} className="flex items-center gap-4 p-4 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${i % 2 === 0 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                  }`}>
+                  {i % 2 === 0 ? <FileText className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {i % 2 === 0 ? `Facture #${2024000 + i} créée` : `Paiement reçu de Client ${i}`}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Il y a {i + 2} heures • Par {i % 2 === 0 ? 'Système' : 'Comptabilité'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {i % 2 === 0 ? '1,200.00 €' : '+ 3,450.00 €'}
+                  </p>
+                  <span className="text-xs text-gray-400 group-hover:text-blue-500 flex items-center justify-end gap-1">
+                    Voir <ChevronRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Side Panel / Quick Access */}
+        <div className="space-y-6">
+          {/* Quick Links */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Accès Rapide</h3>
+            <div className="space-y-2">
+              <button onClick={() => router.push(`/org/${orgId}/erp/invoices/new`)} className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-200">
+                <span className="flex items-center gap-3">
+                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  Nouvelle Facture
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+              <button onClick={() => router.push(`/org/${orgId}/erp/clients?action=new`)} className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-200">
+                <span className="flex items-center gap-3">
+                  <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  Nouveau Client
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+              <button onClick={() => router.push(`/org/${orgId}/daf`)} className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-200">
+                <span className="flex items-center gap-3">
+                  <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded">
+                    <ArrowUpRight className="w-4 h-4" />
+                  </div>
+                  Upload Document
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* AI Insight */}
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-lg">
+            <div className="flex items-start gap-3 mb-3">
+              <Sparkles className="w-6 h-6 text-yellow-300 shrink-0" />
+              <div>
+                <h3 className="font-bold text-lg">Conseil IA</h3>
+                <p className="text-indigo-100 text-sm mt-1">
+                  Votre trésorerie est stable, mais 3 clients ont dépassé l'échéance. Voulez-vous que je prépare des relances ?
+                </p>
+              </div>
+            </div>
+            <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors border border-white/20">
+              Préparer les relances
+            </button>
+          </div>
         </div>
       </div>
     </div>

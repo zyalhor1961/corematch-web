@@ -12,32 +12,41 @@
   --card-foreground: #0f172a;
   --surface: #fafafc;
   --border: #e5e7eb;
-  --ring: #1f3a8a;
-  --brand: #1f3a8a;
+  --ring: #00B4D8; /* Updated to Electric Teal */
+  --brand: #0F172A; /* Deep Ocean Blue */
   --brand-foreground: #ffffff;
-  --accent: #d4af37;
-  --accent-foreground: #0f172a;
+  --accent: #00B4D8; /* Electric Teal */
+  --accent-foreground: #ffffff;
   --success: #16a34a;
   --warning: #f59e0b;
-  --destructive: #ef4444;
+  --destructive: #FF6B6B; /* Coral Red */
+  
+  /* CoreMatch Specific Tokens */
+  --cm-primary: #0F172A;
+  --cm-secondary: #334155;
+  --cm-accent: #00B4D8;
+  --cm-alert: #FF6B6B;
+  --cm-surface: #1E293B;
+  --cm-bg: #0B1220;
+  --cm-card-radius: 12px;
 }
 
 .dark {
-  --background: #0b0f1a;
+  --background: #0B1220; /* Soft dark mode background */
   --foreground: #e5e7eb;
   --muted: #94a3b8;
-  --card: #0f1724;
+  --card: #1E293B; /* Soft surfaces */
   --card-foreground: #e5e7eb;
-  --surface: #0c1220;
-  --border: #1e293b;
-  --ring: #3a5bdc;
-  --brand: #3a5bdc;
+  --surface: #0F172A; /* Deep ocean blue */
+  --border: #334155; /* Slate charcoal */
+  --ring: #00B4D8; /* Electric Teal */
+  --brand: #00B4D8; /* Electric Teal for dark mode brand */
   --brand-foreground: #ffffff;
-  --accent: #d4af37;
-  --accent-foreground: #0b0f1a;
+  --accent: #00B4D8;
+  --accent-foreground: #ffffff;
   --success: #22c55e;
   --warning: #fbbf24;
-  --destructive: #f87171;
+  --destructive: #FF6B6B;
 }
 
 /* Expose CSS variables to Tailwind */
@@ -57,6 +66,16 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
+
+  /* CoreMatch Custom Colors */
+  --color-cm-primary: var(--cm-primary);
+  --color-cm-secondary: var(--cm-secondary);
+  --color-cm-accent: var(--cm-accent);
+  --color-cm-alert: var(--cm-alert);
+  --color-cm-surface: var(--cm-surface);
+  --color-cm-bg: var(--cm-bg);
+  
+  --radius-card: var(--cm-card-radius);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

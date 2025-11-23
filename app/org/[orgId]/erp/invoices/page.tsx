@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   FileText,
   Plus,
   Download,
@@ -34,12 +26,25 @@ import {
   Filter,
   Wallet,
   TrendingUp,
-  Receipt
+  Receipt,
+  X,
+  MoreHorizontal,
+  Edit,
+  Trash
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate } from '@/lib/erp/formatters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SummaryCards, formatCurrency as formatCurrencyCard } from '@/components/ui/SummaryCards';
+
+// AG Grid Imports
+import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry, ColDef, ICellRendererParams } from 'ag-grid-community';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+// Register AG Grid Modules
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface Invoice {
   id: string;
@@ -98,6 +103,7 @@ export default function InvoicesPage() {
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
   const [clientFilter, setClientFilter] = useState(searchParams.get('client_id') || '');
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Stats
   const [stats, setStats] = useState({
@@ -195,8 +201,93 @@ export default function InvoicesPage() {
     },
   ];
 
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef[]>(() => [
+    {
+      headerName: 'N° Facture',
+      field: 'invoice_number',
+      filter: true,
+      cellRenderer: (params: ICellRendererParams) => (
+        <span className="font-mono font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline" onClick={() => setSelectedInvoice(params.data)}>
+          {params.value}
+        </span>
+      )
+    },
+    {
+      headerName: 'Client',
+      field: 'client.name',
+      filter: true,
+      cellRenderer: (params: ICellRendererParams) => (
+        <div>
+          <div className="font-medium">{params.value}</div>
+          {params.data.client?.company_name && (
+            <div className="text-xs text-gray-500">{params.data.client.company_name}</div>
+          )}
+        </div>
+      )
+    },
+    {
+      headerName: 'Date',
+      field: 'invoice_date',
+      valueFormatter: (params) => formatDate(params.value),
+      sortable: true
+    },
+    {
+      headerName: 'Échéance',
+      field: 'due_date',
+      valueFormatter: (params) => formatDate(params.value),
+      sortable: true,
+      cellClass: (params) => params.data.status === 'overdue' ? 'text-red-600 font-medium' : ''
+    },
+    {
+      headerName: 'Statut',
+      field: 'status',
+      cellRenderer: (params: ICellRendererParams) => getStatusBadge(params.value),
+      filter: true
+    },
+    {
+      headerName: 'Montant TTC',
+      field: 'total_ttc',
+      valueFormatter: (params) => formatCurrency(params.value),
+      type: 'numericColumn',
+      sortable: true
+    },
+    {
+      headerName: 'Reste dû',
+      field: 'balance_due',
+      valueFormatter: (params) => formatCurrency(params.value),
+      type: 'numericColumn',
+      sortable: true,
+      cellRenderer: (params: ICellRendererParams) => {
+        if (params.value <= 0) return <span className="text-emerald-600 font-medium">Soldée</span>;
+        return <span className="text-orange-600 font-medium">{formatCurrency(params.value)}</span>;
+      }
+    },
+    {
+      headerName: 'Actions',
+      field: 'id',
+      width: 100,
+      cellRenderer: (params: ICellRendererParams) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelectedInvoice(params.data); }}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
+      )
+    }
+  ], []);
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }), []);
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
       <PageHeader
         title="Factures"
@@ -205,15 +296,6 @@ export default function InvoicesPage() {
         iconColor="text-green-600 dark:text-green-400"
         breadcrumbs={breadcrumbs}
         backHref={`/org/${orgId}/erp`}
-        helpContent={{
-          title: 'Gestion des factures',
-          description: 'Créez, suivez et gérez toutes vos factures clients. Visualisez les paiements et les retards.',
-          examples: [
-            'Créer une nouvelle facture',
-            'Suivre les paiements',
-            'Relancer les impayés',
-          ],
-        }}
         actions={
           <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
             <Link href={`/org/${orgId}/erp/invoices/new`}>
@@ -228,129 +310,104 @@ export default function InvoicesPage() {
       <SummaryCards cards={summaryCards} columns={4} />
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">Filtrer:</span>
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
-              <SelectValue placeholder="Statut" />
-            </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <SelectItem value="all" className="text-gray-900 dark:text-white">Tous les statuts</SelectItem>
-              <SelectItem value="draft" className="text-gray-900 dark:text-white">Brouillons</SelectItem>
-              <SelectItem value="sent" className="text-gray-900 dark:text-white">Envoyées</SelectItem>
-              <SelectItem value="unpaid" className="text-gray-900 dark:text-white">À encaisser</SelectItem>
-              <SelectItem value="paid" className="text-gray-900 dark:text-white">Payées</SelectItem>
-              <SelectItem value="overdue" className="text-gray-900 dark:text-white">En retard</SelectItem>
-              <SelectItem value="cancelled" className="text-gray-900 dark:text-white">Annulées</SelectItem>
-            </SelectContent>
-          </Select>
-          {(statusFilter !== 'all' || clientFilter) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setStatusFilter('all');
-                setClientFilter('');
-              }}
-              className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Réinitialiser
-            </Button>
-          )}
-        </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex gap-4 items-center">
+        <Filter className="h-4 w-4 text-gray-500" />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="draft">Brouillons</SelectItem>
+            <SelectItem value="sent">Envoyées</SelectItem>
+            <SelectItem value="unpaid">À encaisser</SelectItem>
+            <SelectItem value="paid">Payées</SelectItem>
+            <SelectItem value="overdue">En retard</SelectItem>
+          </SelectContent>
+        </Select>
+        {(statusFilter !== 'all' || clientFilter) && (
+          <Button variant="ghost" size="sm" onClick={() => { setStatusFilter('all'); setClientFilter(''); }}>
+            Réinitialiser
+          </Button>
+        )}
       </div>
 
-      {/* Invoices Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+      {/* AG Grid */}
+      <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden relative">
         {loading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Skeleton key={i} className="h-12 w-full bg-gray-200 dark:bg-gray-700" />
-            ))}
-          </div>
-        ) : invoices.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-            <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucune facture</h3>
-            <p className="text-gray-600 dark:text-gray-400">Commencez par créer votre première facture</p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" asChild>
-              <Link href={`/org/${orgId}/erp/invoices/new`}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nouvelle facture
-              </Link>
-            </Button>
+          <div className="p-4 space-y-2">
+            {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">N° Facture</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Client</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Échéance</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Statut</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Montant TTC</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Reste dû</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="py-3 px-4">
-                      <span className="font-mono font-medium text-gray-900 dark:text-white">{invoice.invoice_number}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {invoice.client ? (
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{invoice.client.name}</div>
-                          {invoice.client.company_name && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400">{invoice.client.company_name}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500 dark:text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{formatDate(invoice.invoice_date)}</td>
-                    <td className="py-3 px-4">
-                      <span className={invoice.status === 'overdue' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
-                        {formatDate(invoice.due_date)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">{getStatusBadge(invoice.status)}</td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(invoice.total_ttc)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {invoice.balance_due > 0 ? (
-                        <span className="text-orange-600 dark:text-orange-400 font-medium">{formatCurrency(invoice.balance_due)}</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400">Soldée</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" title="Voir" className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" title="Télécharger PDF" className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="ag-theme-alpine w-full h-full">
+            <AgGridReact
+              rowData={invoices}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={20}
+              onRowClicked={(e) => setSelectedInvoice(e.data)}
+              rowSelection="single"
+              animateRows={true}
+            />
           </div>
         )}
       </div>
+
+      {/* Context Drawer (Right Side Panel) */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setSelectedInvoice(null)}></div>
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-900 h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300 border-l border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Facture {selectedInvoice.invoice_number}</h2>
+                <p className="text-sm text-gray-500">{formatDate(selectedInvoice.invoice_date)}</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedInvoice(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-gray-500">Statut</span>
+                  {getStatusBadge(selectedInvoice.status)}
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-gray-500">Montant TTC</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.total_ttc)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-500">Reste à payer</span>
+                  <span className="text-lg font-bold text-orange-600">{formatCurrency(selectedInvoice.balance_due)}</span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Détails Client
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <p><span className="text-gray-500">Nom:</span> {selectedInvoice.client?.name}</p>
+                  <p><span className="text-gray-500">Société:</span> {selectedInvoice.client?.company_name || '-'}</p>
+                  <p><span className="text-gray-500">Email:</span> {selectedInvoice.client?.email || '-'}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
+                  <Download className="w-4 h-4 mr-2" /> Télécharger
+                </Button>
+                <Button variant="outline" className="flex-1">
+                  <Edit className="w-4 h-4 mr-2" /> Modifier
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

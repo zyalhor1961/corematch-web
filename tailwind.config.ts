@@ -10,3 +10,6 @@ export default {
   ],
 } satisfies Config
 
+// Note: Colors are now handled via CSS variables in globals.css using Tailwind v4 @theme
+
+

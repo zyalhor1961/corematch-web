@@ -23,14 +23,22 @@ import {
   Home,
   ChevronRight,
   Calculator,
+  User,
+  ShoppingCart,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency } from '@/components/ui/SummaryCards';
 
 interface Client {
   id: string;
   name: string;
   email?: string;
   company_name?: string;
+  default_payment_terms?: string;
 }
 
 interface Product {
@@ -53,15 +61,6 @@ interface InvoiceLine {
   total_ttc: number;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
@@ -73,16 +72,24 @@ function calculateLineTotals(line: InvoiceLine): InvoiceLine {
   return { ...line, total_ht, total_vat, total_ttc };
 }
 
+const STEPS = [
+  { id: 1, title: 'Client & Infos', icon: User },
+  { id: 2, title: 'Lignes', icon: ShoppingCart },
+  { id: 3, title: 'Finalisation', icon: CheckCircle }
+];
+
 export default function NewInvoicePage() {
   const params = useParams();
   const router = useRouter();
   const orgId = params.orgId as string;
 
+  const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [restored, setRestored] = useState(false);
 
   // Form state
   const [clientId, setClientId] = useState<string>('');
@@ -141,6 +148,35 @@ export default function NewInvoicePage() {
     fetchData();
   }, []);
 
+  // Auto-save & Restore
+  useEffect(() => {
+    const saved = localStorage.getItem(`invoice_draft_${orgId}`);
+    if (saved && !restored) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Optional: Ask user before restoring? For now, just restore if empty
+        if (!clientId) {
+          setClientId(parsed.clientId || '');
+          setReference(parsed.reference || '');
+          setInvoiceDate(parsed.invoiceDate || new Date().toISOString().split('T')[0]);
+          setLines(parsed.lines || []);
+          setNotes(parsed.notes || '');
+          setPaymentTerms(parsed.paymentTerms || 'Paiement à 30 jours');
+          setRestored(true);
+        }
+      } catch (e) {
+        console.error("Failed to restore draft", e);
+      }
+    }
+  }, [orgId, restored, clientId]);
+
+  useEffect(() => {
+    if (restored || clientId || lines.length > 1 || lines[0].description) {
+      const draft = { clientId, reference, invoiceDate, lines, notes, paymentTerms };
+      localStorage.setItem(`invoice_draft_${orgId}`, JSON.stringify(draft));
+    }
+  }, [clientId, reference, invoiceDate, lines, notes, paymentTerms, orgId, restored]);
+
   function addLine() {
     setLines([
       ...lines,
@@ -187,15 +223,24 @@ export default function NewInvoicePage() {
     }
   }
 
+  // Smart Defaults
+  useEffect(() => {
+    if (clientId) {
+      const client = clients.find(c => c.id === clientId);
+      if (client?.default_payment_terms) {
+        setPaymentTerms(client.default_payment_terms);
+      }
+      // Simulate AI Reference Generation
+      if (!reference) {
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        setReference(`FACT-${dateStr}-${Math.floor(Math.random() * 1000)}`);
+      }
+    }
+  }, [clientId, clients]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    // Validation
-    if (!clientId) {
-      setError('Veuillez sélectionner un client');
-      return;
-    }
 
     const validLines = lines.filter((line) => line.description.trim());
     if (validLines.length === 0) {
@@ -230,7 +275,8 @@ export default function NewInvoicePage() {
         throw new Error(errorData.error || 'Erreur lors de la création');
       }
 
-      const data = await res.json();
+      // Clear draft
+      localStorage.removeItem(`invoice_draft_${orgId}`);
       router.push(`/org/${orgId}/erp/invoices`);
     } catch (err: any) {
       console.error('Error creating invoice:', err);
@@ -240,392 +286,281 @@ export default function NewInvoicePage() {
     }
   }
 
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm">
-        <Link
-          href={`/org/${orgId}`}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
-        >
-          <Home className="h-4 w-4" />
-          <span>Accueil</span>
-        </Link>
-        <ChevronRight className="h-4 w-4 text-gray-400" />
-        <Link
-          href={`/org/${orgId}/erp`}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          ERP
-        </Link>
-        <ChevronRight className="h-4 w-4 text-gray-400" />
-        <Link
-          href={`/org/${orgId}/erp/invoices`}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          Factures
-        </Link>
-        <ChevronRight className="h-4 w-4 text-gray-400" />
-        <span className="font-medium text-gray-900 dark:text-white">
-          Nouvelle facture
-        </span>
-      </nav>
+  const nextStep = () => {
+    if (currentStep === 1 && !clientId) {
+      setError('Veuillez sélectionner un client');
+      return;
+    }
+    setError(null);
+    setCurrentStep(curr => Math.min(curr + 1, 3));
+  };
 
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          asChild
-          className="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          <Link href={`/org/${orgId}/erp/invoices`}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-            <FileText className="h-8 w-8 text-green-600 dark:text-green-400" />
-            Nouvelle facture
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Créez une nouvelle facture client
-          </p>
+  const prevStep = () => setCurrentStep(curr => Math.max(curr - 1, 1));
+
+  return (
+    <div className="container mx-auto p-6 max-w-5xl space-y-8">
+      {/* Header & Steps */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText className="h-8 w-8 text-blue-600" />
+              Nouvelle Facture
+            </h1>
+            <p className="text-gray-500 mt-1">Créez une facture en 3 étapes simples</p>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            {restored && <span className="flex items-center gap-1 text-green-600"><RotateCcw className="w-3 h-3" /> Brouillon restauré</span>}
+          </div>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="relative flex justify-between items-center w-full max-w-2xl mx-auto">
+          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 dark:bg-gray-700 -z-10"></div>
+          {STEPS.map((step) => {
+            const Icon = step.icon;
+            const isActive = currentStep >= step.id;
+            const isCurrent = currentStep === step.id;
+            return (
+              <div key={step.id} className="flex flex-col items-center gap-2 bg-background px-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
+                  }`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : 'text-gray-500'}`}>
+                  {step.title}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Error message */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-700 dark:text-red-400">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 animate-in slide-in-from-top-2">
+          <p className="text-red-700 dark:text-red-400 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4" /> {error}
+          </p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Client and dates */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Informations générales
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="client">Client *</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
-                  <SelectValue placeholder="Sélectionner un client" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                  {clients.map((client) => (
-                    <SelectItem
-                      key={client.id}
-                      value={client.id}
-                      className="text-gray-900 dark:text-white"
-                    >
-                      {client.name}
-                      {client.company_name && ` - ${client.company_name}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {clients.length === 0 && !loadingData && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  <Link
-                    href={`/org/${orgId}/erp/clients?action=new`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    Créer un client
-                  </Link>{' '}
-                  pour commencer
-                </p>
-              )}
-            </div>
+      {/* Step Content */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm min-h-[400px] p-8 relative overflow-hidden">
 
-            <div className="space-y-2">
-              <Label htmlFor="reference">Référence</Label>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="Réf. projet, commande..."
-                className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              />
-            </div>
+        {/* Step 1: Client & Infos */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <Label htmlFor="client" className="text-base font-semibold">Client</Label>
+                <Select value={clientId} onValueChange={setClientId}>
+                  <SelectTrigger className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                    <SelectValue placeholder="Sélectionner un client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name} {client.company_name && `- ${client.company_name}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Sélectionnez le destinataire de la facture</span>
+                  <Link href={`/org/${orgId}/erp/clients?action=new`} className="text-blue-600 hover:underline">+ Nouveau client</Link>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="invoiceDate">Date de facture</Label>
-              <DateInput
-                id="invoiceDate"
-                value={invoiceDate}
-                onChange={(value) => setInvoiceDate(value)}
-                placeholder="jj/mm/aaaa"
-              />
-            </div>
+              <div className="space-y-3">
+                <Label htmlFor="reference" className="text-base font-semibold flex justify-between">
+                  Référence
+                  {reference && <span className="text-xs font-normal text-blue-600 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Généré par IA</span>}
+                </Label>
+                <Input
+                  id="reference"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                  placeholder="Ex: FACT-2024-001"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dueDate">Date d'échéance</Label>
-              <DateInput
-                id="dueDate"
-                value={dueDate}
-                onChange={(value) => setDueDate(value)}
-                placeholder="jj/mm/aaaa"
-              />
+              <div className="space-y-3">
+                <Label htmlFor="invoiceDate" className="text-base font-semibold">Date d'émission</Label>
+                <DateInput
+                  id="invoiceDate"
+                  value={invoiceDate}
+                  onChange={setInvoiceDate}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="dueDate" className="text-base font-semibold">Date d'échéance</Label>
+                <DateInput
+                  id="dueDate"
+                  value={dueDate}
+                  onChange={setDueDate}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Invoice lines */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Lignes de facture
-            </h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLine}
-              className="text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter une ligne
-            </Button>
-          </div>
+        {/* Step 2: Lignes */}
+        {currentStep === 2 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Articles & Services</h3>
+              <Button onClick={addLine} variant="outline" size="sm">
+                <Plus className="w-4 h-4 mr-2" /> Ajouter une ligne
+              </Button>
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-16">
-                    Produit
-                  </th>
-                  <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Description
-                  </th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-24">
-                    Qté
-                  </th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-32">
-                    Prix unit. HT
-                  </th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-24">
-                    TVA %
-                  </th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-32">
-                    Total HT
-                  </th>
-                  <th className="w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, index) => (
-                  <tr
-                    key={line.id}
-                    className="border-b border-gray-100 dark:border-gray-700"
-                  >
-                    <td className="py-2 px-2">
-                      <Select
-                        value={line.product_id || 'none'}
-                        onValueChange={(value) => {
-                          if (value !== 'none') {
-                            selectProduct(line.id, value);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white h-9 text-sm">
-                          <SelectValue placeholder="-" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                          <SelectItem value="none" className="text-gray-500">
-                            Aucun
-                          </SelectItem>
-                          {products.map((product) => (
-                            <SelectItem
-                              key={product.id}
-                              value={product.id}
-                              className="text-gray-900 dark:text-white"
-                            >
-                              {product.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="py-2 px-2">
-                      <Input
-                        value={line.description}
-                        onChange={(e) =>
-                          updateLine(line.id, { description: e.target.value })
-                        }
-                        placeholder="Description du service ou produit"
-                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white h-9 text-sm"
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          updateLine(line.id, {
-                            quantity: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white h-9 text-sm text-right"
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.unit_price}
-                        onChange={(e) =>
-                          updateLine(line.id, {
-                            unit_price: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white h-9 text-sm text-right"
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <Select
-                        value={line.vat_rate.toString()}
-                        onValueChange={(value) =>
-                          updateLine(line.id, { vat_rate: parseFloat(value) })
-                        }
-                      >
-                        <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white h-9 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                          <SelectItem
-                            value="0"
-                            className="text-gray-900 dark:text-white"
-                          >
-                            0%
-                          </SelectItem>
-                          <SelectItem
-                            value="5.5"
-                            className="text-gray-900 dark:text-white"
-                          >
-                            5.5%
-                          </SelectItem>
-                          <SelectItem
-                            value="10"
-                            className="text-gray-900 dark:text-white"
-                          >
-                            10%
-                          </SelectItem>
-                          <SelectItem
-                            value="20"
-                            className="text-gray-900 dark:text-white"
-                          >
-                            20%
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <span className="text-gray-900 dark:text-white font-medium">
-                        {formatCurrency(line.total_ht)}
-                      </span>
-                    </td>
-                    <td className="py-2 px-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLine(line.id)}
-                        disabled={lines.length === 1}
-                        className="h-8 w-8 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    <th className="p-3 text-left font-medium text-gray-500">Description</th>
+                    <th className="p-3 text-right font-medium text-gray-500 w-24">Qté</th>
+                    <th className="p-3 text-right font-medium text-gray-500 w-32">Prix HT</th>
+                    <th className="p-3 text-right font-medium text-gray-500 w-24">TVA</th>
+                    <th className="p-3 text-right font-medium text-gray-500 w-32">Total HT</th>
+                    <th className="p-3 w-10"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {lines.map((line) => (
+                    <tr key={line.id} className="group hover:bg-gray-50 dark:hover:bg-gray-900/20">
+                      <td className="p-2">
+                        <div className="flex flex-col gap-1">
+                          <Select value={line.product_id || 'none'} onValueChange={(v) => v !== 'none' && selectProduct(line.id, v)}>
+                            <SelectTrigger className="h-8 border-0 bg-transparent p-0 text-xs text-gray-500 focus:ring-0 w-fit">
+                              <SelectValue placeholder="Sélectionner un produit (optionnel)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            value={line.description}
+                            onChange={(e) => updateLine(line.id, { description: e.target.value })}
+                            className="h-9 border-0 bg-transparent p-0 focus-visible:ring-0 font-medium placeholder:font-normal"
+                            placeholder="Description de la prestation..."
+                          />
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        <Input type="number" value={line.quantity} onChange={(e) => updateLine(line.id, { quantity: parseFloat(e.target.value) || 0 })} className="text-right h-9" />
+                      </td>
+                      <td className="p-2">
+                        <Input type="number" value={line.unit_price} onChange={(e) => updateLine(line.id, { unit_price: parseFloat(e.target.value) || 0 })} className="text-right h-9" />
+                      </td>
+                      <td className="p-2">
+                        <Select value={line.vat_rate.toString()} onValueChange={(v) => updateLine(line.id, { vat_rate: parseFloat(v) })}>
+                          <SelectTrigger className="h-9 text-right justify-end"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {[0, 5.5, 10, 20].map(rate => <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-3 text-right font-medium">
+                        {formatCurrency(line.total_ht)}
+                      </td>
+                      <td className="p-2 text-center">
+                        <Button variant="ghost" size="icon" onClick={() => removeLine(line.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-600 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          {/* Totals */}
-          <div className="mt-6 flex justify-end">
-            <div className="w-72 space-y-2">
-              <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                <span>Sous-total HT</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(subtotalHT)}
-                </span>
-              </div>
-              <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                <span>TVA</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(totalVAT)}
-                </span>
-              </div>
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between">
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  Total TTC
-                </span>
-                <span className="font-bold text-lg text-green-600 dark:text-green-400">
-                  {formatCurrency(totalTTC)}
-                </span>
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total HT</span>
+                  <span className="font-medium">{formatCurrency(subtotalHT)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">TVA</span>
+                  <span className="font-medium">{formatCurrency(totalVAT)}</span>
+                </div>
+                <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <span>Total TTC</span>
+                  <span className="text-blue-600">{formatCurrency(totalTTC)}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Notes and payment terms */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Notes et conditions
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="paymentTerms">Conditions de paiement</Label>
-              <Input
-                id="paymentTerms"
-                value={paymentTerms}
-                onChange={(e) => setPaymentTerms(e.target.value)}
-                placeholder="Ex: Paiement à 30 jours"
-                className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Notes additionnelles pour le client..."
-                rows={3}
-                className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              />
+        {/* Step 3: Finalisation */}
+        {currentStep === 3 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Conditions & Notes</h3>
+                <div className="space-y-3">
+                  <Label htmlFor="paymentTerms">Conditions de paiement</Label>
+                  <Input id="paymentTerms" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="notes">Notes (visible sur la facture)</Label>
+                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Résumé</h3>
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-6 space-y-4 border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div>
+                      <p className="text-sm text-gray-500">Client</p>
+                      <p className="font-medium">{clients.find(c => c.id === clientId)?.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Date</p>
+                      <p className="font-medium">{new Date(invoiceDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Nombre de lignes</span>
+                      <span>{lines.length}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-lg pt-2">
+                      <span>Total à payer</span>
+                      <span className="text-blue-600">{formatCurrency(totalTTC)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            asChild
-            className="text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-          >
-            <Link href={`/org/${orgId}/erp/invoices`}>Annuler</Link>
-          </Button>
-          <Button
-            type="submit"
-            disabled={saving}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Création en cours...' : 'Créer la facture'}
-          </Button>
+      {/* Footer Actions */}
+      <div className="flex justify-between items-center pt-4">
+        <Button variant="outline" onClick={currentStep === 1 ? () => router.back() : prevStep} disabled={saving}>
+          {currentStep === 1 ? 'Annuler' : 'Précédent'}
+        </Button>
+
+        <div className="flex gap-3">
+          {currentStep < 3 ? (
+            <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700 text-white">
+              Suivant <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white">
+              {saving ? 'Création...' : 'Créer la facture'} <CheckCircle className="w-4 h-4 ml-2" />
+            </Button>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   );
 }

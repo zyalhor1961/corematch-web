@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Circle, AlertTriangle, Loader2, Ban } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
 
 export type AgentStep = {
     title: string;
@@ -18,10 +19,30 @@ const StatusIcon = ({ status }: { status: AgentStep['status'] }) => {
 };
 
 export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: string }) => {
-    // Add a handleFeedback function (mock for now)
-    const handleFeedback = (stepTitle: string, isPositive: boolean) => {
-        console.log(`Feedback for ${stepTitle}: ${isPositive ? 'Good' : 'Bad'}`);
-        // Later: Call Supabase to insert into 'ai_feedback'
+    const handleFeedback = async (stepTitle: string, isPositive: boolean) => {
+        if (!jobId) {
+            console.error('No job ID provided for feedback');
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('ai_feedback')
+                .insert({
+                    job_id: jobId,
+                    step_title: stepTitle,
+                    is_positive: isPositive,
+                    user_comment: null // Could add a dialog for this later
+                });
+
+            if (error) {
+                console.error('Failed to submit feedback:', error);
+            } else {
+                console.log(`✅ Feedback submitted for "${stepTitle}"`);
+            }
+        } catch (err) {
+            console.error('Error submitting feedback:', err);
+        }
     };
 
     if (!steps || steps.length === 0) return <div className="text-slate-500 text-xs italic">Waiting for agent...</div>;

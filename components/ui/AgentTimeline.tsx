@@ -17,18 +17,39 @@ const StatusIcon = ({ status }: { status: AgentStep['status'] }) => {
     }
 };
 
-export const AgentTimeline = ({ steps }: { steps: AgentStep[] }) => {
+export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: string }) => {
+    // Add a handleFeedback function (mock for now)
+    const handleFeedback = (stepTitle: string, isPositive: boolean) => {
+        console.log(`Feedback for ${stepTitle}: ${isPositive ? 'Good' : 'Bad'}`);
+        // Later: Call Supabase to insert into 'ai_feedback'
+    };
+
     if (!steps || steps.length === 0) return <div className="text-slate-500 text-xs italic">Waiting for agent...</div>;
 
     return (
         <div className="space-y-0 mt-2">
             {steps.map((step, i) => (
-                <div key={i} className="relative pl-6 pb-6 last:pb-0">
+                <div key={i} className="relative pl-6 pb-6 last:pb-0 group">
                     {i !== steps.length - 1 && <div className="absolute left-[7px] top-5 bottom-0 w-[1px] bg-white/10" />}
                     <div className="absolute left-0 top-0.5 bg-[#0F172A] z-10"><StatusIcon status={step.status} /></div>
-                    <div>
-                        <div className={`text-xs font-bold uppercase tracking-wider ${step.status === 'done' ? 'text-slate-200' : 'text-blue-300'}`}>{step.title}</div>
-                        <div className="text-xs text-slate-400 mt-0.5">{step.detail}</div>
+
+                    {/* Content Container */}
+                    <div className="flex justify-between items-start">
+                        <div className="flex flex-col">
+                            <div className={`text-xs font-bold uppercase tracking-wider ${step.status === 'done' ? 'text-slate-200' : 'text-blue-300'}`}>{step.title}</div>
+                            <div className="text-xs text-slate-400 mt-0.5">{step.detail}</div>
+                        </div>
+
+                        {/* THE NEW FEEDBACK BUTTONS (Visible on Hover) */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                            <button
+                                onClick={() => handleFeedback(step.title, false)}
+                                className="text-slate-600 hover:text-rose-400 p-1"
+                                title="Report Error"
+                            >
+                                👎
+                            </button>
+                        </div>
                     </div>
                 </div>
             ))}

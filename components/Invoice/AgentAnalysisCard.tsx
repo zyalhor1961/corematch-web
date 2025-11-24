@@ -65,7 +65,7 @@ export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, am
 
                     {/* The Terminal / Logs */}
                     <div className="bg-[#020617] rounded-lg p-3 font-mono text-xs text-slate-400 max-h-64 overflow-y-auto border border-white/5">
-                        <AgentTimeline steps={steps} />
+                        <AgentTimeline steps={steps} jobId={invoiceId} />
                     </div>
 
                     {/* Status Indicator */}

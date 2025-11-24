@@ -35,7 +35,7 @@ export default function InvoiceDetailPage() {
                 .select(`
                     *,
                     client:erp_clients(name, company_name, email),
-                    items:erp_invoice_items(description, quantity, unit_price)
+                    items:erp_invoice_lines(description, quantity, unit_price)
                 `)
                 .eq('id', invoiceId)
                 .single();

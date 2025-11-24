@@ -1,8 +1,19 @@
 # Database Migrations
 
-## Running the Invoice RLS Policies Migration
+## Available Migrations
 
-To enable the "Valider" button in the Invoice Drawer, you need to run the RLS policies migration:
+### 1. Invoice RLS Policies (`20250124_invoice_rls_policies.sql`)
+To enable the "Valider" button in the Invoice Drawer, you need to run the RLS policies migration.
+
+### 2. Invoice Storage (`20250124_storage_invoices.sql`)
+Creates the Supabase Storage bucket for invoice uploads with public read/write policies.
+
+### 3. File URL Column (`20250124_add_file_url_to_invoices.sql`)
+Adds the `file_url` column to store PDF references from Supabase Storage.
+
+## Running Migrations
+
+To enable invoice uploads and validation, run ALL migrations:
 
 ### Option 1: Supabase Dashboard (Recommended)
 

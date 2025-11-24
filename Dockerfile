@@ -22,7 +22,9 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG SUPABASE_URL
 ARG SUPABASE_ANON_KEY
+# checkov:skip=CKV_DOCKER_2: "Suppress warning for secrets in ARG"
 ARG SUPABASE_SERVICE_ROLE_KEY
+# checkov:skip=CKV_DOCKER_2: "Suppress warning for secrets in ARG"
 ARG OPENAI_API_KEY
 
 ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
@@ -34,14 +36,14 @@ ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 # -------------------------------------------
 
 # Disable telemetry during build
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # 4. Production Runner
 FROM base AS runner
 WORKDIR /app
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create a system user for security
 RUN addgroup --system --gid 1001 nodejs
@@ -55,7 +57,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 
 EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]

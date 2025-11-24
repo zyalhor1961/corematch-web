@@ -9,6 +9,8 @@ ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 -- Drop existing policies if they exist (to avoid conflicts)
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON invoices;
 DROP POLICY IF EXISTS "Enable update for jobs" ON jobs;
+DROP POLICY IF EXISTS "Enable read for authenticated users" ON invoices;
+DROP POLICY IF EXISTS "Enable read for jobs" ON jobs;
 
 -- Allow authenticated users to UPDATE invoices (Required for the "Valider" button)
 CREATE POLICY "Enable update for authenticated users"
@@ -26,14 +28,14 @@ TO authenticated
 USING (true)
 WITH CHECK (true);
 
--- Optional: Add SELECT policies if they don't exist yet
-CREATE POLICY IF NOT EXISTS "Enable read for authenticated users"
+-- Add SELECT policies for reading data
+CREATE POLICY "Enable read for authenticated users"
 ON invoices
 FOR SELECT
 TO authenticated
 USING (true);
 
-CREATE POLICY IF NOT EXISTS "Enable read for jobs"
+CREATE POLICY "Enable read for jobs"
 ON jobs
 FOR SELECT
 TO authenticated

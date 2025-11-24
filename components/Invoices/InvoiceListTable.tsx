@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 import { ArrowRight } from 'lucide-react';
 
 type Invoice = {
@@ -16,7 +16,10 @@ type Invoice = {
 
 export default function InvoiceListTable({ orgId }: { orgId: string }) {
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
 

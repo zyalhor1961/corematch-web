@@ -6,7 +6,7 @@ import { Sparkles, Bot, AlertTriangle, CheckCircle } from 'lucide-react';
 import { AgentTimeline } from '@/components/ui/AgentTimeline';
 
 export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, amount: number }) => {
-    const { status, result, logs, steps, analyzeInvoice } = useInvoiceAgent(invoiceId);
+    const { status, result, logs, steps, jobId, analyzeInvoice } = useInvoiceAgent(invoiceId);
 
     const isWorking = status === 'pending' || status === 'processing';
 
@@ -65,7 +65,7 @@ export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, am
 
                     {/* The Terminal / Logs */}
                     <div className="bg-[#020617] rounded-lg p-3 font-mono text-xs text-slate-400 max-h-64 overflow-y-auto border border-white/5">
-                        <AgentTimeline steps={steps} jobId={invoiceId} />
+                        <AgentTimeline steps={steps} jobId={jobId} />
                     </div>
 
                     {/* Status Indicator */}

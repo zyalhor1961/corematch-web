@@ -3,12 +3,12 @@ import re
 class PrivacyAirlock:
     def __init__(self):
         # Define patterns for PII (Personally Identifiable Information)
+        # Order matters: More specific patterns first to avoid conflicts
         self.patterns = {
             "EMAIL": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-            "PHONE": r'(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}',
-            "IBAN": r'[A-Z]{2}\d{2}[A-Z0-9]{1,30}',
-            "CREDIT_CARD": r'\b(?:\d[ -]*?){13,16}\b',
-            "AMOUNT_HIGH": r'(?<!\d)\d{1,3}(?:,\d{3})*(?:\.\d+)?(?=[\s€$£])' # Detect amounts to potentially mask salaries
+            "IBAN": r'\b[A-Z]{2}\d{2}[A-Z0-9\s]{15,32}\b',  # IBAN with optional spaces
+            "CREDIT_CARD": r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b',  # 16 digits with optional separators
+            "PHONE": r'(?:\+\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}',  # International phone formats
         }
 
     def sanitize(self, text: str) -> str:

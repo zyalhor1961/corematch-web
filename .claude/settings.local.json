@@ -146,7 +146,9 @@
       "Bash(.gitignore)",
       "Bash(git rm:*)",
       "Bash(npm ls:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(python test_privacy_airlock.py:*)",
+      "WebFetch(domain:corematch-h1o3osgr0-corematchs-projects.vercel.app)"
     ],
     "deny": [],
     "ask": []

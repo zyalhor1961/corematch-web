@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { ArrowRight } from 'lucide-react';
+import InvoiceDrawer from './InvoiceDrawer';
 
 type Invoice = {
     id: string;
@@ -22,6 +23,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
     );
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchInvoices = async () => {
@@ -68,6 +70,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
     }
 
     return (
+        <>
         <div className="w-full overflow-hidden rounded-xl border border-white/5 bg-[#0F172A]/60 backdrop-blur-md">
             <table className="w-full text-left text-sm">
                 <thead className="bg-[#020617]/50 text-xs uppercase text-slate-400">
@@ -91,7 +94,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                         invoices.map((invoice) => (
                             <tr
                                 key={invoice.id}
-                                onClick={() => router.push(`/org/${orgId}/erp/invoices/${invoice.id}`)}
+                                onClick={() => setSelectedInvoiceId(invoice.id)}
                                 className="group cursor-pointer transition-colors hover:bg-white/[0.02]"
                             >
                                 <td className="px-6 py-4 font-mono text-slate-300 group-hover:text-teal-400 transition-colors">
@@ -129,5 +132,13 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                 <span>Showing all {invoices.length} invoices</span>
             </div>
         </div>
+
+        {/* Invoice Drawer */}
+        <InvoiceDrawer
+            invoiceId={selectedInvoiceId}
+            isOpen={!!selectedInvoiceId}
+            onClose={() => setSelectedInvoiceId(null)}
+        />
+    </>
     );
 }

@@ -90,3 +90,16 @@ def health():
         return {"status": "healthy", "supabase": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    
+    # 1. Get the PORT from Railway (default to 8000 if running locally)
+    port = int(os.getenv("PORT", 8000))
+    
+    # 2. Print it so we can see it in the logs
+    print(f"🚀 Starting Brain on 0.0.0.0:{port}")
+    
+    # 3. Run the server
+    uvicorn.run(app, host="0.0.0.0", port=port)

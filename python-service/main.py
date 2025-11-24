@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from agent_graph import app_graph
 from privacy_guard import airlock
 from datetime import datetime, timedelta
+from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.core.credentials import AzureKeyCredential
 
 load_dotenv()
 
@@ -32,10 +34,7 @@ class JobRequest(BaseModel):
     invoice_id: str
     amount: float
 
-from datetime import datetime
-
-# --- NEW HELPER FUNCTION ---
-# --- UPGRADED HELPER FUNCTION ---
+# --- HELPER FUNCTION ---
 def log_step(invoice_id: str, title: str, detail: str, status: str = "processing"):
     """
     Writes a structured step to Supabase. 
@@ -70,97 +69,107 @@ def log_step(invoice_id: str, title: str, detail: str, status: str = "processing
     except Exception as e:
         print(f"❌ Failed to log step: {e}")
 
-# --- UPDATED LOGIC ---
+# --- AZURE OCR AGENT TASK ---
 def run_agent_task(invoice_id: str, amount: float):
     try:
-        # 1. Start & Reset
-        # We overwrite the 'steps' array with the first step, effectively clearing history
+        # 1. INITIALISATION ET LOGS
+        # On efface l'historique précédent pour une nouvelle analyse propre
         first_step = [{
-            "title": "Agent Activated",
-            "detail": "Initializing Accountant Agent...",
+            "title": "Agent Activé",
+            "detail": "Connexion aux services Azure AI...",
             "status": "done",
             "timestamp": datetime.now().isoformat()
         }]
-
+        
         supabase.table("jobs").update({
             "status": "processing",
-            "steps": first_step  # <--- This OVERWRITES the old array
+            "steps": first_step
         }).eq("invoice_id", invoice_id).execute()
-        
-        # 2. Privacy Airlock (Simulated OCR Text for now)
-        # In real version, this comes from the PDF
-        raw_invoice_text = f"""
-        Invoice for software development.
-        Contact: john.doe@gmail.com
-        Phone: +33 6 12 34 56 78
-        IBAN: FR76 3000 1000 1000 1000 1000 100
-        Total: €{amount}
-        """
-        
-        log_step(invoice_id, "Privacy Airlock", "Scanning document for PII...", "processing")
-        
-        # --- THE SECURITY CHECK ---
-        security_report = airlock.inspect_traffic(raw_invoice_text)
-        
-        if not security_report['safe']:
-            redacted_text = security_report['sanitized_content']
-            flags_found = ", ".join(security_report['flags'])
-            
-            log_step(
-                invoice_id, 
-                "Privacy Airlock", 
-                f"Redacted sensitive data: {flags_found}", 
-                "warning"  # Warning because we found something, but we handled it.
-            )
-            
-            # NOW we would send 'redacted_text' to OpenAI, not 'raw_invoice_text'
-            # agent_response = openai.chat(redacted_text)
-            
-        else:
-            log_step(invoice_id, "Privacy Airlock", "No sensitive PII detected.", "done")
-        
-        # 3. Analysis
-        log_step(invoice_id, "Reading Invoice", f"Extracted Amount: €{amount}", "done")
-        
-        # 3. FETCH DYNAMIC POLICIES (The Upgrade)
-        # Note: In production, filter by org_id here. For demo, we take the first active rule.
-        log_step(invoice_id, "Policy Engine", "Fetching corporate rules from database...", "processing")
-        
-        policy_response = supabase.table("org_policies")\
-            .select("*")\
-            .eq("rule_name", "Max Spend Limit")\
-            .execute()
-            
-        limit = 5000.0 # Default fallback
-        if policy_response.data:
-            rule = policy_response.data[0]
-            limit = float(rule['threshold_amount'])
-            log_step(invoice_id, "Policy Engine", f"Applied Rule: {rule['rule_description']} (€{limit})", "done")
-        else:
-            log_step(invoice_id, "Policy Engine", f"No custom rules found. Using default (€{limit})", "done")
 
-        # 4. Execute Logic
-        import time
-        time.sleep(1)
+        # 2. CONFIGURATION AZURE (Avec tes noms de variables)
+        azure_endpoint = os.getenv("AZURE_DI_ENDPOINT")
+        azure_key = os.getenv("AZURE_DI_API_KEY")
         
-        if amount > limit:
+        if not azure_endpoint or not azure_key:
+            log_step(invoice_id, "Erreur Système", "Clés Azure manquantes", "error")
+            return
+
+        document_analysis_client = DocumentAnalysisClient(
+            endpoint=azure_endpoint, 
+            credential=AzureKeyCredential(azure_key)
+        )
+
+        # 3. RÉCUPÉRATION DU FICHIER
+        log_step(invoice_id, "Lecture Document", "Téléchargement du PDF depuis le Cloud...", "processing")
+        
+        inv_data = supabase.table("invoices").select("file_url").eq("id", invoice_id).execute()
+        if not inv_data.data or not inv_data.data[0]['file_url']:
+            raise Exception("Fichier introuvable")
+            
+        file_url = inv_data.data[0]['file_url']
+
+        # 4. ENVOI À AZURE (OCR INTELLIGENT)
+        log_step(invoice_id, "OCR Azure", "Extraction et structuration des données...", "processing")
+        
+        poller = document_analysis_client.begin_analyze_document_from_url("prebuilt-invoice", file_url)
+        result = poller.result()
+        
+        if not result.documents:
+            raise Exception("Document illisible ou vide")
+            
+        invoice_data = result.documents[0]
+        
+        # Extraction du Montant Total
+        amount_field = invoice_data.fields.get("InvoiceTotal")
+        if amount_field and amount_field.value:
+            real_amount = float(amount_field.value.amount)
+        else:
+            real_amount = 0.0
+            
+        # Extraction du Vendeur (LandingAI, Uber, etc.)
+        vendor_field = invoice_data.fields.get("VendorName")
+        vendor_name = vendor_field.value if vendor_field else "Fournisseur Inconnu"
+
+        # Mise à jour de l'interface avec les vraies données
+        log_step(invoice_id, "Analyse Terminée", f"Fournisseur : {vendor_name} | Montant : {real_amount} €", "done")
+        
+        # Sauvegarde des données réelles dans la base
+        supabase.table("invoices").update({
+            "total_amount": real_amount,
+            "client_name": vendor_name,
+            "status": "PROCESSING"
+        }).eq("id", invoice_id).execute()
+
+        # 5. MOTEUR DE RÈGLES (Policy Engine)
+        # On utilise le vrai montant extrait par Azure !
+        limit = 5000.0
+        log_step(invoice_id, "Contrôle de Gestion", f"Vérification plafond ({limit} €)...", "processing")
+        
+        import time
+        time.sleep(1) # Pause pour l'effet visuel
+        
+        if real_amount > limit:
             status = "NEEDS_APPROVAL"
-            log_step(invoice_id, "Risk Analysis", f"Amount €{amount} exceeds limit of €{limit}.", "warning")
-            log_step(invoice_id, "Final Decision", "Escalated to CFO for review.", "done")
+            log_step(invoice_id, "Alerte Risque", f"Le montant ({real_amount} €) dépasse le seuil autorisé.", "warning")
+            log_step(invoice_id, "Décision Finale", "Bloqué pour validation DAF.", "done")
         else:
             status = "APPROVED"
-            log_step(invoice_id, "Compliance Check", "Amount is within budget.", "done")
-            log_step(invoice_id, "Final Decision", "Payment scheduled automatically.", "done")
+            log_step(invoice_id, "Conformité", "Montant dans le budget.", "done")
+            log_step(invoice_id, "Décision Finale", "Validé pour paiement.", "done")
 
-        # Final DB Update
+        # Finalisation
         supabase.table("jobs").update({
             "status": "completed", 
             "result": status
         }).eq("invoice_id", invoice_id).execute()
         
+        # Mise à jour du statut final de la facture
+        supabase.table("invoices").update({"status": status}).eq("id", invoice_id).execute()
+
     except Exception as e:
-        log_step(invoice_id, "System Error", str(e), "error")
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
+        log_step(invoice_id, "Erreur Critique", str(e), "error")
+        supabase.table("jobs").update({"status": "failed"}).eq("invoice_id", invoice_id).execute()
 
 @app.post("/analyze-invoice")
 async def analyze_invoice(job: JobRequest, background_tasks: BackgroundTasks):

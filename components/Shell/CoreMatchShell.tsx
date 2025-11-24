@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, ReactNode } from 'react';
-import Sidebar from '../Layout/Sidebar';
+import Sidebar from './Sidebar';
 import CommandBar from '../Layout/CommandBar';
 import AgentDrawer from '../Layout/AgentDrawer';
 import { Sparkles } from 'lucide-react';

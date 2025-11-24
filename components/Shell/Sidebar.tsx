@@ -18,7 +18,12 @@ import {
   Truck
 } from 'lucide-react';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const params = useParams();
   const orgId = params.orgId as string; // Récupère l'ID de l'organisation actuelle
@@ -58,7 +63,19 @@ export default function Sidebar() {
   ];
 
   return (
-    <div className="w-64 h-screen bg-[#020617]/95 backdrop-blur-xl border-r border-white/5 flex flex-col text-slate-300 font-sans">
+    <>
+      {/* Mobile Backdrop */}
+      <div
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onClose}
+      />
+
+      {/* Sidebar */}
+      <div className={`fixed left-0 top-0 w-64 h-screen bg-[#020617]/95 backdrop-blur-xl border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
 
       {/* LOGO AREA */}
       <div className="h-16 flex items-center px-6 border-b border-white/5">
@@ -125,6 +142,7 @@ export default function Sidebar() {
             </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

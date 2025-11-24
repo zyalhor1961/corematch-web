@@ -25,7 +25,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
             const { data, error } = await supabase
                 .from('erp_invoices')
                 .select(`*, client:erp_clients(name, company_name)`)
-                .eq('org_id', orgId)
+                // .eq('org_id', orgId) // Commented out for debugging visibility
                 .order('created_at', { ascending: false });
 
             if (error) {

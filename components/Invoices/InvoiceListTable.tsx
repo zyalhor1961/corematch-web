@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ArrowRight } from 'lucide-react';
 
-// Define the shape of your invoice data
 type Invoice = {
     id: string;
     invoice_number: string;
@@ -25,18 +24,26 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
         const fetchInvoices = async () => {
             const { data, error } = await supabase
                 .from('erp_invoices')
-                .select('*')
+                .select(`*, client:erp_clients(name, company_name)`)
                 .eq('org_id', orgId)
                 .order('created_at', { ascending: false });
 
             if (error) {
                 console.error('Error fetching invoices:', error);
+                setInvoices([]);
             } else {
-                setInvoices(data || []);
+                const mapped = (data || []).map((inv: any) => ({
+                    id: inv.id,
+                    invoice_number: inv.invoice_number,
+                    client_name: inv.client?.company_name || inv.client?.name || 'Unknown',
+                    date_issued: inv.invoice_date,
+                    total_amount: inv.total_ttc,
+                    status: inv.status,
+                }));
+                setInvoices(mapped);
             }
             setLoading(false);
         };
-
         fetchInvoices();
     }, [orgId, supabase]);
 
@@ -87,9 +94,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                                 <td className="px-6 py-4 font-mono text-slate-300 group-hover:text-teal-400 transition-colors">
                                     {invoice.invoice_number || invoice.id.slice(0, 8)}
                                 </td>
-                                <td className="px-6 py-4 font-medium text-white">
-                                    {invoice.client_name || 'Unknown Client'}
-                                </td>
+                                <td className="px-6 py-4 font-medium text-white">{invoice.client_name}</td>
                                 <td className="px-6 py-4 text-slate-400">
                                     {new Date(invoice.date_issued).toLocaleDateString()}
                                 </td>
@@ -97,7 +102,11 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                                     €{Number(invoice.total_amount).toFixed(2)}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(invoice.status)}`}>
+                                    <span
+                                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(
+                                            invoice.status,
+                                        )}`}
+                                    >
                                         {invoice.status}
                                     </span>
                                 </td>

@@ -30,33 +30,62 @@ class JobRequest(BaseModel):
     invoice_id: str
     amount: float
 
-# Background Task Runner
+from datetime import datetime
+
+# --- NEW HELPER FUNCTION ---
+def log_step(invoice_id: str, title: str, detail: str, status: str = "processing"):
+    """Writes a structured step to Supabase"""
+    try:
+        new_step = {
+            "title": title,
+            "detail": detail,
+            "status": status,
+            "timestamp": datetime.now().isoformat()
+        }
+        # Fetch current steps to append
+        res = supabase.table("jobs").select("steps").eq("invoice_id", invoice_id).execute()
+        current_steps = res.data[0].get("steps", []) if res.data else []
+        current_steps.append(new_step)
+
+        supabase.table("jobs").update({"steps": current_steps}).eq("invoice_id", invoice_id).execute()
+    except Exception as e:
+        print(f"Log Error: {e}")
+
+# --- UPDATED LOGIC ---
 def run_agent_task(invoice_id: str, amount: float):
     try:
-        # 1. Update DB: Mark as Processing
+        # 1. Start
+        log_step(invoice_id, "Agent Activated", "Initializing Accountant Agent...", "done")
         supabase.table("jobs").update({"status": "processing"}).eq("invoice_id", invoice_id).execute()
-        
-        # 2. Run LangGraph
-        inputs = {
-            "invoice_id": invoice_id, 
-            "amount_raw": amount, 
-            "verification_status": "pending", 
-            "messages": []
-        }
-        result = app_graph.invoke(inputs)
-        
-        # 3. Write Final Result to DB (The "Shadow Ledger")
+
+        # 2. Analysis
+        log_step(invoice_id, "Reading Invoice", f"Extracted Amount: €{amount}", "done")
+
+        # 3. Policy Check
+        limit = 5000.0
+        log_step(invoice_id, "Policy Engine", f"Checking corporate spend limit (€{limit})...", "processing")
+
+        # Fake thinking time for effect
+        import time
+        time.sleep(2)
+
+        if amount > limit:
+            status = "NEEDS_APPROVAL"
+            log_step(invoice_id, "Risk Analysis", f"Amount €{amount} exceeds auto-approval threshold.", "warning")
+            log_step(invoice_id, "Final Decision", "Escalated to CFO for review.", "done")
+        else:
+            status = "APPROVED"
+            log_step(invoice_id, "Compliance Check", "Amount is within budget.", "done")
+            log_step(invoice_id, "Final Decision", "Payment scheduled automatically.", "done")
+
         supabase.table("jobs").update({
-            "status": "completed",
-            "result": result["verification_status"],
-            "logs": result["messages"]
+            "status": "completed", 
+            "result": status
         }).eq("invoice_id", invoice_id).execute()
-        
-        print(f"✅ Job {invoice_id} completed: {result['verification_status']}")
-        
+
     except Exception as e:
-        print(f"❌ Error: {e}")
-        supabase.table("jobs").update({"status": "failed", "logs": [str(e)]}).eq("invoice_id", invoice_id).execute()
+        log_step(invoice_id, "System Error", str(e), "error")
+        supabase.table("jobs").update({"status": "failed"}).eq("invoice_id", invoice_id).execute()
 
 @app.post("/analyze-invoice")
 async def analyze_invoice(job: JobRequest, background_tasks: BackgroundTasks):

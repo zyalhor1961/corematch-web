@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from agent_graph import app_graph
+from privacy_guard import airlock
 
 load_dotenv()
 
@@ -85,7 +86,39 @@ def run_agent_task(invoice_id: str, amount: float):
             "steps": first_step  # <--- This OVERWRITES the old array
         }).eq("invoice_id", invoice_id).execute()
         
-        # 2. Analysis
+        # 2. Privacy Airlock (Simulated OCR Text for now)
+        # In real version, this comes from the PDF
+        raw_invoice_text = f"""
+        Invoice for software development.
+        Contact: john.doe@gmail.com
+        Phone: +33 6 12 34 56 78
+        IBAN: FR76 3000 1000 1000 1000 1000 100
+        Total: €{amount}
+        """
+        
+        log_step(invoice_id, "Privacy Airlock", "Scanning document for PII...", "processing")
+        
+        # --- THE SECURITY CHECK ---
+        security_report = airlock.inspect_traffic(raw_invoice_text)
+        
+        if not security_report['safe']:
+            redacted_text = security_report['sanitized_content']
+            flags_found = ", ".join(security_report['flags'])
+            
+            log_step(
+                invoice_id, 
+                "Privacy Airlock", 
+                f"Redacted sensitive data: {flags_found}", 
+                "warning"  # Warning because we found something, but we handled it.
+            )
+            
+            # NOW we would send 'redacted_text' to OpenAI, not 'raw_invoice_text'
+            # agent_response = openai.chat(redacted_text)
+            
+        else:
+            log_step(invoice_id, "Privacy Airlock", "No sensitive PII detected.", "done")
+        
+        # 3. Analysis
         log_step(invoice_id, "Reading Invoice", f"Extracted Amount: €{amount}", "done")
         
         # 3. FETCH DYNAMIC POLICIES (The Upgrade)

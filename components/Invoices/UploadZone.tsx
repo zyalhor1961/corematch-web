@@ -4,8 +4,11 @@ import React, { useCallback, useState } from 'react';
 import { UploadCloud, FileText, Loader2, CheckCircle } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
+import { useOrganization } from '@/hooks/useOrganization';
+
 export default function UploadZone({ onUploadComplete }: { onUploadComplete: () => void }) {
   const supabase = createClientComponentClient();
+  const { orgId } = useOrganization();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -41,6 +44,11 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete: () 
 
   // La logique d'Upload
   const uploadFile = async (file: File) => {
+    if (!orgId) {
+      alert("Organisation non détectée. Veuillez recharger la page.");
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -68,7 +76,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete: () 
           total_amount: 0,
           status: 'NEEDS_APPROVAL', // Déclenchera l'IA plus tard
           file_url: publicUrl,
-          // org_id: ... (Idéalement on le récupère du contexte, pour l'instant auto-géré par RLS ou null)
+          org_id: orgId,
         });
 
       if (dbError) throw dbError;

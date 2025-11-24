@@ -108,35 +108,54 @@ def run_agent_task(invoice_id: str, amount: float):
             
         file_url = inv_data.data[0]['file_url']
 
-        # 4. ENVOI À AZURE (OCR INTELLIGENT)
-        log_step(invoice_id, "OCR Azure", "Extraction et structuration des données...", "processing")
+        # 4. ENVOI À AZURE (OCR INTELLIGENT + GEOMETRIE)
+        log_step(invoice_id, "OCR Azure", "Extraction des données et coordonnées...", "processing")
         
         poller = document_analysis_client.begin_analyze_document_from_url("prebuilt-invoice", file_url)
         result = poller.result()
-        
-        if not result.documents:
-            raise Exception("Document illisible ou vide")
-            
         invoice_data = result.documents[0]
         
-        # Extraction du Montant Total
-        amount_field = invoice_data.fields.get("InvoiceTotal")
-        if amount_field and amount_field.value:
-            real_amount = float(amount_field.value.amount)
-        else:
-            real_amount = 0.0
+        # Helper pour extraire proprement les métadonnées
+        def extract_field_data(field):
+            if not field or not field.value:
+                return None
             
-        # Extraction du Vendeur (LandingAI, Uber, etc.)
-        vendor_field = invoice_data.fields.get("VendorName")
-        vendor_name = vendor_field.value if vendor_field else "Fournisseur Inconnu"
+            # On récupère les 4 points du rectangle (Bounding Box)
+            # Azure renvoie [x1, y1, x2, y2, x3, y3, x4, y4]
+            polygon = []
+            if field.bounding_regions:
+                polygon = [point for point in field.bounding_regions[0].polygon]
 
-        # Mise à jour de l'interface avec les vraies données
-        log_step(invoice_id, "Analyse Terminée", f"Fournisseur : {vendor_name} | Montant : {real_amount} €", "done")
-        
-        # Sauvegarde des données réelles dans la base
+            return {
+                "value": field.value,
+                "content": field.content, # Le texte exact lu
+                "confidence": field.confidence, # Score de confiance (0 à 1)
+                "box": polygon # Les coordonnées pour le dessin
+            }
+
+        # Extraction Riche
+        amount_obj = invoice_data.fields.get("InvoiceTotal")
+        vendor_obj = invoice_data.fields.get("VendorName")
+        date_obj = invoice_data.fields.get("InvoiceDate")
+        id_obj = invoice_data.fields.get("InvoiceId")
+
+        # Construction de l'objet JSON complet
+        extraction_data = {
+            "total_amount": extract_field_data(amount_obj),
+            "vendor_name": extract_field_data(vendor_obj),
+            "invoice_date": extract_field_data(date_obj),
+            "invoice_id": extract_field_data(id_obj)
+        }
+
+        # Valeurs simples pour la base de données principale
+        real_amount = extraction_data["total_amount"]["value"].amount if extraction_data["total_amount"] else 0.0
+        vendor_name = extraction_data["vendor_name"]["value"] if extraction_data["vendor_name"] else "Inconnu"
+
+        # MISE À JOUR DE LA BASE (Avec les coordonnées !)
         supabase.table("invoices").update({
             "total_amount": real_amount,
             "client_name": vendor_name,
+            "extraction_data": extraction_data, # <--- On sauvegarde la géométrie ici
             "status": "PROCESSING"
         }).eq("id", invoice_id).execute()
 

@@ -28,9 +28,8 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
     useEffect(() => {
         const fetchInvoices = async () => {
             const { data, error } = await supabase
-                .from('erp_invoices')
-                .select(`*, client:erp_clients(name, company_name)`)
-                // .eq('org_id', orgId) // Commented out for debugging visibility
+                .from('invoices')
+                .select('*')
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -40,9 +39,9 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                 const mapped = (data || []).map((inv: any) => ({
                     id: inv.id,
                     invoice_number: inv.invoice_number,
-                    client_name: inv.client?.company_name || inv.client?.name || 'Unknown',
-                    date_issued: inv.invoice_date,
-                    total_amount: inv.total_ttc,
+                    client_name: inv.client_name || 'Unknown',
+                    date_issued: inv.date_issued,
+                    total_amount: inv.total_amount,
                     status: inv.status,
                 }));
                 setInvoices(mapped);
@@ -71,74 +70,74 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
 
     return (
         <>
-        <div className="w-full overflow-hidden rounded-xl border border-white/5 bg-[#0F172A]/60 backdrop-blur-md">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-[#020617]/50 text-xs uppercase text-slate-400">
-                    <tr>
-                        <th className="px-6 py-4 font-medium tracking-wider">Reference</th>
-                        <th className="px-6 py-4 font-medium tracking-wider">Client</th>
-                        <th className="px-6 py-4 font-medium tracking-wider">Date</th>
-                        <th className="px-6 py-4 font-medium tracking-wider">Amount</th>
-                        <th className="px-6 py-4 font-medium tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                    {invoices.length === 0 ? (
+            <div className="w-full overflow-hidden rounded-xl border border-white/5 bg-[#0F172A]/60 backdrop-blur-md">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-[#020617]/50 text-xs uppercase text-slate-400">
                         <tr>
-                            <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                                No invoices found. Click "New Invoice" to create one.
-                            </td>
+                            <th className="px-6 py-4 font-medium tracking-wider">Reference</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Client</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Date</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Amount</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Status</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
-                    ) : (
-                        invoices.map((invoice) => (
-                            <tr
-                                key={invoice.id}
-                                onClick={() => setSelectedInvoiceId(invoice.id)}
-                                className="group cursor-pointer transition-colors hover:bg-white/[0.02]"
-                            >
-                                <td className="px-6 py-4 font-mono text-slate-300 group-hover:text-teal-400 transition-colors">
-                                    {invoice.invoice_number || invoice.id.slice(0, 8)}
-                                </td>
-                                <td className="px-6 py-4 font-medium text-white">{invoice.client_name}</td>
-                                <td className="px-6 py-4 text-slate-400">
-                                    {new Date(invoice.date_issued).toLocaleDateString()}
-                                </td>
-                                <td className="px-6 py-4 font-mono text-slate-200">
-                                    €{Number(invoice.total_amount).toFixed(2)}
-                                </td>
-                                <td className="px-6 py-4">
-                                    <span
-                                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(
-                                            invoice.status,
-                                        )}`}
-                                    >
-                                        {invoice.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button className="p-1 text-slate-400 hover:text-white">
-                                            <ArrowRight size={16} />
-                                        </button>
-                                    </div>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {invoices.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                                    No invoices found. Click "New Invoice" to create one.
                                 </td>
                             </tr>
-                        ))
-                    )}
-                </tbody>
-            </table>
-            <div className="border-t border-white/5 bg-[#020617]/30 px-6 py-4 text-xs text-slate-500 flex justify-between items-center">
-                <span>Showing all {invoices.length} invoices</span>
+                        ) : (
+                            invoices.map((invoice) => (
+                                <tr
+                                    key={invoice.id}
+                                    onClick={() => setSelectedInvoiceId(invoice.id)}
+                                    className="group cursor-pointer transition-colors hover:bg-white/[0.02]"
+                                >
+                                    <td className="px-6 py-4 font-mono text-slate-300 group-hover:text-teal-400 transition-colors">
+                                        {invoice.invoice_number || invoice.id.slice(0, 8)}
+                                    </td>
+                                    <td className="px-6 py-4 font-medium text-white">{invoice.client_name}</td>
+                                    <td className="px-6 py-4 text-slate-400">
+                                        {new Date(invoice.date_issued).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 font-mono text-slate-200">
+                                        €{Number(invoice.total_amount).toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span
+                                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(
+                                                invoice.status,
+                                            )}`}
+                                        >
+                                            {invoice.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button className="p-1 text-slate-400 hover:text-white">
+                                                <ArrowRight size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+                <div className="border-t border-white/5 bg-[#020617]/30 px-6 py-4 text-xs text-slate-500 flex justify-between items-center">
+                    <span>Showing all {invoices.length} invoices</span>
+                </div>
             </div>
-        </div>
 
-        {/* Invoice Drawer */}
-        <InvoiceDrawer
-            invoiceId={selectedInvoiceId}
-            isOpen={!!selectedInvoiceId}
-            onClose={() => setSelectedInvoiceId(null)}
-        />
-    </>
+            {/* Invoice Drawer */}
+            <InvoiceDrawer
+                invoiceId={selectedInvoiceId}
+                isOpen={!!selectedInvoiceId}
+                onClose={() => setSelectedInvoiceId(null)}
+            />
+        </>
     );
 }

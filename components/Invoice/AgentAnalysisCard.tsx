@@ -3,9 +3,10 @@
 import React from 'react';
 import { useInvoiceAgent } from '@/hooks/useInvoiceAgent';
 import { Sparkles, Bot, AlertTriangle, CheckCircle } from 'lucide-react';
+import { AgentTimeline } from '@/components/ui/AgentTimeline';
 
 export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, amount: number }) => {
-    const { status, result, logs, analyzeInvoice } = useInvoiceAgent(invoiceId);
+    const { status, result, logs, steps, analyzeInvoice } = useInvoiceAgent(invoiceId);
 
     const isWorking = status === 'pending' || status === 'processing';
 
@@ -47,8 +48,8 @@ export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, am
                     {/* The Result Badge */}
                     {status === 'completed' && result && (
                         <div className={`p-3 rounded border flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-500 ${result === 'APPROVED'
-                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                             }`}>
                             {result === 'APPROVED' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
                             <div>
@@ -63,21 +64,8 @@ export const AgentAnalysisCard = ({ invoiceId, amount }: { invoiceId: string, am
                     )}
 
                     {/* The Terminal / Logs */}
-                    <div className="bg-[#020617] rounded-lg p-3 font-mono text-xs text-slate-400 max-h-32 overflow-y-auto border border-white/5">
-                        {logs.map((log, i) => (
-                            <div key={i} className="mb-1 flex gap-2 animate-in fade-in slide-in-from-left-1 duration-300" style={{ animationDelay: `${i * 100}ms` }}>
-                                <span className="text-slate-600">[{new Date().toLocaleTimeString()}]</span>
-                                <span className={log.includes('Escalating') || log.includes('exceeds') ? 'text-amber-400' : 'text-slate-300'}>
-                                    {log}
-                                </span>
-                            </div>
-                        ))}
-                        {isWorking && (
-                            <div className="animate-pulse text-purple-400 flex items-center gap-2">
-                                <span className="inline-block w-1 h-3 bg-purple-400 animate-pulse" />
-                                Agent is thinking...
-                            </div>
-                        )}
+                    <div className="bg-[#020617] rounded-lg p-3 font-mono text-xs text-slate-400 max-h-64 overflow-y-auto border border-white/5">
+                        <AgentTimeline steps={steps} />
                     </div>
 
                     {/* Status Indicator */}

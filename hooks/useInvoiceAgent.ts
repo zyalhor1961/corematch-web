@@ -7,6 +7,7 @@ export const useInvoiceAgent = (invoiceId: string) => {
     const [status, setStatus] = useState<AgentStatus>('idle');
     const [result, setResult] = useState<string | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
+    const [steps, setSteps] = useState<any[]>([]);
 
     // 1. Listen to Supabase Realtime for this specific Invoice
     useEffect(() => {
@@ -29,6 +30,7 @@ export const useInvoiceAgent = (invoiceId: string) => {
                     setStatus(newJob.status);
                     if (newJob.result) setResult(newJob.result);
                     if (newJob.logs) setLogs(newJob.logs);
+                    if (newJob.steps) setSteps(newJob.steps);
                 }
             )
             .subscribe();
@@ -42,6 +44,7 @@ export const useInvoiceAgent = (invoiceId: string) => {
     const analyzeInvoice = async (amount: number) => {
         setStatus('pending');
         setLogs(['Transmission started...', 'Connecting to Agent Core...']);
+        setSteps([]);
 
         try {
             const res = await fetch('/api/brain/analyze-invoice', {
@@ -68,5 +71,5 @@ export const useInvoiceAgent = (invoiceId: string) => {
         }
     };
 
-    return { status, result, logs, analyzeInvoice };
+    return { status, result, logs, steps, analyzeInvoice };
 };

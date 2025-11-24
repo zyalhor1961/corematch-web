@@ -54,9 +54,19 @@ def log_step(invoice_id: str, title: str, detail: str, status: str = "processing
 # --- UPDATED LOGIC ---
 def run_agent_task(invoice_id: str, amount: float):
     try:
-        # 1. Start
-        log_step(invoice_id, "Agent Activated", "Initializing Accountant Agent...", "done")
-        supabase.table("jobs").update({"status": "processing"}).eq("invoice_id", invoice_id).execute()
+        # 1. Start & Reset
+        # We overwrite the 'steps' array with the first step, effectively clearing history
+        first_step = [{
+            "title": "Agent Activated",
+            "detail": "Initializing Accountant Agent...",
+            "status": "done",
+            "timestamp": datetime.now().isoformat()
+        }]
+
+        supabase.table("jobs").update({
+            "status": "processing",
+            "steps": first_step  # <--- This OVERWRITES the old array
+        }).eq("invoice_id", invoice_id).execute()
         
         # 2. Analysis
         log_step(invoice_id, "Reading Invoice", f"Extracted Amount: €{amount}", "done")

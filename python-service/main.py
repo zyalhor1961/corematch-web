@@ -57,35 +57,49 @@ def run_agent_task(invoice_id: str, amount: float):
         # 1. Start
         log_step(invoice_id, "Agent Activated", "Initializing Accountant Agent...", "done")
         supabase.table("jobs").update({"status": "processing"}).eq("invoice_id", invoice_id).execute()
-
+        
         # 2. Analysis
         log_step(invoice_id, "Reading Invoice", f"Extracted Amount: €{amount}", "done")
+        
+        # 3. FETCH DYNAMIC POLICIES (The Upgrade)
+        # Note: In production, filter by org_id here. For demo, we take the first active rule.
+        log_step(invoice_id, "Policy Engine", "Fetching corporate rules from database...", "processing")
+        
+        policy_response = supabase.table("org_policies")\
+            .select("*")\
+            .eq("rule_name", "Max Spend Limit")\
+            .execute()
+            
+        limit = 5000.0 # Default fallback
+        if policy_response.data:
+            rule = policy_response.data[0]
+            limit = float(rule['threshold_amount'])
+            log_step(invoice_id, "Policy Engine", f"Applied Rule: {rule['rule_description']} (€{limit})", "done")
+        else:
+            log_step(invoice_id, "Policy Engine", f"No custom rules found. Using default (€{limit})", "done")
 
-        # 3. Policy Check
-        limit = 5000.0
-        log_step(invoice_id, "Policy Engine", f"Checking corporate spend limit (€{limit})...", "processing")
-
-        # Fake thinking time for effect
+        # 4. Execute Logic
         import time
-        time.sleep(2)
-
+        time.sleep(1)
+        
         if amount > limit:
             status = "NEEDS_APPROVAL"
-            log_step(invoice_id, "Risk Analysis", f"Amount €{amount} exceeds auto-approval threshold.", "warning")
+            log_step(invoice_id, "Risk Analysis", f"Amount €{amount} exceeds limit of €{limit}.", "warning")
             log_step(invoice_id, "Final Decision", "Escalated to CFO for review.", "done")
         else:
             status = "APPROVED"
             log_step(invoice_id, "Compliance Check", "Amount is within budget.", "done")
             log_step(invoice_id, "Final Decision", "Payment scheduled automatically.", "done")
 
+        # Final DB Update
         supabase.table("jobs").update({
             "status": "completed", 
             "result": status
         }).eq("invoice_id", invoice_id).execute()
-
+        
     except Exception as e:
         log_step(invoice_id, "System Error", str(e), "error")
-        supabase.table("jobs").update({"status": "failed"}).eq("invoice_id", invoice_id).execute()
+        print(f"Error: {e}")
 
 @app.post("/analyze-invoice")
 async def analyze_invoice(job: JobRequest, background_tasks: BackgroundTasks):

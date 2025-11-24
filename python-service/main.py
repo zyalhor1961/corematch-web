@@ -33,8 +33,12 @@ class JobRequest(BaseModel):
 from datetime import datetime
 
 # --- NEW HELPER FUNCTION ---
+# --- UPGRADED HELPER FUNCTION ---
 def log_step(invoice_id: str, title: str, detail: str, status: str = "processing"):
-    """Writes a structured step to Supabase"""
+    """
+    Writes a structured step to Supabase. 
+    SMART LOGIC: If the last step has the same title, update it. Otherwise, append new.
+    """
     try:
         new_step = {
             "title": title,
@@ -42,14 +46,27 @@ def log_step(invoice_id: str, title: str, detail: str, status: str = "processing
             "status": status,
             "timestamp": datetime.now().isoformat()
         }
-        # Fetch current steps to append
-        res = supabase.table("jobs").select("steps").eq("invoice_id", invoice_id).execute()
-        current_steps = res.data[0].get("steps", []) if res.data else []
-        current_steps.append(new_step)
-
-        supabase.table("jobs").update({"steps": current_steps}).eq("invoice_id", invoice_id).execute()
+        
+        # Fetch current steps
+        response = supabase.table("jobs").select("steps").eq("invoice_id", invoice_id).execute()
+        
+        if response.data:
+            current_steps = response.data[0].get("steps", []) or []
+            
+            # CHECK: Is the last step the same as this one?
+            if current_steps and current_steps[-1]['title'] == title:
+                # UPDATE the existing step (Turn spinner into checkmark)
+                current_steps[-1] = new_step
+            else:
+                # APPEND a new step
+                current_steps.append(new_step)
+            
+            supabase.table("jobs").update({
+                "steps": current_steps
+            }).eq("invoice_id", invoice_id).execute()
+            
     except Exception as e:
-        print(f"Log Error: {e}")
+        print(f"❌ Failed to log step: {e}")
 
 # --- UPDATED LOGIC ---
 def run_agent_task(invoice_id: str, amount: float):

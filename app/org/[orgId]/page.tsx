@@ -24,6 +24,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import PageContainer from '@/components/ui/PageContainer';
+import MorningBriefing from '@/components/dashboard/MorningBriefing';
 import dynamic from 'next/dynamic';
 
 const RevenueChart = dynamic(() => import('@/components/dashboard/DashboardCharts').then(mod => mod.RevenueChart), {
@@ -118,6 +119,9 @@ export default function OrganizationDashboard() {
             Vous avez 3 actions prioritaires aujourd'hui.
           </p>
         </div>
+
+        {/* Morning Briefing */}
+        <MorningBriefing />
 
         {/* KPI Cards (Workspaces) */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

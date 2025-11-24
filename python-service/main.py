@@ -6,6 +6,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from agent_graph import app_graph
 from privacy_guard import airlock
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -193,6 +194,57 @@ def health():
         return {"status": "healthy", "supabase": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+@app.get("/morning-briefing")
+async def generate_briefing():
+    """
+    Aggregates yesterday's agent activity into a structured summary.
+    """
+    # 1. Define the time window (Last 24 hours)
+    yesterday = datetime.now() - timedelta(days=1)
+    
+    # 2. Query Supabase for recent jobs
+    response = supabase.table("jobs")\
+        .select("*")\
+        .gte("created_at", yesterday.isoformat())\
+        .execute()
+        
+    jobs = response.data or []
+    
+    # 3. Calculate Stats
+    total_processed = len(jobs)
+    needs_approval = len([j for j in jobs if j.get('result') == 'NEEDS_APPROVAL'])
+    auto_approved = len([j for j in jobs if j.get('result') == 'APPROVED'])
+    
+    # 4. Identify "Red Flags" (High priority items)
+    flagged_items = []
+    for job in jobs:
+        if job.get('result') == 'NEEDS_APPROVAL':
+            # Extract the amount from the steps log if possible, or just use ID
+            flagged_items.append({
+                "id": job['invoice_id'],
+                "reason": "Exceeded spend limit",
+                "time": job['created_at']
+            })
+
+    # 5. Generate the "Natural Language" Summary
+    # (In a real version, OpenAI would write this paragraph)
+    summary_text = (
+        f"Good morning. In the last 24 hours, I processed {total_processed} invoices. "
+        f"{auto_approved} were cleared automatically. "
+        f"I need your attention on {needs_approval} items that exceeded company policy."
+    )
+
+    return {
+        "date": datetime.now().strftime("%B %d, %Y"),
+        "summary": summary_text,
+        "stats": {
+            "total": total_processed,
+            "approved": auto_approved,
+            "flagged": needs_approval
+        },
+        "action_items": flagged_items
+    }
 
 if __name__ == "__main__":
     import uvicorn

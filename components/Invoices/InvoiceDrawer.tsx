@@ -50,7 +50,9 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
     } else {
         // Also update the Job logic
         await supabase.from('jobs').update({ result: 'APPROVED' }).eq('invoice_id', invoiceId);
-        onClose(); // Close the drawer
+
+        // FORCE REFRESH THE PAGE TO SHOW CHANGES
+        window.location.reload();
     }
     setIsValidating(false);
   };

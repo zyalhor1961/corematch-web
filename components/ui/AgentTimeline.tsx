@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase/client';
 import { CheckCircle2, Circle, AlertTriangle, Loader2, Ban, ThumbsDown, Check } from 'lucide-react';
 
 export type AgentStep = {
@@ -20,8 +20,7 @@ const StatusIcon = ({ status }: { status: AgentStep['status'] }) => {
     }
 };
 
-export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: string }) => {
-    const supabase = createClientComponentClient();
+export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: string | null }) => {
     const [feedbackState, setFeedbackState] = useState<Record<number, string>>({});
 
     const handleFeedback = async (index: number, stepTitle: string, isPositive: boolean) => {
@@ -58,9 +57,9 @@ export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: st
                     <div className="flex justify-between items-start -mt-1">
                         <div className="flex flex-col pr-4">
                             <span className={`text-xs font-bold uppercase tracking-wider ${step.status === 'done' ? 'text-slate-200' :
-                                    step.status === 'warning' ? 'text-amber-300' :
-                                        step.status === 'error' ? 'text-rose-300' :
-                                            'text-blue-300'
+                                step.status === 'warning' ? 'text-amber-300' :
+                                    step.status === 'error' ? 'text-rose-300' :
+                                        'text-blue-300'
                                 }`}>{step.title}</span>
                             <span className="text-xs text-slate-400 mt-0.5 leading-relaxed">{step.detail}</span>
                         </div>

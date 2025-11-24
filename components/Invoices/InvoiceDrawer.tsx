@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { X, CheckCircle, FileText, Download, ExternalLink, MessageSquare, Edit3, Play, Loader2 } from 'lucide-react';
 import { AgentTimeline } from '@/components/ui/AgentTimeline';
 import { useInvoiceAgent } from '@/hooks/useInvoiceAgent';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase/client';
 
 interface InvoiceDrawerProps {
   invoiceId: string | null;
@@ -13,7 +13,6 @@ interface InvoiceDrawerProps {
 }
 
 export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDrawerProps) {
-  const supabase = createClientComponentClient();
   const [isValidating, setIsValidating] = useState(false);
 
   // 1. GET THE ANALYZE FUNCTION
@@ -41,31 +40,31 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
   const handleValidate = async () => {
     setIsValidating(true);
     const { error } = await supabase
-        .from('invoices')
-        .update({ status: 'APPROVED' })
-        .eq('id', invoiceId);
+      .from('invoices')
+      .update({ status: 'APPROVED' })
+      .eq('id', invoiceId);
 
     if (error) {
-        alert("Erreur lors de la validation: " + error.message);
+      alert("Erreur lors de la validation: " + error.message);
     } else {
-        // Also update the Job logic
-        await supabase.from('jobs').update({ result: 'APPROVED' }).eq('invoice_id', invoiceId);
+      // Also update the Job logic
+      await supabase.from('jobs').update({ result: 'APPROVED' }).eq('invoice_id', invoiceId);
 
-        // FORCE REFRESH THE PAGE TO SHOW CHANGES
-        window.location.reload();
+      // FORCE REFRESH THE PAGE TO SHOW CHANGES
+      window.location.reload();
     }
     setIsValidating(false);
   };
 
   // C. ASK DAF (Placeholder for opening the chat)
   const handleAskDAF = () => {
-      // In a real app, this would open the right sidebar context
-      alert("🤖 Ask DAF: 'Pourquoi cette facture est-elle bloquée ?'\n(Opening Chat Module...)");
+    // In a real app, this would open the right sidebar context
+    alert("🤖 Ask DAF: 'Pourquoi cette facture est-elle bloquée ?'\n(Opening Chat Module...)");
   };
 
   // D. EDIT
   const handleEdit = () => {
-      alert("✏️ Mode édition activé.\n(Vous pouvez maintenant modifier les montants)");
+    alert("✏️ Mode édition activé.\n(Vous pouvez maintenant modifier les montants)");
   };
 
   // Mock Accounting Entry
@@ -86,13 +85,12 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
           <div>
             <h2 className="text-lg font-semibold text-white tracking-tight">Analyse Facture</h2>
             <div className="flex items-center gap-2 mt-1">
-                <span className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wider ${
-                    status === 'completed' || status === 'APPROVED' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
-                    'bg-blue-500/10 text-blue-400 border-blue-500/20'
+              <span className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wider ${status === 'completed' || status === 'APPROVED' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
+                  'bg-blue-500/10 text-blue-400 border-blue-500/20'
                 }`}>
-                    {status === 'processing' || status === 'pending' ? 'IA en cours...' : status === 'idle' ? 'En attente' : 'Audit IA Terminé'}
-                </span>
-                <p className="text-xs text-slate-500 font-mono">ID: {invoiceId.slice(0,8)}</p>
+                {status === 'processing' || status === 'pending' ? 'IA en cours...' : status === 'idle' ? 'En attente' : 'Audit IA Terminé'}
+              </span>
+              <p className="text-xs text-slate-500 font-mono">ID: {invoiceId.slice(0, 8)}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
@@ -106,41 +104,41 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
           {/* Document Preview */}
           <div className="bg-slate-800/30 rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all">
             <div className="flex items-center gap-4">
-                <div className="p-3 bg-[#1E293B] rounded-lg border border-white/5"><FileText className="text-slate-300" size={24} /></div>
-                <div>
-                    <div className="text-sm font-medium text-white">Facture_Originale.pdf</div>
-                    <div className="text-xs text-slate-500">PDF • 1.2 MB</div>
-                </div>
+              <div className="p-3 bg-[#1E293B] rounded-lg border border-white/5"><FileText className="text-slate-300" size={24} /></div>
+              <div>
+                <div className="text-sm font-medium text-white">Facture_Originale.pdf</div>
+                <div className="text-xs text-slate-500">PDF • 1.2 MB</div>
+              </div>
             </div>
             <button className="p-2 text-slate-400 hover:text-teal-400 transition-colors"><Download size={18} /></button>
           </div>
 
           {/* AI AUDIT SECTION (With Logic!) */}
           <div>
-             <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Piste d&apos;Audit (IA)</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Piste d&apos;Audit (IA)</h3>
 
-                 {/* SHOW ANALYZE BUTTON IF IDLE */}
-                 {(status === 'idle' || steps.length === 0) && (
-                     <button
-                        onClick={handleStartAnalysis}
-                        className="flex items-center gap-2 text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
-                     >
-                        <Play size={12} fill="currentColor" /> Lancer l&apos;Audit
-                     </button>
-                 )}
-             </div>
+              {/* SHOW ANALYZE BUTTON IF IDLE */}
+              {(status === 'idle' || steps.length === 0) && (
+                <button
+                  onClick={handleStartAnalysis}
+                  className="flex items-center gap-2 text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
+                >
+                  <Play size={12} fill="currentColor" /> Lancer l&apos;Audit
+                </button>
+              )}
+            </div>
 
-             <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 min-h-[120px]">
-                {/* If no steps and not loading, show empty state */}
-                {steps.length === 0 && status !== 'processing' ? (
-                    <div className="text-center py-8 text-slate-500 text-sm">
-                        Cliquez sur &quot;Lancer l&apos;Audit&quot; pour démarrer l&apos;IA.
-                    </div>
-                ) : (
-                    <AgentTimeline steps={steps} jobId={invoiceId} />
-                )}
-             </div>
+            <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 min-h-[120px]">
+              {/* If no steps and not loading, show empty state */}
+              {steps.length === 0 && status !== 'processing' ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  Cliquez sur &quot;Lancer l&apos;Audit&quot; pour démarrer l&apos;IA.
+                </div>
+              ) : (
+                <AgentTimeline steps={steps} jobId={invoiceId} />
+              )}
+            </div>
           </div>
 
           {/* Accounting Entries */}
@@ -173,23 +171,23 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
 
         {/* FOOTER */}
         <div className="p-6 border-t border-white/5 bg-[#020617] flex justify-between items-center">
-            <button onClick={handleAskDAF} className="text-slate-400 hover:text-white text-sm transition-colors flex items-center gap-2">
-                <MessageSquare size={16} />
-                <span>Demander au DAF</span>
+          <button onClick={handleAskDAF} className="text-slate-400 hover:text-white text-sm transition-colors flex items-center gap-2">
+            <MessageSquare size={16} />
+            <span>Demander au DAF</span>
+          </button>
+          <div className="flex gap-3">
+            <button onClick={handleEdit} className="px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors text-sm font-medium flex items-center gap-2">
+              <Edit3 size={16} /> Modifier
             </button>
-            <div className="flex gap-3">
-                <button onClick={handleEdit} className="px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors text-sm font-medium flex items-center gap-2">
-                    <Edit3 size={16} /> Modifier
-                </button>
-                <button
-                    onClick={handleValidate}
-                    disabled={isValidating}
-                    className="px-6 py-2 rounded-lg bg-[#00B4D8] hover:bg-[#0096B4] text-white font-medium shadow-[0_0_20px_rgba(0,180,216,0.2)] transition-all flex items-center gap-2 text-sm disabled:opacity-50"
-                >
-                    {isValidating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                    {isValidating ? 'Validation...' : 'Valider'}
-                </button>
-            </div>
+            <button
+              onClick={handleValidate}
+              disabled={isValidating}
+              className="px-6 py-2 rounded-lg bg-[#00B4D8] hover:bg-[#0096B4] text-white font-medium shadow-[0_0_20px_rgba(0,180,216,0.2)] transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              {isValidating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+              {isValidating ? 'Validation...' : 'Valider'}
+            </button>
+          </div>
         </div>
 
       </div>

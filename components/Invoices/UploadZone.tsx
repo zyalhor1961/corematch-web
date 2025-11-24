@@ -2,12 +2,10 @@
 
 import React, { useCallback, useState } from 'react';
 import { UploadCloud, FileText, Loader2, CheckCircle } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
+import { supabase } from '@/lib/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 
 export default function UploadZone({ onUploadComplete }: { onUploadComplete: () => void }) {
-  const supabase = createClientComponentClient();
   const { orgId } = useOrganization();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);

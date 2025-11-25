@@ -1,50 +1,55 @@
 "use client";
 
-import React, { useState, ReactNode } from 'react';
+import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import CommandBar from '../Layout/CommandBar';
 import AgentDrawer from '../Layout/AgentDrawer';
 import { Sparkles } from 'lucide-react';
 
-interface CoreMatchShellProps {
-    children: ReactNode;
-}
+const CoreMatchShell = ({ children }: { children: React.ReactNode }) => {
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
 
-const CoreMatchShell = ({ children }: CoreMatchShellProps) => {
-    const [isAgentOpen, setIsAgentOpen] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  return (
+    // MAIN CONTAINER: Flex row, full height, hidden overflow to prevent double scrollbars
+    <div className="flex h-screen w-full overflow-hidden font-sans relative z-10">
+      
+      {/* LEFT: Fixed Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
 
-    return (
-        <div className="min-h-screen bg-deep-void font-sans text-slate-200 selection:bg-neon-teal/30">
-            {/* Background Ambient Effects */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-neon-teal/5 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-agent-purple/5 rounded-full blur-[120px]" />
-            </div>
-
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <CommandBar onMenuClick={() => setIsSidebarOpen(true)} />
-            <AgentDrawer isOpen={isAgentOpen} onClose={() => setIsAgentOpen(false)} />
-
-            {/* Main Content Area */}
-            <main className="pl-0 md:pl-64 pt-16 min-h-screen relative z-10 transition-all duration-300">
-                <div className="p-4 md:p-8 h-[calc(100vh-4rem)]">
-                    {children}
-                </div>
-            </main>
-
-            {/* Floating Action Button (FAB) for Agent */}
-            <button
-                onClick={() => setIsAgentOpen(true)}
-                className="fixed bottom-8 right-8 z-50 p-4 bg-gradient-to-r from-neon-teal to-agent-purple text-white rounded-full shadow-[0_0_20px_rgba(0,180,216,0.4)] hover:shadow-[0_0_30px_rgba(0,180,216,0.6)] hover:scale-105 transition-all duration-300 group"
-            >
-                <Sparkles className="w-6 h-6 animate-pulse" />
-                <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 bg-navy-glass/90 backdrop-blur px-3 py-1 rounded-lg text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-white/10">
-                    Ask DAF
-                </span>
-            </button>
+      {/* RIGHT: Main Content Area (Flex Column) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent">
+        
+        {/* Top Bar (Fixed at top of content area) */}
+        <div className="flex-shrink-0 z-20">
+            <CommandBar onOpenCmd={() => console.log('Cmd+K')} />
         </div>
-    );
+
+        {/* SCROLLABLE CONTENT ZONE */}
+        {/* This div takes all remaining height and scrolls internally */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 scroll-smooth">
+           <div className="max-w-7xl mx-auto pb-20">
+              {children}
+           </div>
+        </main>
+      </div>
+
+      {/* AI DRAWER (Overlay) */}
+      <AgentDrawer 
+        isOpen={isDrawerOpen} 
+        onClose={() => setDrawerOpen(false)} 
+      />
+      
+      {/* Floating Action Button */}
+      <button 
+        onClick={() => setDrawerOpen(!isDrawerOpen)}
+        className="fixed bottom-6 right-6 h-12 w-12 bg-[#00E5FF] rounded-full shadow-[0_0_20px_rgba(0,229,255,0.4)] hover:scale-110 transition-transform z-50 flex items-center justify-center text-[#0B1120]"
+      >
+        <Sparkles size={20} />
+      </button>
+    </div>
+  );
 };
 
 export default CoreMatchShell;

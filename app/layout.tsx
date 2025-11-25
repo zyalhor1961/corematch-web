@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/error-boundary";
-import NeuralBackground from "@/components/ui/NeuralBackground";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className="dark">
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -54,13 +53,23 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased !text-slate-900 dark:!text-slate-100 bg-[#0B1120] overflow-hidden`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen w-screen overflow-hidden bg-[#020617] text-slate-200`}
       >
-        <NeuralBackground />
+        {/* Background Gradient Layer - Subtle depth without blocking content */}
+        <div
+          className="fixed inset-0 z-0 pointer-events-none"
+          aria-hidden="true"
+        >
+          {/* Primary gradient - top glow */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#00B4D8]/5 via-transparent to-transparent" />
+          {/* Secondary gradient - bottom fade */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent opacity-50" />
+        </div>
+
+        {/* Main Application Layer */}
         <ThemeProvider>
           <ErrorBoundary>
-            {/* The Content (Floats on top) */}
-            <div className="relative z-10 h-screen w-full flex">
+            <div className="relative z-10 h-screen w-screen flex overflow-hidden">
               {children}
             </div>
           </ErrorBoundary>

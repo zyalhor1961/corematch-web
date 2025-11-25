@@ -2,7 +2,9 @@ import { ReactNode } from 'react';
 
 export default function ERPLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50/50">
+    // ERP pages flow naturally - no additional wrapper needed
+    // The CoreMatchShell already provides the proper structure
+    <div className="w-full">
       {children}
     </div>
   );

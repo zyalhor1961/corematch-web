@@ -26,22 +26,22 @@ interface SidebarProps {
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const params = useParams();
-  const orgId = params.orgId as string; // Récupère l'ID de l'organisation actuelle
+  const orgId = params.orgId as string;
 
-  // Définition de la structure "Omni-ERP"
+  // Structure "Omni-ERP"
   const navigation = [
     {
       title: "PILOTAGE",
       items: [
         { name: 'Tableau de bord', href: `/org/${orgId}`, icon: LayoutDashboard },
-        { name: 'Morning Briefing', href: `/org/${orgId}/briefing`, icon: Sun, highlight: true }, // Petit bonus visuel
+        { name: 'Morning Briefing', href: `/org/${orgId}/briefing`, icon: Sun, highlight: true },
       ]
     },
     {
       title: "FINANCE HUB",
       items: [
         { name: 'Ventes (Clients)', href: `/org/${orgId}/erp/sales`, icon: TrendingUp },
-        { name: 'Achats (Fournisseurs)', href: `/org/${orgId}/erp/invoices`, icon: ShoppingCart }, // C'est notre page actuelle
+        { name: 'Achats (Fournisseurs)', href: `/org/${orgId}/erp/invoices`, icon: ShoppingCart },
         { name: 'Trésorerie & Banque', href: `/org/${orgId}/erp/bank`, icon: Building2 },
         { name: 'Rapports & Bilan', href: `/org/${orgId}/erp/reports`, icon: PieChart },
       ]
@@ -64,24 +64,23 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile Backdrop */}
+      {/* Mobile Backdrop - Only shows on mobile when sidebar is open */}
       <div
-        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 w-64 h-screen bg-[#0B1120] border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 relative overflow-hidden shadow-2xl">
-
-        {/* Glow */}
-        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-[#00E5FF]/10 blur-[80px] rounded-full pointer-events-none" />
+      {/* Sidebar Content - Now relative (within flex parent), not fixed */}
+      <div className="h-full w-full flex flex-col text-slate-300 font-sans relative">
 
         {/* LOGO AREA */}
-        <div className="h-20 flex items-center px-6 relative z-10">
+        <div className="h-20 flex items-center px-6 flex-shrink-0">
           <div className="w-10 h-10 relative flex items-center justify-center mr-3">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#00E5FF] to-[#2979FF] rounded-xl opacity-20 blur-md"></div>
-            <div className="relative w-full h-full bg-gradient-to-br from-[#00E5FF] to-[#2979FF] rounded-xl flex items-center justify-center shadow-inner border border-white/10">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#00B4D8] to-[#2979FF] rounded-xl opacity-20 blur-md" />
+            <div className="relative w-full h-full bg-gradient-to-br from-[#00B4D8] to-[#2979FF] rounded-xl flex items-center justify-center shadow-inner border border-white/10">
               <span className="font-bold text-white text-xl">C</span>
             </div>
           </div>
@@ -89,7 +88,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </div>
 
         {/* NAVIGATION SCROLLABLE */}
-        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 relative z-10">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {navigation.map((section) => (
             <div key={section.title}>
               <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
@@ -102,16 +101,20 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${isActive
-                          ? 'bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/20 shadow-[0_0_10px_rgba(0,229,255,0.1)]'
+                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                        isActive
+                          ? 'bg-[#00B4D8]/10 text-[#00B4D8] border border-[#00B4D8]/20 shadow-[0_0_10px_rgba(0,180,216,0.1)]'
                           : 'hover:bg-white/5 hover:text-white text-slate-400'
-                        }`}
+                      }`}
                     >
                       <item.icon
-                        className={`mr-3 h-5 w-5 transition-colors ${isActive
-                            ? 'text-[#00E5FF]'
-                            : item.highlight ? 'text-orange-400 group-hover:text-orange-300' : 'text-slate-500 group-hover:text-slate-300'
-                          }`}
+                        className={`mr-3 h-5 w-5 transition-colors ${
+                          isActive
+                            ? 'text-[#00B4D8]'
+                            : item.highlight
+                              ? 'text-orange-400 group-hover:text-orange-300'
+                              : 'text-slate-500 group-hover:text-slate-300'
+                        }`}
                       />
                       {item.name}
                     </Link>
@@ -123,14 +126,17 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* FOOTER (User & Settings) */}
-        <div className="p-4 border-t border-white/5 bg-[#0B1120]/50 relative z-10">
+        <div className="flex-shrink-0 p-4 border-t border-white/5 bg-[#020617]/30">
           <div className="space-y-1">
-            <Link href={`/org/${orgId}/settings`} className="flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-white/5 hover:text-white transition-colors">
+            <Link
+              href={`/org/${orgId}/settings`}
+              className="flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-white/5 hover:text-white transition-colors"
+            >
               <Settings className="mr-3 h-5 w-5 text-slate-500" />
               Paramètres
             </Link>
             <button className="w-full flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-rose-500/10 hover:text-rose-400 transition-colors">
-              <LogOut className="mr-3 h-5 w-5 text-slate-500 group-hover:text-rose-400" />
+              <LogOut className="mr-3 h-5 w-5 text-slate-500" />
               Déconnexion
             </button>
           </div>

@@ -1,65 +1,81 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   COREMATCH OS - DESIGN SYSTEM "NEBULA"
+   Dark Mode Strict + Glassmorphism Foundation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 /* Tailwind v4 dark mode variant configuration */
 @variant dark (&:where(.dark, .dark *));
 
-/* CSS variables for theme system */
+/* ─────────────────────────────────────────────────────────────────────────────
+   NEBULA CORE VARIABLES
+   ───────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #f7f8fb;
-  --foreground: #0f172a;
-  --muted: #64748b;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --surface: #fafafc;
-  --border: #e5e7eb;
-  --ring: #00B4D8;
-  /* Updated to Electric Teal */
-  --brand: #0F172A;
-  /* Deep Ocean Blue */
-  --brand-foreground: #ffffff;
+  /* Primary Palette - Deep Void Theme */
+  --background: #020617;       /* Deep Void - Primary BG */
+  --foreground: #F8FAFC;       /* Pure White Foreground */
+  --muted: #94A3B8;            /* Slate 400 */
+
+  /* Surface Layers */
+  --card: #0F172A;             /* Navy Glass - Card BG */
+  --card-foreground: #F8FAFC;
+  --surface: #1E293B;          /* Elevated Surface */
+  --surface-glass: rgba(15, 23, 42, 0.6);  /* Glassmorphism Base */
+
+  /* Borders & Rings */
+  --border: rgba(255, 255, 255, 0.05);     /* Ultra-fine borders */
+  --border-accent: rgba(255, 255, 255, 0.1);
+  --ring: #00B4D8;             /* Electric Teal Focus Ring */
+
+  /* Brand Colors */
+  --brand: #00B4D8;            /* Electric Teal */
+  --brand-foreground: #020617;
   --accent: #00B4D8;
-  /* Electric Teal */
-  --accent-foreground: #ffffff;
-  --success: #16a34a;
-  --warning: #f59e0b;
-  --destructive: #FF6B6B;
-  /* Coral Red */
+  --accent-foreground: #020617;
+
+  /* Semantic Colors */
+  --success: #22C55E;          /* Emerald */
+  --warning: #F59E0B;          /* Amber */
+  --destructive: #FF6B6B;      /* Coral Red */
 
   /* CoreMatch Specific Tokens */
-  --cm-primary: #0F172A;
-  --cm-secondary: #334155;
-  --cm-accent: #00B4D8;
+  --cm-primary: #00B4D8;       /* Electric Teal */
+  --cm-secondary: #A78BFA;     /* Agent Purple */
+  --cm-accent: #00E5FF;        /* Neon Cyan */
   --cm-alert: #FF6B6B;
   --cm-surface: #1E293B;
-  --cm-bg: #0B1220;
-  --cm-card-radius: 12px;
+  --cm-bg: #020617;
+  --cm-card-radius: 16px;
+
+  /* Nebula Specific */
+  --deep-void: #020617;
+  --navy-glass: #0F172A;
+  --neon-teal: #00B4D8;
+  --agent-purple: #A78BFA;
+  --glow-teal: rgba(0, 180, 216, 0.15);
 }
 
+/* Dark mode is the default - variables stay the same */
 .dark {
-  --background: #0B1120;
-  /* Synapse Deep Navy */
-  --foreground: #f3f4f6;
-  --muted: #9ca3af;
-  --card: #1f2937;
-  /* Lighter card background (Gray 800) */
-  --card-foreground: #f3f4f6;
-  --surface: #1f2937;
-  /* Match card for consistency */
-  --border: #374151;
-  /* Lighter border (Gray 700) */
-  --ring: #00B4D8;
-  /* Electric Teal */
-  --brand: #00B4D8;
-  /* Electric Teal for dark mode brand */
-  --brand-foreground: #ffffff;
-  --accent: #00B4D8;
-  --accent-foreground: #ffffff;
-  --success: #22c55e;
-  --warning: #fbbf24;
-  --destructive: #FF6B6B;
+  --background: #020617;
+  --foreground: #F8FAFC;
 }
 
-/* Expose CSS variables to Tailwind */
+/* Optional light mode override */
+.light {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --surface: #F1F5F9;
+  --border: rgba(0, 0, 0, 0.1);
+  color-scheme: light;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TAILWIND THEME BRIDGE
+   ───────────────────────────────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -86,10 +102,11 @@
   --color-cm-bg: var(--cm-bg);
 
   /* Nebula Theme Colors */
-  --color-deep-void: #020617;
-  --color-navy-glass: #0F172A;
-  --color-neon-teal: #00B4D8;
-  --color-agent-purple: #A78BFA;
+  --color-deep-void: var(--deep-void);
+  --color-navy-glass: var(--navy-glass);
+  --color-neon-teal: var(--neon-teal);
+  --color-agent-purple: var(--agent-purple);
+  --color-glow-teal: var(--glow-teal);
 
   --radius-card: var(--cm-card-radius);
 
@@ -97,28 +114,75 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Optional: class to force light theme */
-.light {
-  color-scheme: light;
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE RESET - NEBULA FOUNDATION
+   ───────────────────────────────────────────────────────────────────────────── */
+html {
+  color-scheme: dark;
 }
 
 body {
-  /* Background and color are now handled by Tailwind classes in layout.tsx */
-  /* This prevents CSS variable conflicts with dark mode toggle */
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background-color: #020617;
+  color: #F8FAFC;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+               Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Base element coherence */
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLLBAR - NEBULA DARK THEME
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Webkit Scrollbars (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
+
+*::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.5);
+}
+
+*::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+/* Firefox Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SELECTION & FOCUS
+   ───────────────────────────────────────────────────────────────────────────── */
 ::selection {
-  background: color-mix(in oklab, var(--brand) 20%, transparent);
+  background: rgba(0, 180, 216, 0.3);
+  color: #F8FAFC;
 }
 
 a {
   color: var(--brand);
+  transition: color 0.2s ease;
 }
 
 a:hover {
-  color: color-mix(in oklab, var(--brand) 85%, #000 15%);
+  color: var(--cm-accent);
 }
 
 button:focus,
@@ -127,10 +191,55 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent);
+  box-shadow: 0 0 0 2px rgba(0, 180, 216, 0.4);
 }
 
-/* Subtle surfaces */
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLASSMORPHISM UTILITIES
+   ───────────────────────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.glass-surface {
+  background: rgba(30, 41, 59, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOW EFFECTS
+   ───────────────────────────────────────────────────────────────────────────── */
+.glow-teal {
+  box-shadow: 0 0 20px rgba(0, 180, 216, 0.3),
+              0 0 40px rgba(0, 180, 216, 0.1);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.3),
+              0 0 40px rgba(167, 139, 250, 0.1);
+}
+
+.text-glow-teal {
+  text-shadow: 0 0 10px rgba(0, 180, 216, 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SURFACE CARDS (Legacy Support)
+   ───────────────────────────────────────────────────────────────────────────── */
 .surface {
   background-color: var(--surface);
 }
@@ -139,30 +248,65 @@ select:focus {
   background-color: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--cm-card-radius);
 }
 
-/* Premium accent utility */
 .accent-ring {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-/* AG-Grid Custom Styles */
-.ag-theme-alpine .ag-cell-error {
-  background-color: color-mix(in oklab, var(--destructive) 12%, transparent) !important;
+/* ─────────────────────────────────────────────────────────────────────────────
+   AG-GRID DARK THEME OVERRIDES
+   ───────────────────────────────────────────────────────────────────────────── */
+.ag-theme-alpine,
+.ag-theme-alpine-dark {
+  --ag-background-color: #0F172A;
+  --ag-header-background-color: #1E293B;
+  --ag-odd-row-background-color: rgba(30, 41, 59, 0.3);
+  --ag-row-hover-color: rgba(0, 180, 216, 0.1);
+  --ag-border-color: rgba(255, 255, 255, 0.05);
+  --ag-foreground-color: #F8FAFC;
+}
+
+.ag-theme-alpine .ag-cell-error,
+.ag-theme-alpine-dark .ag-cell-error {
+  background-color: rgba(255, 107, 107, 0.12) !important;
   border-left: 3px solid var(--destructive) !important;
 }
 
-.ag-theme-alpine .ag-cell-warning {
-  background-color: color-mix(in oklab, var(--warning) 12%, transparent) !important;
+.ag-theme-alpine .ag-cell-warning,
+.ag-theme-alpine-dark .ag-cell-warning {
+  background-color: rgba(245, 158, 11, 0.12) !important;
   border-left: 3px solid var(--warning) !important;
 }
 
-.ag-theme-alpine .ag-cell-success {
-  background-color: color-mix(in oklab, var(--success) 8%, transparent) !important;
+.ag-theme-alpine .ag-cell-success,
+.ag-theme-alpine-dark .ag-cell-success {
+  background-color: rgba(34, 197, 94, 0.08) !important;
 }
 
-/* React-PDF Text Layer Compatibility */
+.ag-theme-alpine-dark .ag-paging-panel {
+  background-color: #0F172A !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #94A3B8 !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button,
+.ag-theme-alpine-dark .ag-paging-page-summary-panel {
+  color: #94A3B8 !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.ag-theme-alpine-dark .ag-paging-button:disabled {
+  color: #475569 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   REACT-PDF COMPATIBILITY
+   ───────────────────────────────────────────────────────────────────────────── */
 .react-pdf__Page__textContent {
   height: 100%;
   width: 100%;
@@ -173,72 +317,9 @@ select:focus {
   width: 100%;
 }
 
-/* Dark mode is now properly handled by @variant dark directive above */
-
-/* Legacy color variable aliases -> Tailwind v4 palette
-   Keeps older CSS snippets working without forcing black */
-:root {
-  --color-background-50: var(--color-gray-50);
-  --color-background-100: var(--color-gray-100);
-  --color-background-200: var(--color-gray-200);
-}
-
-html.dark {
-  --color-background-50: var(--color-slate-900);
-  --color-background-100: var(--color-slate-800);
-  --color-background-200: var(--color-slate-700);
-}
-
-/* Themed scrollbar (light/dark) */
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-*::-webkit-scrollbar-button {
-  display: none;
-}
-
-:root {
-  --scrollbar-track: var(--color-background-100);
-  --scrollbar-thumb: var(--color-gray-500);
-}
-
-html.dark {
-  --scrollbar-track: var(--color-background-100);
-  --scrollbar-thumb: var(--color-slate-600);
-}
-
-*::-webkit-scrollbar-track {
-  background-color: var(--scrollbar-track);
-  border-radius: 0 0 1rem 1rem;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--scrollbar-thumb);
-  border-radius: 1rem;
-}
-
-/* AG Grid Dark Mode Pagination Fix */
-.ag-theme-alpine-dark .ag-paging-panel {
-  background-color: #0F172A !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
-  color: rgb(148, 163, 184) !important;
-}
-
-.ag-theme-alpine-dark .ag-paging-button,
-.ag-theme-alpine-dark .ag-paging-page-summary-panel {
-  color: rgb(148, 163, 184) !important;
-}
-
-.ag-theme-alpine-dark .ag-paging-button:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.ag-theme-alpine-dark .ag-paging-button:disabled {
-  color: rgb(71, 85, 105) !important;
-}
-/* Animations */
+/* ─────────────────────────────────────────────────────────────────────────────
+   ANIMATIONS
+   ───────────────────────────────────────────────────────────────────────────── */
 @keyframes slideDownFade {
   from {
     opacity: 0;
@@ -250,6 +331,43 @@ html.dark {
   }
 }
 
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 180, 216, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(0, 180, 216, 0.5);
+  }
+}
+
 .animate-slide-down {
   animation: slideDownFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

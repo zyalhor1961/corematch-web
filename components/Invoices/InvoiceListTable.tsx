@@ -71,12 +71,14 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
     return (
         <>
             {/* THE PREMIUM CARD CONTAINER */}
-            <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0F172A]/40 backdrop-blur-xl shadow-2xl shadow-black/50 relative">
+            <div className="w-full overflow-hidden rounded-xl md:rounded-2xl border border-white/10 bg-[#0F172A]/40 backdrop-blur-xl shadow-2xl shadow-black/50 relative">
 
                 {/* Subtle Top Gradient Highlight (The "Premium Shine") */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-teal-500/50 to-transparent opacity-50" />
 
-                <table className="w-full text-left text-sm">
+                {/* Responsive Table Wrapper - horizontal scroll on mobile */}
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px] text-left text-sm">
                     {/* HEADER: Darker, Matte */}
                     <thead className="bg-transparent text-[10px] uppercase tracking-widest text-slate-500 font-bold border-b border-white/10">
                         <tr>
@@ -137,6 +139,7 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
                         )}
                     </tbody>
                 </table>
+                </div>
 
                 {/* FOOTER: Clean, minimal */}
                 <div className="border-t border-white/5 bg-[#020617] px-6 py-3 text-xs text-slate-600 flex justify-between items-center">

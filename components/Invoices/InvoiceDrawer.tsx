@@ -123,116 +123,131 @@ export default function InvoiceDrawer({ invoiceId, isOpen, onClose }: InvoiceDra
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
       <div className="relative h-full w-full max-w-2xl bg-[#0F172A] border-l border-white/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-        <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-          <X size={20} />
-        </button>
-      </div>
 
-      {/* CONTENT */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
-
-        {/* Document Preview */}
-        <div className="bg-slate-800/30 rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-[#1E293B] rounded-lg border border-white/5"><FileText className="text-slate-300" size={24} /></div>
-            <div>
-              <div className="text-sm font-medium text-white">Facture_Originale.pdf</div>
-              <div className="text-xs text-slate-500">PDF • 1.2 MB</div>
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#020617]/50">
+          <div>
+            <h2 className="text-lg font-semibold text-white tracking-tight">Analyse Facture</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wider ${status === 'completed' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
+                'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                }`}>
+                {status === 'processing' || status === 'pending' ? 'IA en cours...' : status === 'idle' ? 'En attente' : 'Audit IA Terminé'}
+              </span>
+              <p className="text-xs text-slate-500 font-mono">ID: {invoiceId.slice(0, 8)}</p>
             </div>
           </div>
-          <button className="p-2 text-slate-400 hover:text-teal-400 transition-colors"><Download size={18} /></button>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+            <X size={20} />
+          </button>
         </div>
 
-        {/* AI AUDIT SECTION (With Logic!) */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Piste d&apos;Audit (IA)</h3>
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
 
-            {/* SHOW ANALYZE BUTTON IF IDLE */}
-            {(status === 'idle' || steps.length === 0) && (
-              <button
-                onClick={handleStartAnalysis}
-                className="flex items-center gap-2 text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
-              >
-                <Play size={12} fill="currentColor" /> Lancer l&apos;Audit
-              </button>
-            )}
-          </div>
-
-          <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 min-h-[120px]">
-            {/* If no steps and not loading, show empty state */}
-            {steps.length === 0 && status !== 'processing' ? (
-              <div className="text-center py-8 text-slate-500 text-sm">
-                Cliquez sur &quot;Lancer l&apos;Audit&quot; pour démarrer l&apos;IA.
+          {/* Document Preview */}
+          <div className="bg-slate-800/30 rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-[#1E293B] rounded-lg border border-white/5"><FileText className="text-slate-300" size={24} /></div>
+              <div>
+                <div className="text-sm font-medium text-white">Facture_Originale.pdf</div>
+                <div className="text-xs text-slate-500">PDF • 1.2 MB</div>
               </div>
-            ) : (
-              <AgentTimeline steps={steps} jobId={invoiceId} />
-            )}
+            </div>
+            <button className="p-2 text-slate-400 hover:text-teal-400 transition-colors"><Download size={18} /></button>
           </div>
-        </div>
 
-        {/* SECTION DONNÉES EXTRAITES */}
-        {extractionData && (
-          <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 mb-6">
-            <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Extraction Intelligente</h3>
-            <div className="space-y-1">
-              <SmartField label="Fournisseur" data={extractionData.vendor_name} />
-              <SmartField label="Date" data={extractionData.invoice_date} />
-              <SmartField label="N° Facture" data={extractionData.invoice_id} />
-              <SmartField label="Montant Total" data={extractionData.total_amount} />
+          {/* AI AUDIT SECTION (With Logic!) */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Piste d&apos;Audit (IA)</h3>
+
+              {/* SHOW ANALYZE BUTTON IF IDLE */}
+              {(status === 'idle' || steps.length === 0) && (
+                <button
+                  onClick={handleStartAnalysis}
+                  className="flex items-center gap-2 text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
+                >
+                  <Play size={12} fill="currentColor" /> Lancer l&apos;Audit
+                </button>
+              )}
+            </div>
+
+            <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 min-h-[120px]">
+              {/* If no steps and not loading, show empty state */}
+              {steps.length === 0 && status !== 'processing' ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  Cliquez sur &quot;Lancer l&apos;Audit&quot; pour démarrer l&apos;IA.
+                </div>
+              ) : (
+                <AgentTimeline steps={steps} jobId={invoiceId} />
+              )}
             </div>
           </div>
-        )}
 
-        {/* Accounting Entries */}
-        <div>
-          <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-4">Écritures Comptables (Brouillard)</h3>
-          <div className="bg-white rounded-lg overflow-hidden shadow-lg text-slate-900">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-[10px] uppercase">Compte</th>
-                  <th className="px-4 py-3 text-left text-[10px] uppercase">Libellé</th>
-                  <th className="px-4 py-3 text-right text-[10px] uppercase">Débit</th>
-                  <th className="px-4 py-3 text-right text-[10px] uppercase">Crédit</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {accountingEntry.map((row, i) => (
-                  <tr key={i} className="hover:bg-blue-50/50">
-                    <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{row.account}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{row.label}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-600">{row.debit > 0 ? row.debit.toFixed(2) : '-'}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-600">{row.credit > 0 ? row.credit.toFixed(2) : '-'}</td>
+          {/* SECTION DONNÉES EXTRAITES */}
+          {extractionData && (
+            <div className="bg-[#020617]/40 rounded-xl p-4 border border-white/5 mb-6">
+              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Extraction Intelligente</h3>
+              <div className="space-y-1">
+                <SmartField label="Fournisseur" data={extractionData.vendor_name} />
+                <SmartField label="Date" data={extractionData.invoice_date} />
+                <SmartField label="N° Facture" data={extractionData.invoice_id} />
+                <SmartField label="Montant Total" data={extractionData.total_amount} />
+              </div>
+            </div>
+          )}
+
+          {/* Accounting Entries */}
+          <div>
+            <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-4">Écritures Comptables (Brouillard)</h3>
+            <div className="bg-white rounded-lg overflow-hidden shadow-lg text-slate-900">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase">Compte</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase">Libellé</th>
+                    <th className="px-4 py-3 text-right text-[10px] uppercase">Débit</th>
+                    <th className="px-4 py-3 text-right text-[10px] uppercase">Crédit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {accountingEntry.map((row, i) => (
+                    <tr key={i} className="hover:bg-blue-50/50">
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{row.account}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">{row.label}</td>
+                      <td className="px-4 py-3 text-right font-mono text-slate-600">{row.debit > 0 ? row.debit.toFixed(2) : '-'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-slate-600">{row.credit > 0 ? row.credit.toFixed(2) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* FOOTER */}
-      <div className="p-6 border-t border-white/5 bg-[#020617] flex justify-between items-center">
-        <button onClick={handleAskDAF} className="text-slate-400 hover:text-white text-sm transition-colors flex items-center gap-2">
-          <MessageSquare size={16} />
-          <span>Demander au DAF</span>
-        </button>
-        <div className="flex gap-3">
-          <button onClick={handleEdit} className="px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors text-sm font-medium flex items-center gap-2">
-            <Edit3 size={16} /> Modifier
+        {/* FOOTER */}
+        <div className="p-6 border-t border-white/5 bg-[#020617] flex justify-between items-center">
+          <button onClick={handleAskDAF} className="text-slate-400 hover:text-white text-sm transition-colors flex items-center gap-2">
+            <MessageSquare size={16} />
+            <span>Demander au DAF</span>
           </button>
-          <button
-            onClick={handleValidate}
-            disabled={isValidating}
-            className="px-6 py-2 rounded-lg bg-[#00B4D8] hover:bg-[#0096B4] text-white font-medium shadow-[0_0_20px_rgba(0,180,216,0.2)] transition-all flex items-center gap-2 text-sm disabled:opacity-50"
-          >
-            {isValidating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-            {isValidating ? 'Validation...' : 'Valider'}
-          </button>
+          <div className="flex gap-3">
+            <button onClick={handleEdit} className="px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors text-sm font-medium flex items-center gap-2">
+              <Edit3 size={16} /> Modifier
+            </button>
+            <button
+              onClick={handleValidate}
+              disabled={isValidating}
+              className="px-6 py-2 rounded-lg bg-[#00B4D8] hover:bg-[#0096B4] text-white font-medium shadow-[0_0_20px_rgba(0,180,216,0.2)] transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              {isValidating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+              {isValidating ? 'Validation...' : 'Valider'}
+            </button>
+          </div>
         </div>
-      </div>
 
+      </div>
     </div>
   );
 }

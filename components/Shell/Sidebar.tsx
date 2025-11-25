@@ -66,82 +66,80 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     <>
       {/* Mobile Backdrop */}
       <div
-        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         onClick={onClose}
       />
 
       {/* Sidebar */}
-      <div className={`fixed left-0 top-0 w-64 h-screen bg-[#020617]/95 backdrop-blur-xl border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className="fixed left-0 top-0 w-64 h-screen bg-gradient-to-b from-[#020617] to-[#0F172A] border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 relative overflow-hidden">
 
-      {/* LOGO AREA */}
-      <div className="h-16 flex items-center px-6 border-b border-white/5">
-        <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-          <span className="font-bold text-white text-xl">C</span>
-        </div>
-        <span className="font-bold text-white tracking-tight text-lg">CoreMatch</span>
-      </div>
+        {/* CHANGE 2: The Glow (Subtle atmosphere) */}
+        <div className="absolute top-0 left-0 w-full h-64 bg-teal-500/5 blur-3xl pointer-events-none" />
 
-      {/* NAVIGATION SCROLLABLE */}
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8">
-        {navigation.map((section) => (
-          <div key={section.title}>
-            <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-              {section.title}
-            </h3>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                      isActive
-                        ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[0_0_10px_rgba(20,184,166,0.1)]'
-                        : 'hover:bg-white/5 hover:text-white text-slate-400'
-                    }`}
-                  >
-                    <item.icon
-                      className={`mr-3 h-5 w-5 transition-colors ${
-                        isActive
-                          ? 'text-teal-400'
-                          : item.highlight ? 'text-orange-400 group-hover:text-orange-300' : 'text-slate-500 group-hover:text-slate-300'
-                      }`}
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </div>
+        {/* LOGO AREA */}
+        <div className="h-16 flex items-center px-6 border-b border-white/5 relative z-10">
+          <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(45,212,191,0.2)]">
+            <span className="font-bold text-white text-xl">C</span>
           </div>
-        ))}
-      </nav>
+          <span className="font-bold text-white tracking-tight text-lg">CoreMatch</span>
+        </div>
 
-      {/* FOOTER (User & Settings) */}
-      <div className="p-4 border-t border-white/5 bg-[#020617]">
-        <div className="space-y-1">
+        {/* NAVIGATION SCROLLABLE */}
+        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 relative z-10">
+          {navigation.map((section) => (
+            <div key={section.title}>
+              <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                {section.title}
+              </h3>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${isActive
+                          ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[0_0_10px_rgba(20,184,166,0.1)]'
+                          : 'hover:bg-white/5 hover:text-white text-slate-400'
+                        }`}
+                    >
+                      <item.icon
+                        className={`mr-3 h-5 w-5 transition-colors ${isActive
+                            ? 'text-teal-400'
+                            : item.highlight ? 'text-orange-400 group-hover:text-orange-300' : 'text-slate-500 group-hover:text-slate-300'
+                          }`}
+                      />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* FOOTER (User & Settings) */}
+        <div className="p-4 border-t border-white/5 bg-[#020617]/50 relative z-10">
+          <div className="space-y-1">
             <Link href={`/org/${orgId}/settings`} className="flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-white/5 hover:text-white transition-colors">
-                <Settings className="mr-3 h-5 w-5 text-slate-500" />
-                Paramètres
+              <Settings className="mr-3 h-5 w-5 text-slate-500" />
+              Paramètres
             </Link>
             <button className="w-full flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-rose-500/10 hover:text-rose-400 transition-colors">
-                <LogOut className="mr-3 h-5 w-5 text-slate-500 group-hover:text-rose-400" />
-                Déconnexion
+              <LogOut className="mr-3 h-5 w-5 text-slate-500 group-hover:text-rose-400" />
+              Déconnexion
             </button>
-        </div>
+          </div>
 
-        <div className="mt-4 px-3 flex items-center gap-3">
+          <div className="mt-4 px-3 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 border border-white/10" />
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">Zyad Alhor</p>
-                <p className="text-xs text-slate-500 truncate">Admin</p>
+              <p className="text-sm font-medium text-white truncate">Zyad Alhor</p>
+              <p className="text-xs text-slate-500 truncate">Admin</p>
             </div>
+          </div>
         </div>
-      </div>
       </div>
     </>
   );

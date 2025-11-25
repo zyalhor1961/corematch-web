@@ -36,8 +36,8 @@
 }
 
 .dark {
-  --background: #111827;
-  /* Lighter dark background (Gray 900) */
+  --background: #020617;
+  /* Deep Void (Slate 950) */
   --foreground: #f3f4f6;
   --muted: #9ca3af;
   --card: #1f2937;

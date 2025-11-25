@@ -98,11 +98,11 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete: () 
         onDragOver={handleDrag}
         onDrop={handleDrop}
         className={`
-          relative flex flex-col items-center justify-center w-full h-40 rounded-2xl
-          border-2 border-dashed transition-all duration-300 cursor-pointer group
+          relative flex flex-col items-center justify-center w-full h-48 rounded-2xl 
+          border border-dashed transition-all duration-500 cursor-pointer group overflow-hidden
           ${isDragging
-            ? 'border-teal-400 bg-teal-400/5 scale-[1.01]'
-            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+            ? 'border-teal-400 bg-teal-900/20 scale-[1.01] shadow-[0_0_40px_rgba(45,212,191,0.15)]'
+            : 'border-white/10 bg-[#0B1221] hover:border-teal-500/50 hover:bg-[#0B1221]/80'
           }
         `}
       >

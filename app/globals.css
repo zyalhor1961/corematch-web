@@ -36,8 +36,8 @@
 }
 
 .dark {
-  --background: #020617;
-  /* Deep Void (Slate 950) */
+  --background: #0B1120;
+  /* Synapse Deep Navy */
   --foreground: #f3f4f6;
   --muted: #9ca3af;
   --card: #1f2937;
@@ -237,4 +237,19 @@ html.dark {
 
 .ag-theme-alpine-dark .ag-paging-button:disabled {
   color: rgb(71, 85, 105) !important;
+}
+/* Animations */
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDownFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

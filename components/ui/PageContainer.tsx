@@ -26,10 +26,12 @@ const PageContainer = ({ title, children, actions }: PageContainerProps) => {
                 </div>
             </div>
 
-            {/* CONTENT: No more gray box wrapper. We let the children float. */}
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {children}
-            </div>
+            {/* Main Content Area */}
+            <main className="flex-1 overflow-y-auto p-8 relative z-10 animate-slide-down">
+                <div className="max-w-7xl mx-auto space-y-6">
+                    {children}
+                </div>
+            </main>
         </div>
     );
 };

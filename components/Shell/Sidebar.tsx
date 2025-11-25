@@ -72,15 +72,18 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       />
 
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 w-64 h-screen bg-gradient-to-b from-[#020617] to-[#0F172A] border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 relative overflow-hidden">
+      <div className="fixed left-0 top-0 w-64 h-screen bg-[#0B1120] border-r border-white/5 flex flex-col text-slate-300 font-sans z-50 transform transition-transform duration-300 ease-out md:translate-x-0 relative overflow-hidden shadow-2xl">
 
-        {/* CHANGE 2: The Glow (Subtle atmosphere) */}
-        <div className="absolute top-0 left-0 w-full h-64 bg-teal-500/5 blur-3xl pointer-events-none" />
+        {/* Glow */}
+        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-[#00E5FF]/10 blur-[80px] rounded-full pointer-events-none" />
 
         {/* LOGO AREA */}
-        <div className="h-16 flex items-center px-6 border-b border-white/5 relative z-10">
-          <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(45,212,191,0.2)]">
-            <span className="font-bold text-white text-xl">C</span>
+        <div className="h-20 flex items-center px-6 relative z-10">
+          <div className="w-10 h-10 relative flex items-center justify-center mr-3">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#00E5FF] to-[#2979FF] rounded-xl opacity-20 blur-md"></div>
+            <div className="relative w-full h-full bg-gradient-to-br from-[#00E5FF] to-[#2979FF] rounded-xl flex items-center justify-center shadow-inner border border-white/10">
+              <span className="font-bold text-white text-xl">C</span>
+            </div>
           </div>
           <span className="font-bold text-white tracking-tight text-lg">CoreMatch</span>
         </div>
@@ -100,13 +103,13 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       key={item.name}
                       href={item.href}
                       className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${isActive
-                          ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[0_0_10px_rgba(20,184,166,0.1)]'
+                          ? 'bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/20 shadow-[0_0_10px_rgba(0,229,255,0.1)]'
                           : 'hover:bg-white/5 hover:text-white text-slate-400'
                         }`}
                     >
                       <item.icon
                         className={`mr-3 h-5 w-5 transition-colors ${isActive
-                            ? 'text-teal-400'
+                            ? 'text-[#00E5FF]'
                             : item.highlight ? 'text-orange-400 group-hover:text-orange-300' : 'text-slate-500 group-hover:text-slate-300'
                           }`}
                       />
@@ -120,7 +123,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* FOOTER (User & Settings) */}
-        <div className="p-4 border-t border-white/5 bg-[#020617]/50 relative z-10">
+        <div className="p-4 border-t border-white/5 bg-[#0B1120]/50 relative z-10">
           <div className="space-y-1">
             <Link href={`/org/${orgId}/settings`} className="flex items-center px-3 py-2 text-sm font-medium text-slate-400 rounded-lg hover:bg-white/5 hover:text-white transition-colors">
               <Settings className="mr-3 h-5 w-5 text-slate-500" />

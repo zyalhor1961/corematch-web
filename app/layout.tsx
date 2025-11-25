@@ -54,12 +54,15 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased !text-slate-900 dark:!text-slate-100`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased !text-slate-900 dark:!text-slate-100 bg-[#0B1120] overflow-hidden`}
       >
         <NeuralBackground />
         <ThemeProvider>
           <ErrorBoundary>
-            {children}
+            {/* The Content (Floats on top) */}
+            <div className="relative z-10 h-screen w-full flex">
+              {children}
+            </div>
           </ErrorBoundary>
         </ThemeProvider>
       </body>

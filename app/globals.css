@@ -38,6 +38,19 @@
   --success: #22C55E;          /* Emerald */
   --warning: #F59E0B;          /* Amber */
   --destructive: #FF6B6B;      /* Coral Red */
+  --destructive-foreground: #FFFFFF;
+
+  /* Button Primary (Electric Teal) */
+  --primary: #00B4D8;
+  --primary-foreground: #020617;
+
+  /* Button Secondary */
+  --secondary: #1E293B;
+  --secondary-foreground: #F8FAFC;
+
+  /* Input & Form */
+  --input: rgba(255, 255, 255, 0.1);
+  --input-foreground: #F8FAFC;
 
   /* CoreMatch Specific Tokens */
   --cm-primary: #00B4D8;       /* Electric Teal */
@@ -92,6 +105,16 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Primary & Secondary for Buttons */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  /* Input */
+  --color-input: var(--input);
 
   /* CoreMatch Custom Colors */
   --color-cm-primary: var(--cm-primary);

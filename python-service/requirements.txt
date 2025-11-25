@@ -1,11 +1,13 @@
 fastapi
 uvicorn
-supabase>=2.9.0
-httpx==0.27.2
-langgraph
-langchain-openai
-langchain-core
 python-dotenv
 pandas
 pydantic
-azure-ai-formrecognizer==3.3.0
+# Le fix pour Supabase/Proxy
+httpx==0.27.2
+# On laisse Supabase trouver la version compatible avec ce httpx
+supabase
+# L'IA
+langgraph
+langchain-openai
+langchain-core

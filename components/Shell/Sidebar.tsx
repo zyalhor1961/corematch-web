@@ -15,7 +15,8 @@ import {
   Settings,
   LogOut,
   PieChart,
-  Truck
+  Truck,
+  Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,7 +35,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       title: "PILOTAGE",
       items: [
         { name: 'Tableau de bord', href: `/org/${orgId}`, icon: LayoutDashboard },
-        { name: 'Morning Briefing', href: `/org/${orgId}/briefing`, icon: Sun, highlight: true },
+        { name: 'Smart Insights IA', href: `/org/${orgId}/insights`, icon: Sparkles, highlight: true },
+        { name: 'Morning Briefing', href: `/org/${orgId}/briefing`, icon: Sun },
       ]
     },
     {
@@ -66,9 +68,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     <>
       {/* Mobile Backdrop - Only shows on mobile when sidebar is open */}
       <div
-        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -102,20 +103,18 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       key={item.name}
                       href={item.href}
                       onClick={onClose}
-                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                        isActive
-                          ? 'bg-[#00B4D8]/10 text-[#00B4D8] border border-[#00B4D8]/20 shadow-[0_0_10px_rgba(0,180,216,0.1)]'
-                          : 'hover:bg-white/5 hover:text-white text-slate-400'
-                      }`}
+                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${isActive
+                        ? 'bg-[#00B4D8]/10 text-[#00B4D8] border border-[#00B4D8]/20 shadow-[0_0_10px_rgba(0,180,216,0.1)]'
+                        : 'hover:bg-white/5 hover:text-white text-slate-400'
+                        }`}
                     >
                       <item.icon
-                        className={`mr-3 h-5 w-5 transition-colors ${
-                          isActive
-                            ? 'text-[#00B4D8]'
-                            : item.highlight
-                              ? 'text-orange-400 group-hover:text-orange-300'
-                              : 'text-slate-500 group-hover:text-slate-300'
-                        }`}
+                        className={`mr-3 h-5 w-5 transition-colors ${isActive
+                          ? 'text-[#00B4D8]'
+                          : item.highlight
+                            ? 'text-orange-400 group-hover:text-orange-300'
+                            : 'text-slate-500 group-hover:text-slate-300'
+                          }`}
                       />
                       {item.name}
                     </Link>

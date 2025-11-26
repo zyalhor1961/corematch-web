@@ -1,43 +1,50 @@
 import re
 
 class PrivacyAirlock:
+    """
+    A security layer to redact PII (Personally Identifiable Information) 
+    from text before it is sent to an LLM.
+    """
+
     def __init__(self):
-        # Define patterns for PII (Personally Identifiable Information)
-        # Order matters: More specific patterns first to avoid conflicts
+        # Regex patterns for PII
         self.patterns = {
-            "EMAIL": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-            "IBAN": r'\b[A-Z]{2}\d{2}[A-Z0-9\s]{15,32}\b',  # IBAN with optional spaces
-            "CREDIT_CARD": r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b',  # 16 digits with optional separators
-            "PHONE": r'(?:\+\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}',  # International phone formats
+            "EMAIL": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+            # Basic Credit Card / IBAN-like pattern (12-19 digits, potentially spaced)
+            "FINANCIAL_ID": r'\b(?:\d[ -]*?){13,19}\b', 
+            # Basic Phone Number (International or Local, with common separators)
+            # Removed initial \b to allow + prefix which is not a word character
+            "PHONE": r'(?:\+?\d{1,3}[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}(?: *x\d+)?'
         }
 
-    def sanitize(self, text: str) -> str:
+    def redact_pii(self, text: str) -> str:
         """
-        Takes raw text and replaces PII with tokens like [EMAIL_REDACTED].
+        Scans the text for PII patterns and replaces them with redaction markers.
         """
-        sanitized_text = text
-        
-        for label, pattern in self.patterns.items():
-            # Replace found patterns with [LABEL_REDACTED]
-            sanitized_text = re.sub(
-                pattern, 
-                f"[{label}_REDACTED]", 
-                sanitized_text
-            )
-            
-        return sanitized_text
+        if not text:
+            return ""
 
-    def inspect_traffic(self, raw_data: str):
-        """
-        Returns a safety report without leaking the data itself.
-        """
-        redacted = self.sanitize(raw_data)
-        was_modified = redacted != raw_data
-        return {
-            "safe": not was_modified,
-            "sanitized_content": redacted,
-            "flags": [key for key in self.patterns if f"[{key}_REDACTED]" in redacted]
-        }
+        redacted_text = text
 
-# Singleton instance
+        # Redact Emails
+        redacted_text = re.sub(self.patterns["EMAIL"], "[EMAIL_REDACTED]", redacted_text)
+
+        # Redact Financial IDs (Credit Cards, IBANs)
+        # Note: This is a heuristic. It might catch some long numbers that aren't CCs.
+        redacted_text = re.sub(self.patterns["FINANCIAL_ID"], "[FINANCIAL_ID_REDACTED]", redacted_text)
+
+        # Redact Phone Numbers
+        # Note: Phone regex is tricky. This is a best-effort pattern.
+        redacted_text = re.sub(self.patterns["PHONE"], "[PHONE_REDACTED]", redacted_text)
+
+        return redacted_text
+
+    def restore_pii(self, text: str, map: dict) -> str:
+        """
+        Placeholder for future logic to re-insert data if needed.
+        Currently just returns the text as is.
+        """
+        return text
+
+# Export a default instance
 airlock = PrivacyAirlock()

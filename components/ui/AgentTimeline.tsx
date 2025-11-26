@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { CheckCircle2, Circle, AlertTriangle, Loader2, Ban, ThumbsDown, Check } from 'lucide-react';
+import { CheckCircle2, Circle, AlertTriangle, Loader2, AlertCircle, ThumbsDown, Check } from 'lucide-react';
 
 export type AgentStep = {
     title: string;
@@ -14,7 +14,7 @@ const StatusIcon = ({ status }: { status: AgentStep['status'] }) => {
     switch (status) {
         case 'done': return <CheckCircle2 className="text-emerald-400" size={16} />;
         case 'warning': return <AlertTriangle className="text-amber-400" size={16} />;
-        case 'error': return <Ban className="text-rose-400" size={16} />;
+        case 'error': return <AlertCircle className="text-rose-400" size={16} />;
         case 'processing': return <Loader2 className="text-blue-400 animate-spin" size={16} />;
         default: return <Circle className="text-slate-600" size={16} />;
     }
@@ -51,7 +51,7 @@ export const AgentTimeline = ({ steps, jobId }: { steps: AgentStep[], jobId?: st
                     {index !== steps.length - 1 && (
                         <div className="absolute left-[7px] top-5 bottom-0 w-[1px] bg-white/10" />
                     )}
-                    <div className="absolute left-0 top-0.5 bg-[#0F172A] z-10 ring-4 ring-[#0F172A]">
+                    <div className="absolute left-0 top-0.5 bg-[#020617] z-10 ring-4 ring-[#020617]">
                         <StatusIcon status={step.status} />
                     </div>
                     <div className="flex justify-between items-start -mt-1">

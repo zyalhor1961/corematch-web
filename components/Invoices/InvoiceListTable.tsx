@@ -78,67 +78,70 @@ export default function InvoiceListTable({ orgId }: { orgId: string }) {
 
                 {/* Responsive Table Wrapper - horizontal scroll on mobile */}
                 <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px] text-left text-sm">
-                    {/* HEADER: Darker, Matte */}
-                    <thead className="bg-transparent text-[10px] uppercase tracking-widest text-slate-500 font-bold border-b border-white/10">
-                        <tr>
-                            <th className="px-6 py-4">Reference</th>
-                            <th className="px-6 py-4">Client</th>
-                            <th className="px-6 py-4">Date</th>
-                            <th className="px-6 py-4">Amount</th>
-                            <th className="px-6 py-4">Status</th>
-                            <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-
-                    {/* BODY: High Contrast, Hover Glows */}
-                    <tbody className="divide-y divide-white/5">
-                        {invoices.length === 0 ? (
+                    <table className="w-full min-w-[600px] text-left text-sm">
+                        {/* HEADER: Darker, Matte */}
+                        <thead className="bg-transparent text-[10px] uppercase tracking-widest text-slate-500 font-bold border-b border-white/10">
                             <tr>
-                                <td colSpan={6} className="px-6 py-16 text-center text-slate-600 font-light">
-                                    No invoices found. Start by uploading one.
-                                </td>
+                                <th className="px-6 py-4">Reference</th>
+                                <th className="px-6 py-4">Client</th>
+                                <th className="px-6 py-4">Date</th>
+                                <th className="px-6 py-4">Amount</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
-                        ) : (
-                            invoices.map((invoice) => (
-                                <tr
-                                    key={invoice.id}
-                                    onClick={() => setSelectedInvoiceId(invoice.id)}
-                                    className="group cursor-pointer transition-all duration-200 hover:bg-white/[0.02]"
-                                >
-                                    <td className="px-6 py-4 font-mono text-slate-400 group-hover:text-teal-400 transition-colors">
-                                        {invoice.invoice_number || invoice.id.slice(0, 8)}
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-slate-200 group-hover:text-white">
-                                        {invoice.client_name || 'Unknown Client'}
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-500">
-                                        {new Date(invoice.date_issued).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-slate-300 tracking-wide">
-                                        €{Number(invoice.total_amount).toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {/* Clean Status Badges */}
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${invoice.status === 'APPROVED'
-                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
-                                            : invoice.status === 'NEEDS_APPROVAL'
-                                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                                : 'bg-slate-800 text-slate-400 border border-slate-700'
-                                            }`}>
-                                            {invoice.status === 'APPROVED' ? 'Validée' : invoice.status === 'NEEDS_APPROVAL' ? 'À Valider' : invoice.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                                            <ArrowRight size={16} className="text-teal-500" />
-                                        </div>
+                        </thead>
+
+                        {/* BODY: High Contrast, Hover Glows */}
+                        <tbody className="divide-y divide-white/5">
+                            {invoices.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-16 text-center text-slate-600 font-light">
+                                        No invoices found. Start by uploading one.
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                invoices.map((invoice) => (
+                                    <tr
+                                        key={invoice.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedInvoiceId(invoice.id);
+                                        }}
+                                        className="group cursor-pointer transition-all duration-200 hover:bg-white/[0.02]"
+                                    >
+                                        <td className="px-6 py-4 font-mono text-slate-400 group-hover:text-teal-400 transition-colors">
+                                            {invoice.invoice_number || invoice.id.slice(0, 8)}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-slate-200 group-hover:text-white">
+                                            {invoice.client_name || 'Unknown Client'}
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-500">
+                                            {new Date(invoice.date_issued).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-slate-300 tracking-wide">
+                                            €{Number(invoice.total_amount).toFixed(2)}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {/* Clean Status Badges */}
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${invoice.status === 'APPROVED'
+                                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
+                                                : invoice.status === 'NEEDS_APPROVAL'
+                                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                                }`}>
+                                                {invoice.status === 'APPROVED' ? 'Validée' : invoice.status === 'NEEDS_APPROVAL' ? 'À Valider' : invoice.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                                                <ArrowRight size={16} className="text-teal-500" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* FOOTER: Clean, minimal */}

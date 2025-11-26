@@ -11,3 +11,5 @@ supabase
 langgraph
 langchain-openai
 langchain-core
+azure-ai-formrecognizer
+azure-identity

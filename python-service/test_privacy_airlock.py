@@ -1,76 +1,29 @@
-"""
-Test script for Privacy Airlock
-Demonstrates PII redaction functionality
-"""
+import unittest
+from privacy_guard import PrivacyAirlock
 
-from privacy_guard import airlock
+class TestPrivacyAirlock(unittest.TestCase):
+    def setUp(self):
+        self.airlock = PrivacyAirlock()
 
-# Test Case 1: Invoice with multiple PII types
-test_invoice = """
-Invoice #1024
-Contact: sarah.connor@skynet.com
-Phone: +1 555 0199 8888
-Payment to IBAN: FR7630001000100010001000100
-Credit Card: 4532 1488 0343 6467
-Total Amount: €5000
-"""
+    def test_redact_email(self):
+        text = "Contact me at john.doe@example.com for more info."
+        expected = "Contact me at [EMAIL_REDACTED] for more info."
+        self.assertEqual(self.airlock.redact_pii(text), expected)
 
-print("=" * 60)
-print("TEST 1: Invoice with Multiple PII Types")
-print("=" * 60)
-print("\nOriginal Text:")
-print(test_invoice)
+    def test_redact_credit_card(self):
+        text = "Payment via card 4111 1111 1111 1111."
+        expected = "Payment via card [FINANCIAL_ID_REDACTED]."
+        self.assertEqual(self.airlock.redact_pii(text), expected)
 
-result = airlock.inspect_traffic(test_invoice)
+    def test_redact_phone(self):
+        text = "Call me at +1 555 123 4567."
+        expected = "Call me at [PHONE_REDACTED]."
+        self.assertEqual(self.airlock.redact_pii(text), expected)
 
-print("\n--- Security Report ---")
-print(f"Safe to send to AI: {result['safe']}")
-print(f"Flags detected: {', '.join(result['flags']) if result['flags'] else 'None'}")
-print("\nSanitized Text:")
-print(result['sanitized_content'])
+    def test_mixed_pii(self):
+        text = "Email: test@test.com, Card: 1234-5678-9012-3456"
+        expected = "Email: [EMAIL_REDACTED], Card: [FINANCIAL_ID_REDACTED]"
+        self.assertEqual(self.airlock.redact_pii(text), expected)
 
-# Test Case 2: Clean invoice (no PII)
-clean_invoice = """
-Invoice for professional services
-Software development consulting
-Total: €3000
-"""
-
-print("\n" + "=" * 60)
-print("TEST 2: Clean Invoice (No PII)")
-print("=" * 60)
-print("\nOriginal Text:")
-print(clean_invoice)
-
-result2 = airlock.inspect_traffic(clean_invoice)
-
-print("\n--- Security Report ---")
-print(f"Safe to send to AI: {result2['safe']}")
-print(f"Flags detected: {', '.join(result2['flags']) if result2['flags'] else 'None'}")
-print("\nSanitized Text:")
-print(result2['sanitized_content'])
-
-# Test Case 3: Edge case - multiple emails
-edge_case = """
-From: alice@company.com
-To: bob@client.com, charlie@vendor.com
-CC: diane@accounting.com
-"""
-
-print("\n" + "=" * 60)
-print("TEST 3: Multiple Emails")
-print("=" * 60)
-print("\nOriginal Text:")
-print(edge_case)
-
-result3 = airlock.inspect_traffic(edge_case)
-
-print("\n--- Security Report ---")
-print(f"Safe to send to AI: {result3['safe']}")
-print(f"Flags detected: {', '.join(result3['flags']) if result3['flags'] else 'None'}")
-print("\nSanitized Text:")
-print(result3['sanitized_content'])
-
-print("\n" + "=" * 60)
-print("All tests completed!")
-print("=" * 60)
+if __name__ == '__main__':
+    unittest.main()

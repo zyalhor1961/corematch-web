@@ -10,7 +10,7 @@ interface CommandBarProps {
 
 const CommandBar = ({ onMenuClick, onOpenCmd }: CommandBarProps) => {
   return (
-    <header className="h-16 fixed top-0 right-0 left-0 md:left-64 bg-transparent z-30 flex items-center justify-between px-4 md:px-6 pointer-events-none">
+    <header className="h-16 w-full bg-transparent z-30 flex items-center justify-between px-4 md:px-6 pointer-events-none">
       {/* Left Section: Menu & Breadcrumbs */}
       <div className="flex items-center pointer-events-auto">
         {/* Mobile Menu Button */}

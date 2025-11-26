@@ -72,118 +72,75 @@ def log_step(invoice_id: str, title: str, detail: str, status: str = "processing
 # --- AZURE OCR AGENT TASK ---
 def run_agent_task(invoice_id: str, amount: float):
     try:
-        # 1. INITIALISATION ET LOGS
-        # On efface l'historique précédent pour une nouvelle analyse propre
-        first_step = [{
-            "title": "Agent Activé",
-            "detail": "Connexion aux services Azure AI...",
-            "status": "done",
-            "timestamp": datetime.now().isoformat()
-        }]
+        # 1. INITIALISATION
+        log_step(invoice_id, "Agent Activé", "Démarrage du Brain...", "processing")
         
-        supabase.table("jobs").update({
-            "status": "processing",
-            "steps": first_step
-        }).eq("invoice_id", invoice_id).execute()
-
-        # 2. CONFIGURATION AZURE (Avec tes noms de variables)
-        azure_endpoint = os.getenv("AZURE_DI_ENDPOINT")
-        azure_key = os.getenv("AZURE_DI_API_KEY")
-        
-        if not azure_endpoint or not azure_key:
-            log_step(invoice_id, "Erreur Système", "Clés Azure manquantes", "error")
-            return
-
-        document_analysis_client = DocumentAnalysisClient(
-            endpoint=azure_endpoint, 
-            credential=AzureKeyCredential(azure_key)
-        )
-
-        # 3. RÉCUPÉRATION DU FICHIER
-        log_step(invoice_id, "Lecture Document", "Téléchargement du PDF depuis le Cloud...", "processing")
-        
+        # 2. Get File URL
         inv_data = supabase.table("invoices").select("file_url").eq("id", invoice_id).execute()
         if not inv_data.data or not inv_data.data[0]['file_url']:
             raise Exception("Fichier introuvable")
-            
         file_url = inv_data.data[0]['file_url']
-
-        # 4. ENVOI À AZURE (OCR INTELLIGENT + GEOMETRIE)
-        log_step(invoice_id, "OCR Azure", "Extraction des données et coordonnées...", "processing")
         
-        poller = document_analysis_client.begin_analyze_document_from_url("prebuilt-invoice", file_url)
-        result = poller.result()
-        invoice_data = result.documents[0]
+        # 3. RUN LANGGRAPH (The new Agent Brain)
+        log_step(invoice_id, "Analyse IA", "Exécution du graphe d'agents (OCR + Comptable)...", "processing")
         
-        # Helper pour extraire proprement les métadonnées
-        def extract_field_data(field):
-            if not field or not field.value:
-                return None
-            
-            # On récupère les 4 points du rectangle (Bounding Box)
-            # Azure renvoie [x1, y1, x2, y2, x3, y3, x4, y4]
-            polygon = []
-            if field.bounding_regions:
-                polygon = [point for point in field.bounding_regions[0].polygon]
-
-            return {
-                "value": field.value,
-                "content": field.content, # Le texte exact lu
-                "confidence": field.confidence, # Score de confiance (0 à 1)
-                "box": polygon # Les coordonnées pour le dessin
-            }
-
-        # Extraction Riche
-        amount_obj = invoice_data.fields.get("InvoiceTotal")
-        vendor_obj = invoice_data.fields.get("VendorName")
-        date_obj = invoice_data.fields.get("InvoiceDate")
-        id_obj = invoice_data.fields.get("InvoiceId")
-
-        # Construction de l'objet JSON complet
-        extraction_data = {
-            "total_amount": extract_field_data(amount_obj),
-            "vendor_name": extract_field_data(vendor_obj),
-            "invoice_date": extract_field_data(date_obj),
-            "invoice_id": extract_field_data(id_obj)
+        inputs = {
+            "invoice_id": invoice_id, 
+            "file_url": file_url, 
+            "amount_raw": amount,
+            "messages": []
         }
+        
+        # Invoke the graph!
+        result = app_graph.invoke(inputs)
+        
+        # 4. PROCESS RESULTS
+        extraction = result.get("extraction_data", {})
+        suggestion = result.get("suggested_entry", {})
+        status = result.get("verification_status", "NEEDS_APPROVAL")
+        messages = result.get("messages", [])
+        
+        # Log Agent Messages as Steps
+        for msg in messages:
+            # Simple heuristic to map messages to steps
+            title = "Info Brain"
+            if "OCR" in msg: title = "Lecture OCR"
+            elif "Privacy" in msg: title = "Privacy Airlock"
+            elif "Suggestion" in msg: title = "Expert Comptable"
+            elif "Amount" in msg: title = "Contrôle"
+            
+            log_step(invoice_id, title, msg, "done")
 
-        # Valeurs simples pour la base de données principale
-        real_amount = extraction_data["total_amount"]["value"].amount if extraction_data["total_amount"] else 0.0
-        vendor_name = extraction_data["vendor_name"]["value"] if extraction_data["vendor_name"] else "Inconnu"
+        # Extract key fields for the main table
+        real_amount = result.get("amount_raw", 0.0)
+        
+        vendor_name = "Inconnu"
+        # Handle the mapped vendor_name from agent_graph
+        v_field = extraction.get("vendor_name")
+        if v_field:
+            # It's a dict {value: ..., box: ...}
+            val = v_field.get("value")
+            if val: vendor_name = str(val)
 
-        # MISE À JOUR DE LA BASE (Avec les coordonnées !)
+        # Inject the AI Suggestion into extraction_data so frontend can see it
+        if suggestion:
+            extraction["ai_suggestion"] = suggestion
+
+        # UPDATE DATABASE
         supabase.table("invoices").update({
             "total_amount": real_amount,
             "client_name": vendor_name,
-            "extraction_data": extraction_data, # <--- On sauvegarde la géométrie ici
-            "status": "PROCESSING"
+            "extraction_data": extraction, # Sanitized & Smart!
+            "status": status
         }).eq("id", invoice_id).execute()
 
-        # 5. MOTEUR DE RÈGLES (Policy Engine)
-        # On utilise le vrai montant extrait par Azure !
-        limit = 5000.0
-        log_step(invoice_id, "Contrôle de Gestion", f"Vérification plafond ({limit} €)...", "processing")
-        
-        import time
-        time.sleep(1) # Pause pour l'effet visuel
-        
-        if real_amount > limit:
-            status = "NEEDS_APPROVAL"
-            log_step(invoice_id, "Alerte Risque", f"Le montant ({real_amount} €) dépasse le seuil autorisé.", "warning")
-            log_step(invoice_id, "Décision Finale", "Bloqué pour validation DAF.", "done")
-        else:
-            status = "APPROVED"
-            log_step(invoice_id, "Conformité", "Montant dans le budget.", "done")
-            log_step(invoice_id, "Décision Finale", "Validé pour paiement.", "done")
-
-        # Finalisation
+        # Final Job Status
         supabase.table("jobs").update({
             "status": "completed", 
             "result": status
         }).eq("invoice_id", invoice_id).execute()
         
-        # Mise à jour du statut final de la facture
-        supabase.table("invoices").update({"status": status}).eq("id", invoice_id).execute()
+        log_step(invoice_id, "Terminé", f"Analyse terminée. Statut: {status}", "done")
 
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -222,6 +179,91 @@ def health():
         return {"status": "healthy", "supabase": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+# --- INSIGHTS AGENT ENDPOINTS (Enhanced V2) ---
+class InsightsRequest(BaseModel):
+    query: str
+    org_id: str
+
+class ExportRequest(BaseModel):
+    result: dict
+    query: str
+    org_name: str = "Organization"
+    format: str = "pdf"  # or "excel"
+
+@app.post("/insights")
+async def get_insights(request: InsightsRequest):
+    """
+    AI-Powered Business Intelligence Endpoint (Enhanced V2)
+    - Multi-data source support (invoices, clients, products, orders)
+    - Redis caching
+    - Query history tracking
+    - Multi-language support (FR/EN)
+    """
+    try:
+        from insights_agent_v2 import insights_agent_enhanced
+        
+        # Run the enhanced insights agent
+        result = insights_agent_enhanced({
+            "query": request.query,
+            "org_id": request.org_id
+        })
+        
+        if result.get("error"):
+            print(f"❌ Agent Error: {result['error']}")
+            raise HTTPException(status_code=500, detail=result["error"])
+            
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ Critical Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"{str(e)}")
+
+@app.get("/insights/suggestions/{org_id}")
+async def get_suggestions(org_id: str, language: str = "fr"):
+    """
+    Get smart question suggestions for an organization.
+    Returns AI-generated suggestions and popular queries.
+    """
+    try:
+        from insights_agent_v2 import get_suggestions_for_org
+        
+        suggestions = get_suggestions_for_org(org_id, language)
+        return suggestions
+    
+    except Exception as e:
+        print(f"❌ Suggestions error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/insights/export")
+async def export_insights(request: ExportRequest):
+    """
+    Export insights result to PDF or Excel.
+    Returns base64-encoded file for download.
+    """
+    try:
+        from insights_export import create_pdf_report, create_excel_report, export_to_base64
+        
+        if request.format == "pdf":
+            file_bytes = create_pdf_report(request.result, request.query, request.org_name)
+        elif request.format == "excel":
+            file_bytes = create_excel_report(request.result, request.query, request.org_name)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid format. Use 'pdf' or 'excel'")
+        
+        # Convert to base64 for frontend download
+        b64_data = export_to_base64(file_bytes, request.format)
+        
+        return {
+            "data": b64_data,
+            "filename": f"insights_report_{request.org_name}.{request.format}",
+            "format": request.format
+        }
+    
+    except Exception as e:
+        print(f"❌ Export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/morning-briefing")
 async def generate_briefing():

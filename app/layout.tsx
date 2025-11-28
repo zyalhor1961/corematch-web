@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/error-boundary";
+import { SidebarProvider } from "@/components/Shell/SidebarContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,11 +69,13 @@ export default function RootLayout({
 
         {/* Main Application Layer */}
         <ThemeProvider>
-          <ErrorBoundary>
-            <div className="relative z-10 h-screen w-screen flex overflow-hidden">
-              {children}
-            </div>
-          </ErrorBoundary>
+          <SidebarProvider>
+            <ErrorBoundary>
+              <div className="relative z-10 h-screen w-screen flex overflow-hidden">
+                {children}
+              </div>
+            </ErrorBoundary>
+          </SidebarProvider>
         </ThemeProvider>
       </body>
     </html>

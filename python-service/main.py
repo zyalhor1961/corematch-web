@@ -25,10 +25,17 @@ load_dotenv()
 # Initialize
 app = FastAPI(title="CoreMatch Brain", version="1.0.0")
 
-# CORS configuration for Next.js
+# CORS configuration for Next.js (localhost + production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3001",
+        "http://localhost:3000",
+        "https://www.corematch.fr",
+        "https://corematch.fr",
+        "https://*.vercel.app",
+        "https://*.railway.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

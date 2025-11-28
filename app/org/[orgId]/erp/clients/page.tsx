@@ -199,7 +199,7 @@ export default function ClientsPage() {
       actions={
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
+            <Button>
               <Plus className="h-4 w-4 mr-2" />
               Nouveau client
             </Button>
@@ -436,7 +436,7 @@ export default function ClientsPage() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white">
                   Annuler
                 </Button>
-                <Button type="submit" disabled={saving || !newClient.name.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button type="submit" disabled={saving || !newClient.name.trim()}>
                   {saving ? 'Création...' : 'Créer le client'}
                 </Button>
               </DialogFooter>
@@ -458,7 +458,7 @@ export default function ClientsPage() {
                 className="pl-10 bg-slate-800/50 border-white/10 text-white placeholder:text-slate-500"
               />
             </div>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">Rechercher</Button>
+            <Button type="submit">Rechercher</Button>
           </form>
         </div>
 
@@ -497,7 +497,7 @@ export default function ClientsPage() {
               <Users className="mx-auto h-12 w-12 text-slate-600" />
               <h3 className="mt-4 text-lg font-semibold text-white">Aucun client</h3>
               <p className="text-slate-400">Commencez par ajouter votre premier client</p>
-              <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setDialogOpen(true)}>
+              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nouveau client
               </Button>

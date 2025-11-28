@@ -100,7 +100,7 @@ export default function OrganizationDashboard() {
           <button className="px-4 py-2 bg-white/5 text-slate-200 rounded-lg border border-white/10 text-sm font-medium hover:bg-white/10 transition-colors">
             Personnaliser
           </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+          <button className="px-4 py-2 bg-[#00B4D8] text-white rounded-lg text-sm font-medium hover:bg-[#00a3c4] transition-colors shadow-lg shadow-[#00B4D8]/20">
             + Nouveau
           </button>
         </div>

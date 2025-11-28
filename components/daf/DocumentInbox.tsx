@@ -268,7 +268,7 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
   }
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 w-full max-w-full min-w-0">
       {/* Sidebar Folders */}
       <div className={`${sidebarCollapsed ? 'w-12' : 'w-64'} flex-shrink-0 transition-all duration-300`}>
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm sticky top-4">
@@ -466,7 +466,7 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
         </div>
 
         {/* Documents Display (Table or Card) */}
-        <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+        <div className="w-full max-w-full min-w-0 bg-white border rounded-xl overflow-hidden shadow-sm">
           {filteredDocuments.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -557,8 +557,8 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
             </div>
           ) : (
             /* Table View */
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead className="bg-slate-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -579,9 +579,6 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wide">
                       Statut
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -594,14 +591,18 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
                     const keyInfoPreview = getKeyInfoPreview(doc);
 
                     return (
-                      <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={doc.id}
+                        onClick={() => router.push(`/daf/documents/${doc.id}/viewer`)}
+                        className="hover:bg-blue-50 transition-colors cursor-pointer group"
+                      >
                         {/* Document Name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className={`p-1.5 rounded-lg ${typeConfig.bgColor}`}>
                               <TypeIcon className={`h-4 w-4 ${typeConfig.textColor}`} />
                             </div>
-                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={doc.file_name}>
+                            <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 truncate max-w-[200px] transition-colors" title={doc.file_name}>
                               {doc.file_name}
                             </span>
                           </div>
@@ -642,27 +643,6 @@ export function DocumentInbox({ orgId, refreshTrigger, onSearch }: InboxProps) {
                               <StatusIcon className="h-3 w-3" />
                               {statusInfo.label}
                             </span>
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => router.push(`/daf/documents/${doc.id}/viewer`)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-semibold shadow-sm transition-all"
-                              title="Voir l'analyse"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              Voir
-                            </button>
-                            <button
-                              onClick={() => window.open(doc.file_url, '_blank')}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 font-semibold transition-all"
-                              title="Télécharger PDF"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </button>
                           </div>
                         </td>
                       </tr>

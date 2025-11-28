@@ -224,7 +224,7 @@ export default function SuppliersPage() {
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button>
               <Plus className="h-4 w-4 mr-2" />
               Nouveau fournisseur
             </Button>
@@ -461,7 +461,7 @@ export default function SuppliersPage() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
                   Annuler
                 </Button>
-                <Button type="submit" disabled={saving || !newSupplier.name.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button type="submit" disabled={saving || !newSupplier.name.trim()}>
                   {saving ? 'Création...' : 'Créer le fournisseur'}
                 </Button>
               </DialogFooter>
@@ -482,7 +482,7 @@ export default function SuppliersPage() {
               className="pl-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
             />
           </div>
-          <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">Rechercher</Button>
+          <Button type="submit">Rechercher</Button>
         </form>
       </div>
 
@@ -521,7 +521,7 @@ export default function SuppliersPage() {
             <Building2 className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
             <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucun fournisseur</h3>
             <p className="text-gray-600 dark:text-gray-400">Commencez par ajouter votre premier fournisseur</p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setDialogOpen(true)}>
+            <Button className="mt-4" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nouveau fournisseur
             </Button>

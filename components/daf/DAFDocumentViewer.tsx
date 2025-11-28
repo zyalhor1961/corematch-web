@@ -81,7 +81,7 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
       }
 
       // Redirect to list after successful deletion
-      router.push('/daf-demo');
+      router.back();
     } catch (error) {
       console.error('Error deleting document:', error);
       alert('Erreur lors de la suppression du document');
@@ -212,7 +212,7 @@ export const DAFDocumentViewer: React.FC<DAFDocumentViewerProps> = ({
           <div className="flex items-center gap-4">
             {/* Bouton Retour */}
             <button
-              onClick={() => router.push('/daf-demo?tab=inbox')}
+              onClick={() => router.back()}
               className="flex items-center gap-2 px-4 py-2 text-white bg-slate-700/50 rounded-lg hover:bg-slate-600/50 transition-all border border-slate-600/50"
               title="Retour à la liste"
             >

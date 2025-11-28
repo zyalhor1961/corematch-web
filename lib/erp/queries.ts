@@ -44,18 +44,20 @@ export async function fetchERPStats(supabase: SupabaseClient, orgId: string): Pr
   const thirtyDaysAgo = get30DaysAgo();
 
   try {
-    // Fetch unpaid invoices
+    // Fetch unpaid invoices (unified table with outbound filter)
     const { data: unpaidInvoices } = await supabase
-      .from('erp_invoices')
+      .from('invoices')
       .select('id, balance_due')
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .in('status', ['sent', 'partial', 'overdue']);
 
-    // Fetch invoices this month
+    // Fetch invoices this month (unified table)
     const { data: monthInvoices } = await supabase
-      .from('erp_invoices')
+      .from('invoices')
       .select('id, total_ttc')
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .gte('invoice_date', monthStart);
 
     // Fetch payments received this month
@@ -130,11 +132,12 @@ export async function fetchModuleStats(supabase: SupabaseClient, orgId: string):
       .eq('org_id', orgId)
       .gte('created_at', monthStart);
 
-    // Invoices
+    // Invoices (unified table with outbound filter)
     const { data: invoices } = await supabase
-      .from('erp_invoices')
+      .from('invoices')
       .select('id, total_ttc')
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .gte('created_at', monthStart);
 
     // Suppliers
@@ -200,11 +203,12 @@ export async function fetchRecentActivity(supabase: SupabaseClient, orgId: strin
   const activities: RecentActivity[] = [];
 
   try {
-    // Recent invoices
+    // Recent invoices (unified table with outbound filter)
     const { data: recentInvoices } = await supabase
-      .from('erp_invoices')
+      .from('invoices')
       .select('id, invoice_number, total_ttc, status, created_at, client:erp_clients(name)')
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .order('created_at', { ascending: false })
       .limit(5);
 
@@ -230,11 +234,12 @@ export async function fetchRecentActivity(supabase: SupabaseClient, orgId: strin
       }
     });
 
-    // Recent payments
+    // Recent payments (using unified invoices table)
     const { data: recentPayments } = await supabase
       .from('erp_payments')
-      .select('id, amount, payment_date, invoice:erp_invoices(invoice_number, client:erp_clients(name))')
+      .select('id, amount, payment_date, invoice:invoices!inner(invoice_number, client:erp_clients(name))')
       .eq('org_id', orgId)
+      .eq('invoice.invoice_type', 'outbound')
       .order('payment_date', { ascending: false })
       .limit(5);
 

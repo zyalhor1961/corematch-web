@@ -178,7 +178,7 @@ export default function InsightsPageEnhanced() {
                         <button
                             type="submit"
                             disabled={loading || !query.trim()}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-teal-500 hover:bg-teal-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-[#00B4D8] hover:bg-[#00a3c4] disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all shadow-lg shadow-[#00B4D8]/20 flex items-center gap-2"
                         >
                             <Send size={18} />
                             {language === 'fr' ? 'Analyser' : 'Analyze'}

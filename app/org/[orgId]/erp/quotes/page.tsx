@@ -158,7 +158,7 @@ export default function QuotesPage() {
           </div>
         </div>
 
-        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button asChild>
           <Link href={`/org/${orgId}/erp/quotes/new`}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau devis
@@ -232,7 +232,7 @@ export default function QuotesPage() {
             <ClipboardList className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
             <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucun devis</h3>
             <p className="text-gray-600 dark:text-gray-400">Commencez par créer votre premier devis</p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" asChild>
+            <Button className="mt-4" asChild>
               <Link href={`/org/${orgId}/erp/quotes/new`}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nouveau devis

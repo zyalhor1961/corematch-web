@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true });
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,company_name.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(`code.ilike.%${search}%,name.ilike.%${search}%,company_name.ilike.%${search}%,email.ilike.%${search}%`);
     }
 
     const { data: suppliers, error } = await query;
@@ -83,15 +83,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await getSupabaseClient();
-    const orgId = await getOrgIdFromSession();
+    const body = await request.json();
+
+    // Accept org_id from body or fall back to session cookie
+    const orgId = body.org_id || await getOrgIdFromSession();
 
     if (!orgId) {
       return NextResponse.json({ success: false, error: 'Organization not found' }, { status: 401 });
     }
 
-    const body = await request.json();
     const {
-      name, email, phone, company_name, address, city, postal_code, country, vat_number,
+      code, name, email, phone, company_name, address, city, postal_code, country, vat_number, vat_code,
       siren, siret, naf_code, activite, mode_reglement, delai_paiement, iban, bic, banque, notes
     } = body;
 
@@ -99,30 +101,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
 
+    if (!code?.trim()) {
+      return NextResponse.json({ success: false, error: 'Le code fournisseur est obligatoire' }, { status: 400 });
+    }
+
+    // Check for duplicate code
+    const normalizedCode = code.trim().toUpperCase();
+    const { data: existingSupplier } = await supabase
+      .from('erp_suppliers')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('code', normalizedCode)
+      .limit(1);
+
+    if (existingSupplier && existingSupplier.length > 0) {
+      return NextResponse.json({ success: false, error: 'Ce code fournisseur existe déjà' }, { status: 400 });
+    }
+
+    // Build insert object with only non-null values
+    const insertData: Record<string, any> = {
+      org_id: orgId,
+      name,
+      code: normalizedCode,
+    };
+    if (email) insertData.email = email;
+    if (phone) insertData.phone = phone;
+    if (company_name) insertData.company_name = company_name;
+    if (address) insertData.address = address;
+    if (city) insertData.city = city;
+    if (postal_code) insertData.postal_code = postal_code;
+    if (country) insertData.country = country;
+    if (vat_number) insertData.vat_number = vat_number;
+    if (vat_code) insertData.vat_code = vat_code;
+    if (siren) insertData.siren = siren;
+    if (siret) insertData.siret = siret;
+    if (naf_code) insertData.naf_code = naf_code;
+    if (activite) insertData.activite = activite;
+    if (mode_reglement) insertData.mode_reglement = mode_reglement;
+    if (delai_paiement) insertData.delai_paiement = delai_paiement;
+    if (iban) insertData.iban = iban;
+    if (bic) insertData.bic = bic;
+    if (banque) insertData.banque = banque;
+    if (notes) insertData.notes = notes;
+
     const { data: supplier, error } = await supabase
       .from('erp_suppliers')
-      .insert({
-        org_id: orgId,
-        name,
-        email,
-        phone,
-        company_name,
-        address,
-        city,
-        postal_code,
-        country: country || 'FR',
-        vat_number,
-        siren,
-        siret,
-        naf_code,
-        activite,
-        mode_reglement: mode_reglement || 'virement',
-        delai_paiement: delai_paiement || 30,
-        iban,
-        bic,
-        banque,
-        notes,
-      })
+      .insert(insertData)
       .select()
       .single();
 

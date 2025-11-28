@@ -39,16 +39,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       throw new AppError(ErrorType.ACCESS_DENIED, 'No organization access');
     }
 
-    // Fetch invoice with lines and client
+    // Fetch invoice with lines and client (unified table with outbound filter)
     const { data: invoice, error } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select(`
         *,
         client:erp_clients(id, name, email, company_name, address, city, postal_code, country),
-        lines:erp_invoice_lines(*)
+        lines:invoice_lines(*)
       `)
       .eq('id', invoiceId)
       .eq('org_id', userOrg.org_id)
+      .eq('invoice_type', 'outbound')
       .single();
 
     if (error || !invoice) {
@@ -115,16 +116,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const orgId = userOrg.org_id;
     const body = await request.json();
 
-    // Fetch current invoice
+    // Fetch current invoice (unified table)
     const { data: currentInvoice, error: fetchError } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select(`
         *,
         client:erp_clients(id, name, company_name),
-        lines:erp_invoice_lines(*)
+        lines:invoice_lines(*)
       `)
       .eq('id', invoiceId)
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .single();
 
     if (fetchError || !currentInvoice) {
@@ -150,18 +152,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Calculate totals if lines were updated
     if (body.lines && Array.isArray(body.lines)) {
-      // Delete existing lines
+      // Delete existing lines (unified table)
       await supabaseAdmin
-        .from('erp_invoice_lines')
+        .from('invoice_lines')
         .delete()
         .eq('invoice_id', invoiceId);
 
-      // Insert new lines
+      // Insert new lines (unified schema)
       const lines = body.lines.map((line: any, index: number) => {
-        const vatRate = line.vat_rate ?? 20;
-        const totalHt = line.quantity * line.unit_price;
-        const totalVat = totalHt * (vatRate / 100);
-        const totalTtc = totalHt + totalVat;
+        const taxRate = line.vat_rate ?? line.tax_rate ?? 20;
+        const amountHt = line.quantity * line.unit_price;
+        const amountTax = amountHt * (taxRate / 100);
+        const amountTtc = amountHt + amountTax;
 
         return {
           invoice_id: invoiceId,
@@ -169,40 +171,41 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           description: line.description,
           quantity: line.quantity,
           unit_price: line.unit_price,
-          vat_rate: vatRate,
-          total_ht: totalHt,
-          total_vat: totalVat,
-          total_ttc: totalTtc,
-          line_order: index,
+          tax_rate: taxRate,
+          amount_ht: amountHt,
+          amount_tax: amountTax,
+          amount_ttc: amountTtc,
+          line_number: index,
         };
       });
 
       if (lines.length > 0) {
         await supabaseAdmin
-          .from('erp_invoice_lines')
+          .from('invoice_lines')
           .insert(lines);
       }
 
-      // Recalculate invoice totals
-      const totalHt = lines.reduce((sum: number, l: any) => sum + l.total_ht, 0);
-      const totalVat = lines.reduce((sum: number, l: any) => sum + l.total_vat, 0);
-      const totalTtc = lines.reduce((sum: number, l: any) => sum + l.total_ttc, 0);
+      // Recalculate invoice totals (unified column names)
+      const subtotalHt = lines.reduce((sum: number, l: any) => sum + l.amount_ht, 0);
+      const totalTax = lines.reduce((sum: number, l: any) => sum + l.amount_tax, 0);
+      const totalTtc = lines.reduce((sum: number, l: any) => sum + l.amount_ttc, 0);
 
-      updateData.total_ht = totalHt;
-      updateData.total_tva = totalVat;
+      updateData.subtotal_ht = subtotalHt;
+      updateData.total_tax = totalTax;
       updateData.total_ttc = totalTtc;
       updateData.balance_due = totalTtc - (currentInvoice.paid_amount || 0);
     }
 
-    // Update invoice
+    // Update invoice (unified table)
     const { data: updatedInvoice, error: updateError } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .update(updateData)
       .eq('id', invoiceId)
+      .eq('invoice_type', 'outbound')
       .select(`
         *,
         client:erp_clients(id, name, company_name),
-        lines:erp_invoice_lines(*)
+        lines:invoice_lines(*)
       `)
       .single();
 
@@ -215,22 +218,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Handle status change for accounting
     if (newStatus && newStatus !== oldStatus) {
       // VALIDATION: Trigger accounting entry generation
-      if ((newStatus === 'sent' || newStatus === 'validated') &&
+      if ((newStatus === 'sent' || newStatus === 'validated' || newStatus === 'approved') &&
           oldStatus === 'draft') {
 
-        // Calculate totals from lines
+        // Calculate totals from lines (unified column names)
         const lines = updatedInvoice.lines || [];
-        const totalHt = lines.reduce((sum: number, l: any) => sum + (l.total_ht || 0), 0);
-        const totalTva = lines.reduce((sum: number, l: any) => sum + (l.total_vat || 0), 0);
-        const totalTtc = lines.reduce((sum: number, l: any) => sum + (l.total_ttc || 0), 0);
+        const totalHt = lines.reduce((sum: number, l: any) => sum + (l.amount_ht || l.total_ht || 0), 0);
+        const totalTva = lines.reduce((sum: number, l: any) => sum + (l.amount_tax || l.total_vat || 0), 0);
+        const totalTtc = lines.reduce((sum: number, l: any) => sum + (l.amount_ttc || l.total_ttc || 0), 0);
 
         const result = await onCustomerInvoiceValidated(supabaseAdmin, {
           id: invoiceId,
           org_id: orgId,
           invoice_number: updatedInvoice.invoice_number,
           invoice_date: updatedInvoice.invoice_date,
-          total_ht: totalHt || updatedInvoice.total_ht || 0,
-          total_tva: totalTva || updatedInvoice.total_tva || 0,
+          total_ht: totalHt || updatedInvoice.subtotal_ht || 0,
+          total_tva: totalTva || updatedInvoice.total_tax || 0,
           total_ttc: totalTtc || updatedInvoice.total_ttc || 0,
           client_id: updatedInvoice.client_id,
           client_name: updatedInvoice.client?.company_name || updatedInvoice.client?.name,
@@ -245,12 +248,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       // MODIFICATION of validated invoice: Reverse and regenerate
       if (oldStatus !== 'draft' && body.lines &&
-          (oldStatus === 'sent' || oldStatus === 'validated')) {
+          (oldStatus === 'sent' || oldStatus === 'validated' || oldStatus === 'approved')) {
 
         const lines = updatedInvoice.lines || [];
-        const totalHt = lines.reduce((sum: number, l: any) => sum + (l.total_ht || 0), 0);
-        const totalTva = lines.reduce((sum: number, l: any) => sum + (l.total_vat || 0), 0);
-        const totalTtc = lines.reduce((sum: number, l: any) => sum + (l.total_ttc || 0), 0);
+        const totalHt = lines.reduce((sum: number, l: any) => sum + (l.amount_ht || l.total_ht || 0), 0);
+        const totalTva = lines.reduce((sum: number, l: any) => sum + (l.amount_tax || l.total_vat || 0), 0);
+        const totalTtc = lines.reduce((sum: number, l: any) => sum + (l.amount_ttc || l.total_ttc || 0), 0);
 
         const result = await regenerateEntriesForInvoice(supabaseAdmin, {
           id: invoiceId,
@@ -258,8 +261,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           type: 'customer',
           invoice_number: updatedInvoice.invoice_number,
           invoice_date: updatedInvoice.invoice_date,
-          total_ht: totalHt || updatedInvoice.total_ht || 0,
-          total_tva: totalTva || updatedInvoice.total_tva || 0,
+          total_ht: totalHt || updatedInvoice.subtotal_ht || 0,
+          total_tva: totalTva || updatedInvoice.total_tax || 0,
           total_ttc: totalTtc || updatedInvoice.total_ttc || 0,
           client_id: updatedInvoice.client_id,
           client_name: updatedInvoice.client?.company_name || updatedInvoice.client?.name,
@@ -342,12 +345,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       throw new AppError(ErrorType.ACCESS_DENIED, 'No organization access');
     }
 
-    // Check invoice exists and is draft
+    // Check invoice exists and is draft (unified table)
     const { data: invoice, error: fetchError } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select('id, status')
       .eq('id', invoiceId)
       .eq('org_id', userOrg.org_id)
+      .eq('invoice_type', 'outbound')
       .single();
 
     if (fetchError || !invoice) {
@@ -361,17 +365,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Delete lines first
+    // Delete lines first (unified table)
     await supabaseAdmin
-      .from('erp_invoice_lines')
+      .from('invoice_lines')
       .delete()
       .eq('invoice_id', invoiceId);
 
-    // Delete invoice
+    // Delete invoice (unified table)
     const { error: deleteError } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .delete()
-      .eq('id', invoiceId);
+      .eq('id', invoiceId)
+      .eq('invoice_type', 'outbound');
 
     if (deleteError) {
       throw new AppError(ErrorType.DATABASE_ERROR, deleteError.message);

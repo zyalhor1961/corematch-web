@@ -1,132 +1,365 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { useTheme } from '@/app/components/ThemeProvider';
-import { Settings, Building2, Users, Bell, Shield, CreditCard } from 'lucide-react';
+import { Settings, Building2, Users, Sparkles, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase/client';
+import {
+  CompanyProfileCard,
+  UserManagementCard,
+  InviteUserModal,
+  AIRulesCard,
+  RuleEditorModal,
+  type CompanyProfile,
+  type OrganizationMember,
+  type AIRule,
+} from '@/components/erp';
 
-export default function OrganizationSettingsPage() {
+type SettingsTab = 'company' | 'team' | 'ai-rules';
+
+export default function SettingsPage() {
   const params = useParams();
-  const { isDarkMode } = useTheme();
-  const orgId = params?.orgId as string;
+  const orgId = params.orgId as string;
 
-  const settingsSections = [
-    {
-      icon: Building2,
-      title: 'Informations de l\'organisation',
-      description: 'Nom, logo, et détails de l\'entreprise',
-      status: 'À venir'
-    },
-    {
-      icon: Users,
-      title: 'Gestion des membres',
-      description: 'Inviter et gérer les membres de l\'équipe',
-      status: 'À venir'
-    },
-    {
-      icon: Bell,
-      title: 'Notifications',
-      description: 'Préférences de notifications par email et push',
-      status: 'À venir'
-    },
-    {
-      icon: Shield,
-      title: 'Sécurité & Confidentialité',
-      description: 'Authentification à deux facteurs et permissions',
-      status: 'À venir'
-    },
-    {
-      icon: CreditCard,
-      title: 'Facturation & Abonnement',
-      description: 'Gérer votre plan et méthodes de paiement',
-      status: 'À venir'
+  const [activeTab, setActiveTab] = useState<SettingsTab>('company');
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+
+  // Company Profile State
+  const [company, setCompany] = useState<CompanyProfile | null>(null);
+
+  // Team State
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+
+  // AI Rules State
+  const [aiRules, setAiRules] = useState<AIRule[]>([]);
+  const [editingRule, setEditingRule] = useState<AIRule | null>(null);
+  const [showRuleEditor, setShowRuleEditor] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [orgId]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+
+      // Load organization/company data
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', orgId)
+        .single();
+
+      if (orgData) {
+        setCompany({
+          id: orgData.id,
+          name: orgData.name,
+          legal_name: orgData.legal_name,
+          siret: orgData.siret,
+          vat_number: orgData.vat_number,
+          address: orgData.address,
+          city: orgData.city,
+          postal_code: orgData.postal_code,
+          country: orgData.country,
+          phone: orgData.phone,
+          email: orgData.email,
+          website: orgData.website,
+          logo_url: orgData.logo_url,
+          fiscal_year_start: orgData.fiscal_year_start || '01-01',
+          default_currency: orgData.default_currency || 'EUR',
+          accounting_mode: orgData.accounting_mode || 'standard',
+        });
+      }
+
+      // Load team members
+      const { data: membersData } = await supabase
+        .from('organization_members')
+        .select(`
+          id,
+          user_id,
+          role,
+          status,
+          invited_at,
+          joined_at,
+          users:user_id (
+            email,
+            raw_user_meta_data
+          )
+        `)
+        .eq('organization_id', orgId);
+
+      if (membersData) {
+        setMembers(membersData.map((m: any) => ({
+          id: m.id,
+          user_id: m.user_id,
+          email: m.users?.email || '',
+          full_name: m.users?.raw_user_meta_data?.full_name,
+          avatar_url: m.users?.raw_user_meta_data?.avatar_url,
+          role: m.role,
+          status: m.status || 'active',
+          invited_at: m.invited_at,
+          joined_at: m.joined_at,
+        })));
+      }
+
+      // Load AI rules (mock for now - would need erp_ai_rules table)
+      setAiRules([
+        {
+          id: '1',
+          name: 'Amazon → Fournitures bureau',
+          description: 'Transactions Amazon affectées au compte 606400',
+          type: 'account_suggestion',
+          trigger: { field: 'counterparty_name', operator: 'contains', value: 'amazon' },
+          action: { type: 'set_account', value: '606400' },
+          priority: 1,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          match_count: 23,
+        },
+        {
+          id: '2',
+          name: 'EDF/Engie → Électricité',
+          description: 'Factures énergétiques',
+          type: 'account_suggestion',
+          trigger: { field: 'counterparty_name', operator: 'regex', value: '(edf|engie|électricité)' },
+          action: { type: 'set_account', value: '606100' },
+          priority: 2,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          match_count: 12,
+        },
+      ]);
+
+    } catch (error) {
+      console.error('Error loading settings data:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Company handlers
+  const handleSaveCompany = async (updates: Partial<CompanyProfile>) => {
+    const { error } = await supabase
+      .from('organizations')
+      .update(updates)
+      .eq('id', orgId);
+
+    if (error) throw error;
+    setCompany(prev => prev ? { ...prev, ...updates } : null);
+  };
+
+  // Team handlers
+  const handleInviteUser = async (email: string, role: OrganizationMember['role']) => {
+    // In a real app, this would send an invitation email
+    const { data, error } = await supabase
+      .from('organization_members')
+      .insert({
+        organization_id: orgId,
+        email: email,
+        role: role,
+        status: 'invited',
+        invited_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    setMembers(prev => [...prev, {
+      id: data.id,
+      user_id: '',
+      email: email,
+      role: role,
+      status: 'invited',
+      invited_at: data.invited_at,
+    }]);
+  };
+
+  const handleUpdateRole = async (memberId: string, role: OrganizationMember['role']) => {
+    const { error } = await supabase
+      .from('organization_members')
+      .update({ role })
+      .eq('id', memberId);
+
+    if (error) throw error;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m));
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    const { error } = await supabase
+      .from('organization_members')
+      .delete()
+      .eq('id', memberId);
+
+    if (error) throw error;
+    setMembers(prev => prev.filter(m => m.id !== memberId));
+  };
+
+  const handleResendInvite = async (memberId: string) => {
+    // In a real app, this would resend the invitation email
+    console.log('Resending invite to member:', memberId);
+  };
+
+  // AI Rules handlers
+  const handleSaveRule = async (rule: Partial<AIRule>) => {
+    if (rule.id) {
+      // Update existing
+      setAiRules(prev => prev.map(r => r.id === rule.id ? { ...r, ...rule, updated_at: new Date().toISOString() } as AIRule : r));
+    } else {
+      // Create new
+      const newRule: AIRule = {
+        ...rule,
+        id: Date.now().toString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        match_count: 0,
+      } as AIRule;
+      setAiRules(prev => [...prev, newRule]);
+    }
+    setShowRuleEditor(false);
+    setEditingRule(null);
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    setAiRules(prev => prev.filter(r => r.id !== ruleId));
+  };
+
+  const handleToggleRule = async (ruleId: string, isActive: boolean) => {
+    setAiRules(prev => prev.map(r => r.id === ruleId ? { ...r, is_active: isActive } : r));
+  };
+
+  const handleReorderRules = async (ruleIds: string[]) => {
+    setAiRules(prev => {
+      const reordered = ruleIds.map((id, idx) => {
+        const rule = prev.find(r => r.id === id);
+        return rule ? { ...rule, priority: idx + 1 } : null;
+      }).filter(Boolean) as AIRule[];
+      return reordered;
+    });
+  };
+
+  const tabs = [
+    { id: 'company' as const, label: 'Entreprise', icon: Building2 },
+    { id: 'team' as const, label: 'Équipe', icon: Users },
+    { id: 'ai-rules' as const, label: 'Règles IA', icon: Sparkles },
   ];
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Settings className={`w-8 h-8 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-            <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              Paramètres
-            </h1>
-          </div>
-          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Gérer les paramètres de votre organisation
-          </p>
-        </div>
-
-        {/* Settings Grid */}
-        <div className="grid gap-4">
-          {settingsSections.map((section, index) => {
-            const Icon = section.icon;
-            return (
-              <div
-                key={index}
-                className={`p-6 rounded-lg border ${
-                  isDarkMode
-                    ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                } transition-colors cursor-not-allowed opacity-75`}
+    <div className="min-h-screen bg-[#020617]">
+      {/* Header */}
+      <div className="border-b border-white/10 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                href={`/org/${orgId}/erp/invoices`}
+                className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
               >
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-lg ${
-                    isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-                  }`}>
-                    <Icon className={`w-6 h-6 ${
-                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {section.title}
-                      </h3>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        isDarkMode
-                          ? 'bg-yellow-900 text-yellow-300'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {section.status}
-                      </span>
-                    </div>
-                    <p className={`text-sm ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      {section.description}
-                    </p>
-                  </div>
+                <ArrowLeft size={20} />
+              </Link>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
+                  <Settings size={24} className="text-cyan-400" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-white">Paramètres</h1>
+                  <p className="text-sm text-slate-400">Configuration de votre organisation</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
 
-        {/* Coming Soon Notice */}
-        <div className={`mt-8 p-6 rounded-lg border-2 border-dashed ${
-          isDarkMode
-            ? 'bg-gray-800 border-gray-700'
-            : 'bg-blue-50 border-blue-200'
-        }`}>
-          <div className="text-center">
-            <Settings className={`w-12 h-12 mx-auto mb-3 ${
-              isDarkMode ? 'text-blue-400' : 'text-blue-600'
-            }`} />
-            <h3 className={`text-lg font-semibold mb-2 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>
-              Fonctionnalités en cours de développement
-            </h3>
-            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Les paramètres d'organisation seront bientôt disponibles.
-              Vous pourrez gérer votre équipe, personnaliser votre espace et configurer vos préférences.
-            </p>
+          {/* Tabs */}
+          <div className="flex gap-1 mt-6">
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white/10 text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {activeTab === 'company' && company && (
+          <CompanyProfileCard
+            company={company}
+            onSave={handleSaveCompany}
+            isLoading={isLoading}
+          />
+        )}
+
+        {activeTab === 'team' && (
+          <>
+            <UserManagementCard
+              members={members}
+              currentUserId={currentUserId}
+              onInvite={() => setShowInviteModal(true)}
+              onUpdateRole={handleUpdateRole}
+              onRemove={handleRemoveMember}
+              onResendInvite={handleResendInvite}
+              isLoading={isLoading}
+            />
+            <InviteUserModal
+              isOpen={showInviteModal}
+              onClose={() => setShowInviteModal(false)}
+              onInvite={handleInviteUser}
+              existingEmails={members.map(m => m.email)}
+            />
+          </>
+        )}
+
+        {activeTab === 'ai-rules' && (
+          <>
+            <AIRulesCard
+              rules={aiRules}
+              onAdd={() => {
+                setEditingRule(null);
+                setShowRuleEditor(true);
+              }}
+              onEdit={(rule) => {
+                setEditingRule(rule);
+                setShowRuleEditor(true);
+              }}
+              onDelete={handleDeleteRule}
+              onToggle={handleToggleRule}
+              onReorder={handleReorderRules}
+              isLoading={isLoading}
+            />
+            <RuleEditorModal
+              isOpen={showRuleEditor}
+              onClose={() => {
+                setShowRuleEditor(false);
+                setEditingRule(null);
+              }}
+              onSave={handleSaveRule}
+              rule={editingRule}
+            />
+          </>
+        )}
       </div>
     </div>
   );

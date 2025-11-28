@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase/client';
 import { PdfViewerWithHighlights } from '../Invoices/PdfViewerWithHighlights'; // Reusing existing viewer
 import { CheckCircle, Edit3, AlertTriangle, Save, X, Wand2, Loader2 } from 'lucide-react';
@@ -11,20 +12,52 @@ interface AccountingValidatorProps {
     initialData: any; // The AI suggestion + extraction data
     onClose: () => void;
     onSuccess: () => void;
+    supplierId?: string; // Linked supplier ID
 }
 
-export default function AccountingValidator({ invoiceId, fileUrl, initialData, onClose, onSuccess }: AccountingValidatorProps) {
+export default function AccountingValidator({ invoiceId, fileUrl, initialData, onClose, onSuccess, supplierId }: AccountingValidatorProps) {
     const [loading, setLoading] = useState(false);
+    const [supplierCode, setSupplierCode] = useState<string | null>(null);
+    const [supplierName, setSupplierName] = useState<string | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
 
     // Form State
     const [entry, setEntry] = useState({
         charge_account: '',
         vat_account: '',
+        supplier_account: '401000', // General supplier account
+        supplier_auxiliary: '', // Supplier code as auxiliary
         label: '',
         amount_ht: 0,
         amount_tax: 0,
         amount_ttc: 0,
     });
+
+    // Fetch supplier code when component mounts
+    useEffect(() => {
+        const fetchSupplierCode = async () => {
+            if (!supplierId) return;
+
+            const { data, error } = await supabase
+                .from('erp_suppliers')
+                .select('code, name')
+                .eq('id', supplierId)
+                .single();
+
+            if (data && !error) {
+                setSupplierCode(data.code);
+                setSupplierName(data.name);
+                setEntry(prev => ({ ...prev, supplier_auxiliary: data.code || '' }));
+            }
+        };
+
+        fetchSupplierCode();
+    }, [supplierId]);
 
     // Initialize from AI Suggestion
     useEffect(() => {
@@ -93,7 +126,8 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
                     account_code: entry.charge_account,
                     description: entry.label,
                     debit: entry.amount_ht,
-                    credit: 0
+                    credit: 0,
+                    auxiliary_code: null
                 },
                 // Debit VAT
                 {
@@ -101,15 +135,17 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
                     account_code: entry.vat_account,
                     description: "TVA Déductible",
                     debit: entry.amount_tax,
-                    credit: 0
+                    credit: 0,
+                    auxiliary_code: null
                 },
-                // Credit Vendor (401)
+                // Credit Vendor (401) with supplier auxiliary code
                 {
                     entry_id: header.id,
-                    account_code: '401000', // TODO: Dynamic vendor account
+                    account_code: entry.supplier_account, // 401000
                     description: entry.label,
                     debit: 0,
-                    credit: entry.amount_ttc
+                    credit: entry.amount_ttc,
+                    auxiliary_code: entry.supplier_auxiliary || null // Supplier code (e.g., F001)
                 }
             ];
 
@@ -136,7 +172,9 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
         }
     };
 
-    return (
+    if (!mounted) return null;
+
+    return createPortal(
         <div className="fixed inset-0 z-[200] bg-[#0B1121] flex text-white font-sans">
 
             {/* LEFT: PDF Viewer */}
@@ -185,6 +223,25 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
 
                     <div className="space-y-6 max-w-xl mx-auto">
 
+                        {/* Supplier Info */}
+                        {supplierCode && (
+                            <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg mb-4">
+                                <div className="flex items-center gap-2 text-sm text-teal-300">
+                                    <span className="font-mono font-bold">{supplierCode}</span>
+                                    <span className="text-slate-400">—</span>
+                                    <span>{supplierName}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {!supplierId && (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-4">
+                                <p className="text-xs text-amber-400">
+                                    ⚠️ Aucun fournisseur lié. Le code tiers auxiliaire sera vide.
+                                </p>
+                            </div>
+                        )}
+
                         {/* General Info */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -205,6 +262,35 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
                                     onChange={(e) => setEntry({ ...entry, vat_account: e.target.value })}
                                     className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-lg"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Supplier Account */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-slate-400 uppercase">Compte Fournisseur (Général)</label>
+                                <input
+                                    type="text"
+                                    value={entry.supplier_account}
+                                    onChange={(e) => setEntry({ ...entry, supplier_account: e.target.value })}
+                                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-lg"
+                                    placeholder="401000"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-slate-400 uppercase">Code Tiers (Auxiliaire)</label>
+                                <input
+                                    type="text"
+                                    value={entry.supplier_auxiliary}
+                                    onChange={(e) => setEntry({ ...entry, supplier_auxiliary: e.target.value })}
+                                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-teal-500 outline-none font-mono text-lg"
+                                    placeholder="F001"
+                                />
+                                {supplierCode && entry.supplier_auxiliary !== supplierCode && (
+                                    <p className="text-xs text-amber-400">
+                                        Code fournisseur suggéré: {supplierCode}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -292,6 +378,7 @@ export default function AccountingValidator({ invoiceId, fileUrl, initialData, o
                 </div>
 
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

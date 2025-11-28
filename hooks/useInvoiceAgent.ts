@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
 type AgentStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
@@ -10,16 +10,39 @@ export const useInvoiceAgent = (invoiceId: string) => {
     const [steps, setSteps] = useState<any[]>([]);
     const [jobId, setJobId] = useState<string | null>(null);
 
+    // Track if analysis is in progress to prevent duplicate calls
+    const isAnalyzingRef = useRef(false);
+
     // 1. Listen to Supabase Realtime for this specific Invoice
     useEffect(() => {
         if (!invoiceId) return;
+
+        // Fetch existing job status on mount
+        const fetchExistingJob = async () => {
+            const { data } = await supabase
+                .table('jobs')
+                .select('*')
+                .eq('invoice_id', invoiceId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (data) {
+                setStatus(data.status);
+                if (data.result) setResult(data.result);
+                if (data.steps) setSteps(data.steps);
+                if (data.id) setJobId(data.id);
+            }
+        };
+
+        fetchExistingJob();
 
         const channel = supabase
             .channel(`job-${invoiceId}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*', // Listen to INSERT and UPDATE
                     schema: 'public',
                     table: 'jobs',
                     filter: `invoice_id=eq.${invoiceId}`,
@@ -33,6 +56,11 @@ export const useInvoiceAgent = (invoiceId: string) => {
                     if (newJob.logs) setLogs(newJob.logs);
                     if (newJob.steps) setSteps(newJob.steps);
                     if (newJob.id) setJobId(newJob.id);
+
+                    // Reset analyzing flag when completed or failed
+                    if (newJob.status === 'completed' || newJob.status === 'failed') {
+                        isAnalyzingRef.current = false;
+                    }
                 }
             )
             .subscribe();
@@ -42,8 +70,21 @@ export const useInvoiceAgent = (invoiceId: string) => {
         };
     }, [invoiceId]);
 
-    // 2. Function to Trigger the Agent
-    const analyzeInvoice = async (amount: number) => {
+    // 2. Function to Trigger the Agent (with duplicate prevention)
+    const analyzeInvoice = useCallback(async (amount: number) => {
+        // Prevent duplicate calls
+        if (isAnalyzingRef.current) {
+            console.log('⚠️ Analysis already in progress, skipping...');
+            return;
+        }
+
+        // Prevent re-analysis if already processing
+        if (status === 'pending' || status === 'processing') {
+            console.log('⚠️ Analysis already in progress (status), skipping...');
+            return;
+        }
+
+        isAnalyzingRef.current = true;
         setStatus('pending');
         setLogs(['Transmission started...', 'Connecting to Agent Core...']);
         setSteps([]);
@@ -59,8 +100,14 @@ export const useInvoiceAgent = (invoiceId: string) => {
 
             const data = await res.json();
 
-            if (!data.success) {
-                throw new Error(data.error || 'Analysis failed');
+            // Check if the job was skipped (already in progress)
+            if (data.skipped) {
+                console.log('⚠️ Job skipped - already in progress on server');
+                return;
+            }
+
+            if (!data.success && data.error) {
+                throw new Error(data.error);
             }
 
             // The Supabase subscription will handle the UI updates!
@@ -70,8 +117,9 @@ export const useInvoiceAgent = (invoiceId: string) => {
             console.error('❌ Agent Error:', error);
             setStatus('failed');
             setLogs((prev) => [...prev, '❌ Connection Lost.']);
+            isAnalyzingRef.current = false;
         }
-    };
+    }, [invoiceId, status]);
 
     return { status, result, logs, steps, jobId, analyzeInvoice };
 };

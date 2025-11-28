@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageContainer from '@/components/ui/PageContainer';
 import { AgentAnalysisCard } from '@/components/Invoice/AgentAnalysisCard';
+import { ChunkInspector } from '@/components/Invoice/ChunkInspector';
 import { ArrowLeft, Printer, Download, Share2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -95,13 +96,20 @@ export default function InvoiceDetailPage() {
                     <div className="text-slate-400">Invoice not found</div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-                    {/* LEFT COLUMN: The Invoice Content (2/3 width) */}
-                    <div className="lg:col-span-2 space-y-6">
+                    {/* LEFT COLUMN: RAG Inspector (New Space) */}
+                    <div className="lg:col-span-3 space-y-6 h-full">
+                        <div className="sticky top-6">
+                            <h3 className="text-xs uppercase font-bold text-slate-500 mb-3 tracking-wider">RAG Inspector</h3>
+                            <ChunkInspector invoiceId={invoiceId} className="h-[calc(100vh-10rem)]" />
+                        </div>
+                    </div>
 
+                    {/* MIDDLE COLUMN: The Invoice Content */}
+                    <div className="lg:col-span-6 space-y-6">
                         {/* The "Paper" Representation */}
-                        <div className="bg-white rounded-lg p-8 text-slate-900 shadow-xl min-h-[600px]">
+                        <div className="bg-white rounded-lg p-8 text-slate-900 shadow-xl min-h-[800px]">
                             <div className="flex justify-between items-start mb-12">
                                 <div>
                                     <h1 className="text-4xl font-bold text-slate-800 tracking-tight">INVOICE</h1>
@@ -132,19 +140,19 @@ export default function InvoiceDetailPage() {
                                 </div>
                             </div>
 
-                            <table className="w-full mb-12">
+                            <table className="w-full mb-12 table-fixed">
                                 <thead>
                                     <tr className="border-b-2 border-slate-100">
-                                        <th className="text-left py-3 text-xs uppercase text-slate-400">Description</th>
-                                        <th className="text-right py-3 text-xs uppercase text-slate-400">Qty</th>
-                                        <th className="text-right py-3 text-xs uppercase text-slate-400">Price</th>
-                                        <th className="text-right py-3 text-xs uppercase text-slate-400">Total</th>
+                                        <th className="text-left py-3 text-xs uppercase text-slate-400 w-[50%]">Description</th>
+                                        <th className="text-right py-3 text-xs uppercase text-slate-400 w-[12%]">Qty</th>
+                                        <th className="text-right py-3 text-xs uppercase text-slate-400 w-[19%]">Price</th>
+                                        <th className="text-right py-3 text-xs uppercase text-slate-400 w-[19%]">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {invoice.items.map((item, i) => (
                                         <tr key={i} className="border-b border-slate-50">
-                                            <td className="py-4 text-sm font-medium">{item.description}</td>
+                                            <td className="py-4 text-sm font-medium whitespace-pre-wrap break-words">{item.description}</td>
                                             <td className="py-4 text-right text-sm text-slate-500">{item.quantity}</td>
                                             <td className="py-4 text-right text-sm text-slate-500">€{item.unit_price.toFixed(2)}</td>
                                             <td className="py-4 text-right text-sm font-semibold">€{(item.quantity * item.unit_price).toFixed(2)}</td>
@@ -172,10 +180,8 @@ export default function InvoiceDetailPage() {
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: The AI / OS Layer (1/3 width) */}
-                    <div className="space-y-6">
-
-                        {/* 1. The AI Agent Card */}
+                    {/* RIGHT COLUMN: The AI / OS Layer */}
+                    <div className="lg:col-span-3 space-y-6">
                         <div className="sticky top-6">
                             <h3 className="text-xs uppercase font-bold text-slate-500 mb-3 tracking-wider">AI Audit</h3>
 
@@ -184,7 +190,7 @@ export default function InvoiceDetailPage() {
                                 amount={invoice.total_ttc}
                             />
 
-                            {/* 2. Metadata / Context */}
+                            {/* Metadata / Context */}
                             <div className="mt-6 bg-[#0F172A]/40 border border-white/5 rounded-xl p-5">
                                 <h4 className="text-white font-medium mb-4">Properties</h4>
                                 <div className="space-y-3 text-sm">
@@ -202,7 +208,6 @@ export default function InvoiceDetailPage() {
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 

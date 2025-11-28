@@ -557,7 +557,7 @@ export default function NewInvoicePage() {
 
           <div className="flex gap-3">
             {currentStep < 3 ? (
-              <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
+              <Button onClick={nextStep}>
                 Suivant <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (

@@ -50,7 +50,7 @@ export default function DAFPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       {/* Back Button */}
       <Link
         href={`/org/${orgId}`}
@@ -74,7 +74,7 @@ export default function DAFPage() {
         {/* Search Button */}
         <Link
           href={`/org/${orgId}/daf/search`}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#00B4D8] text-white rounded-lg hover:bg-[#00a3c4] transition-colors shadow-lg shadow-[#00B4D8]/20"
         >
           <Search className="h-5 w-5" />
           Rechercher
@@ -82,7 +82,7 @@ export default function DAFPage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="w-full max-w-full min-w-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="border-b border-gray-200 dark:border-gray-700">
           <div className="flex gap-2 p-4">
             <button
@@ -122,7 +122,7 @@ export default function DAFPage() {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 w-full max-w-full min-w-0 overflow-x-auto">
           {activeTab === 'upload' && (
             <DocumentUpload
               orgId={orgId}

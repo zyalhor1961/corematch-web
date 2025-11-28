@@ -52,6 +52,9 @@ const GlassCard: React.FC<GlassCardProps> = ({
         'border border-white/5',
         'shadow-2xl',
         'rounded-2xl',
+        // Containment - force children to respect boundaries
+        'max-w-full',
+        'overflow-hidden',
         // Padding
         paddingClasses[padding],
         // Glow effect

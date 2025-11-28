@@ -41,13 +41,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Build query
+    // Build query (unified table with outbound filter)
     let query = supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select(`
         *,
         client:erp_clients(id, name, email, company_name)
       `, { count: 'exact' })
+      .eq('invoice_type', 'outbound')
       // .eq('org_id', orgId)
       .order('invoice_date', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -118,11 +119,12 @@ export async function POST(request: NextRequest) {
     const orgId = userOrg.org_id;
     const body: InvoiceInput = await request.json();
 
-    // Generate next invoice number manually to ensure uniqueness
+    // Generate next invoice number manually to ensure uniqueness (unified table)
     const { data: lastInvoice } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select('invoice_number')
       .eq('org_id', orgId)
+      .eq('invoice_type', 'outbound')
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -146,11 +148,12 @@ export async function POST(request: NextRequest) {
       new Date(invoiceDate).getTime() + 30 * 24 * 60 * 60 * 1000
     ).toISOString().split('T')[0];
 
-    // Create invoice
+    // Create invoice (unified table with outbound type)
     const { data: invoice, error: invoiceError } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .insert({
         org_id: orgId,
+        invoice_type: 'outbound',
         created_by: user!.id,
         client_id: body.client_id,
         estimate_id: body.estimate_id,
@@ -174,13 +177,13 @@ export async function POST(request: NextRequest) {
       throw new AppError(ErrorType.INTERNAL_ERROR, invoiceError.message);
     }
 
-    // Create invoice lines if provided
+    // Create invoice lines if provided (unified schema)
     if (body.lines && body.lines.length > 0) {
       const lines = body.lines.map((line, index) => {
-        const vatRate = line.vat_rate ?? 20;
-        const totalHt = line.quantity * line.unit_price;
-        const totalVat = totalHt * (vatRate / 100);
-        const totalTtc = totalHt + totalVat;
+        const taxRate = line.vat_rate ?? line.tax_rate ?? 20;
+        const amountHt = line.quantity * line.unit_price;
+        const amountTax = amountHt * (taxRate / 100);
+        const amountTtc = amountHt + amountTax;
 
         return {
           invoice_id: invoice.id,
@@ -188,16 +191,16 @@ export async function POST(request: NextRequest) {
           description: line.description,
           quantity: line.quantity,
           unit_price: line.unit_price,
-          vat_rate: vatRate,
-          total_ht: totalHt,
-          total_vat: totalVat,
-          total_ttc: totalTtc,
-          line_order: index,
+          tax_rate: taxRate,
+          amount_ht: amountHt,
+          amount_tax: amountTax,
+          amount_ttc: amountTtc,
+          line_number: index,
         };
       });
 
       const { error: linesError } = await supabaseAdmin
-        .from('erp_invoice_lines')
+        .from('invoice_lines')
         .insert(lines);
 
       if (linesError) {
@@ -206,15 +209,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fetch complete invoice with lines
+    // Fetch complete invoice with lines (unified table)
     const { data: completeInvoice } = await supabaseAdmin
-      .from('erp_invoices')
+      .from('invoices')
       .select(`
         *,
         client:erp_clients(id, name, email, company_name),
-        lines:erp_invoice_lines(*)
+        lines:invoice_lines(*)
       `)
       .eq('id', invoice.id)
+      .eq('invoice_type', 'outbound')
       .single();
 
     return NextResponse.json({

@@ -163,7 +163,7 @@ export default function Client360Page() {
                         <MessageSquare className="h-4 w-4 mr-2" />
                         Message
                     </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button>
                         <Plus className="h-4 w-4 mr-2" />
                         Nouvelle Facture
                     </Button>

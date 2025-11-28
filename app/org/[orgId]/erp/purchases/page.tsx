@@ -160,7 +160,7 @@ export default function PurchasesPage() {
           </div>
         </div>
 
-        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button asChild>
           <Link href={`/org/${orgId}/erp/purchases/new`}>
             <Plus className="h-4 w-4 mr-2" />
             Saisir une facture
@@ -234,7 +234,7 @@ export default function PurchasesPage() {
             <ShoppingCart className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
             <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucune facture fournisseur</h3>
             <p className="text-gray-600 dark:text-gray-400">Commencez par enregistrer votre première facture d'achat</p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" asChild>
+            <Button className="mt-4" asChild>
               <Link href={`/org/${orgId}/erp/purchases/new`}>
                 <Plus className="h-4 w-4 mr-2" />
                 Saisir une facture

@@ -68,11 +68,12 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete: () 
       const { error: dbError } = await supabase
         .from('invoices')
         .insert({
+          invoice_type: 'inbound', // Unified schema: inbound = received invoices
           invoice_number: 'DRAFT-' + Date.now().toString().slice(-4),
           client_name: 'Analyse en cours...',
           date_issued: new Date().toISOString(),
           total_amount: 0,
-          status: 'NEEDS_APPROVAL', // Déclenchera l'IA plus tard
+          status: 'pending', // Unified status values
           file_url: publicUrl,
           org_id: orgId,
         });

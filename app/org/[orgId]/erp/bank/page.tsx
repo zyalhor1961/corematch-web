@@ -343,7 +343,6 @@ export default function BankReconciliationPage() {
         <Button
           onClick={handleProcessAll}
           disabled={processingAll || (stats?.unmatched || 0) === 0}
-          className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20"
         >
           <Sparkles className="h-4 w-4 mr-2" />
           {processingAll ? 'Analyse en cours...' : 'Analyser tout'}

@@ -272,7 +272,7 @@ export default function ExpensesPage() {
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button>
               <Plus className="h-4 w-4 mr-2" />
               Nouvelle dépense
             </Button>
@@ -406,7 +406,7 @@ export default function ExpensesPage() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
                   Annuler
                 </Button>
-                <Button type="submit" disabled={saving || !newExpense.description.trim() || !newExpense.amount_ht} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button type="submit" disabled={saving || !newExpense.description.trim() || !newExpense.amount_ht}>
                   {saving ? 'Création...' : 'Créer'}
                 </Button>
               </DialogFooter>
@@ -477,7 +477,7 @@ export default function ExpensesPage() {
             <Receipt className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
             <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Aucune dépense</h3>
             <p className="text-gray-600 dark:text-gray-400">Commencez par enregistrer votre première dépense</p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setDialogOpen(true)}>
+            <Button className="mt-4" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nouvelle dépense
             </Button>

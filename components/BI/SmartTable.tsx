@@ -87,7 +87,7 @@ export const SmartTable: React.FC<SmartTableProps> = ({ data, columns, title, cl
     }
 
     return (
-        <div className={`flex flex-col gap-4 ${className}`}>
+        <div className={`flex flex-col gap-4 w-full max-w-full min-w-0 ${className}`}>
             {/* Toolbar */}
             <div className="flex justify-between items-center">
                 {title && <h3 className="text-sm font-bold uppercase text-slate-400 tracking-wider">{title}</h3>}
@@ -119,8 +119,8 @@ export const SmartTable: React.FC<SmartTableProps> = ({ data, columns, title, cl
             </div>
 
             {/* Table Container (GlassCard style) */}
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0B1121]/80 backdrop-blur-sm shadow-xl">
-                <div className="overflow-x-auto">
+            <div className="w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-white/10 bg-[#0B1121]/80 backdrop-blur-sm shadow-xl">
+                <div className="w-full overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-400">
                         <thead className="bg-slate-900/80 text-xs uppercase font-medium text-slate-500 border-b border-white/5">
                             <tr>

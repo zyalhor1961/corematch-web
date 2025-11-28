@@ -13,6 +13,7 @@ import os
 import re
 from io import StringIO
 import sys
+from utils.prompt_loader import load_prompt
 
 # Initialize Supabase
 supabase = create_client(
@@ -61,39 +62,19 @@ def generate_pandas_code(query: str, df_columns: List[str]) -> str:
     """
     Use LLM to generate Pandas code that answers the business question.
     """
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a Python Pandas expert. Generate ONLY executable Python code to answer the user's question.
-
-Available DataFrame: `df` with columns: {columns}
-
-RULES:
-1. Return ONLY Python code, no explanations
-2. Use ONLY these imports: pandas (as pd), numpy (as np)
-3. Store the final result in a variable called `result`
-4. For aggregations, return a DataFrame or Series
-5. Keep code simple and secure - NO file operations, NO system calls
-6. For top N queries, use .head(N)
-7. For charts, prepare data in a format ready for visualization
-8. Always handle missing values appropriately
-
-RESPONSE FORMAT:
-- For tables: result should be a DataFrame
-- For single values: result should be a dict like {{"value": X, "label": "Description"}}
-- For charts: result should be a DataFrame with columns suitable for plotting
-
-Example for "top 5 vendors by total amount":
-```python
-result = df.groupby('vendor_name')['total_amount'].sum().sort_values(ascending=False).head(5).reset_index()
-result.columns = ['vendor', 'total']
-```"""),
-        ("human", "{query}")
-    ])
-    
-    chain = prompt | llm
-    response = chain.invoke({
-        "query": query,
-        "columns": ", ".join(df_columns)
+    # Load prompts from YAML
+    prompts = load_prompt("insights_pandas", {
+        "columns": ", ".join(df_columns),
+        "query": query
     })
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", prompts["system"]),
+        ("human", prompts["user"])
+    ])
+
+    chain = prompt | llm
+    response = chain.invoke({})
     
     # Extract code from response
     code = response.content.strip()
@@ -217,17 +198,25 @@ def generate_summary(query: str, result_data: Dict[str, Any]) -> str:
     """
     Generate a natural language summary of the results using LLM.
     """
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a business analyst. Provide a concise 1-2 sentence summary of the data analysis results in French."),
-        ("human", "Question: {query}\n\nResults: {results}\n\nProvide a brief summary:")
-    ])
-    
-    chain = prompt | llm
-    response = chain.invoke({
+    results_json = json.dumps(
+        result_data['data'][:5] if isinstance(result_data['data'], list) else result_data['data']
+    )
+
+    # Load prompts from YAML
+    prompts = load_prompt("insights_summary", {
+        "language": "French",
         "query": query,
-        "results": json.dumps(result_data['data'][:5] if isinstance(result_data['data'], list) else result_data['data'])
+        "results": results_json
     })
-    
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", prompts["system"]),
+        ("human", prompts["user"])
+    ])
+
+    chain = prompt | llm
+    response = chain.invoke({})
+
     return response.content.strip()
 
 

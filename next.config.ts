@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Apply security headers to all routes except static assets
+        source: '/:path((?!_next/static).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -15,6 +16,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Transpile react-pdf for proper CSS handling
+  transpilePackages: ['react-pdf'],
   eslint: {
     ignoreDuringBuilds: true,
   },

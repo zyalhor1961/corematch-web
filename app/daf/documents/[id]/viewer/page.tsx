@@ -72,7 +72,7 @@ export default function DocumentViewerPage() {
         <div className="text-center">
           <p className="text-red-600">Document introuvable</p>
           <button
-            onClick={() => router.push('/daf-demo')}
+            onClick={() => router.back()}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Retour

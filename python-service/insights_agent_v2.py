@@ -14,6 +14,7 @@ import re
 from datetime import datetime, timedelta
 import hashlib
 import redis
+from utils.prompt_loader import load_prompt
 
 # Initialize clients
 supabase = create_client(
@@ -193,28 +194,24 @@ def generate_smart_suggestions(data_context: Dict[str, pd.DataFrame], language: 
     for table_name, df in data_context.items():
         if not df.empty:
             data_summary.append(f"{table_name}: {len(df)} rows, columns: {', '.join(df.columns[:10])}")
-    
+
     if not data_summary:
         return []
-    
+
+    # Load prompts from YAML
+    prompts = load_prompt("insights_suggestions", {
+        "data_summary": "\n".join(data_summary),
+        "language": "French" if language == 'fr' else "English"
+    })
+
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", """You are a business intelligence expert. Generate 5 relevant business questions 
-        that can be answered with the available data. Questions should be practical and actionable.
-        
-        Available data:
-        {data_summary}
-        
-        Generate questions in {language} (fr=French, en=English).
-        Return ONLY a JSON array of strings, no explanations."""),
-        ("human", "Generate 5 smart business questions:")
+        ("system", prompts["system"]),
+        ("human", prompts["user"])
     ])
-    
+
     try:
         chain = prompt_template | llm
-        response = chain.invoke({
-            "data_summary": "\n".join(data_summary),
-            "language": "French" if language == 'fr' else "English"
-        })
+        response = chain.invoke({})
         
         # Parse JSON response with regex to handle markdown blocks
         content = response.content.strip()
@@ -276,42 +273,23 @@ def generate_pandas_code_multi_table(query: str, data_context: Dict[str, pd.Data
         # Use schema definition if available, otherwise fallback to actual columns
         columns = DB_SCHEMA.get(table_name, df.columns.tolist())
         tables_info.append(f"- `{table_name}`: {', '.join(columns)}")
-    
+
     lang_instruction = "French" if language == 'fr' else "English"
-    
+
+    # Load prompts from YAML
+    prompts = load_prompt("insights_pandas_multi", {
+        "tables_info": chr(10).join(tables_info),
+        "language": lang_instruction,
+        "query": query
+    })
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""You are a Python Pandas expert. Generate ONLY executable Python code to answer the user's question.
-
-Available DataFrames and their EXACT columns (DO NOT HALLUCINATE COLUMNS):
-{chr(10).join(tables_info)}
-
-CRITICAL RULES:
-1. Use ONLY the columns listed above. For example, use 'client_name' for vendors/clients, NOT 'vendor_name' or 'supplier'.
-2. Return ONLY Python code, no explanations.
-3. Use ONLY these imports: pandas (as pd), numpy (as np).
-4. Store the final result in a variable called `result`.
-5. For aggregations, return a DataFrame or Series.
-6. Keep code simple and secure - NO file operations, NO system calls.
-7. You can merge/join DataFrames if needed.
-8. Always handle missing values appropriately.
-9. The question is in {lang_instruction}.
-
-RESPONSE FORMAT:
-- For tables: result should be a DataFrame
-- For single values: result should be a dict like {{{{"value": X, "label": "Description"}}}}
-- For charts: result should be a DataFrame with columns suitable for plotting
-
-Example for "top 5 vendors by total amount":
-```python
-# 'client_name' is the correct column for vendor/client
-result = invoices.groupby('client_name')['total_amount'].sum().sort_values(ascending=False).head(5).reset_index()
-result.columns = ['vendor', 'total']
-```"""),
-        ("human", "{query}")
+        ("system", prompts["system"]),
+        ("human", prompts["user"])
     ])
-    
+
     chain = prompt | llm
-    response = chain.invoke({"query": query})
+    response = chain.invoke({})
     
     # Extract code
     code = response.content.strip()
@@ -430,16 +408,24 @@ def insights_agent_enhanced(state: Dict[str, Any]) -> Dict[str, Any]:
         
         # 8. Generate summary in detected language
         print("💬 Generating summary...")
-        summary_prompt = ChatPromptTemplate.from_messages([
-            ("system", f"You are a business analyst. Provide a concise 1-2 sentence summary of the data analysis results in {'French' if language == 'fr' else 'English'}."),
-            ("human", "Question: {query}\n\nResults: {results}\n\nProvide a brief summary:")
-        ])
-        
-        chain = summary_prompt | llm
-        summary_response = chain.invoke({
+        results_json = json.dumps(
+            formatted_result['data'][:5] if isinstance(formatted_result['data'], list) else formatted_result['data']
+        )
+
+        # Load prompts from YAML
+        summary_prompts = load_prompt("insights_summary", {
+            "language": "French" if language == 'fr' else "English",
             "query": query,
-            "results": json.dumps(formatted_result['data'][:5] if isinstance(formatted_result['data'], list) else formatted_result['data'])
+            "results": results_json
         })
+
+        summary_prompt = ChatPromptTemplate.from_messages([
+            ("system", summary_prompts["system"]),
+            ("human", summary_prompts["user"])
+        ])
+
+        chain = summary_prompt | llm
+        summary_response = chain.invoke({})
         
         formatted_result['summary'] = summary_response.content.strip()
         formatted_result['language'] = language

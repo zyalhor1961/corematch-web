@@ -27,9 +27,19 @@ export async function middleware(request: NextRequest) {
   })
 
   try {
+    // Check if env vars are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Middleware: Supabase env vars not configured')
+      // Allow request through if auth can't be checked
+      return NextResponse.next()
+    }
+
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabaseUrl,
+      supabaseKey,
       {
         cookies: {
           get(name: string) {

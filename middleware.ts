@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -20,79 +20,46 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Check if env vars are available
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Middleware: Supabase env vars not configured')
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request,
   })
 
   try {
-    // Check if env vars are available
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Middleware: Supabase env vars not configured')
-      // Allow request through if auth can't be checked
-      return NextResponse.next()
-    }
-
     const supabase = createServerClient(
       supabaseUrl,
       supabaseKey,
       {
         cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
+          getAll() {
+            return request.cookies.getAll()
           },
-          set(name: string, value: string, options: CookieOptions) {
-            request.cookies.set({
-              name,
-              value,
-              ...options,
-            })
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
             response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
+              request,
             })
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-            })
-          },
-          remove(name: string, options: CookieOptions) {
-            request.cookies.set({
-              name,
-              value: '',
-              ...options,
-            })
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            })
-            response.cookies.set({
-              name,
-              value: '',
-              ...options,
-            })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            )
           },
         },
       }
     )
 
-    // Add timeout to auth check
-    const authPromise = supabase.auth.getUser()
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Auth timeout')), 3000)
-    )
+    // Refresh session if needed - this is the recommended pattern
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-    const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any
-
-    // if user is not signed in, redirect to /login
-    if (!user) {
+    // If auth error or no user, redirect to login
+    if (error || !user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
@@ -100,11 +67,9 @@ export async function middleware(request: NextRequest) {
 
     return response
   } catch (error) {
-    // On auth error or timeout, redirect to login
+    // On unexpected error, allow through (fail open for availability)
     console.error('Middleware auth error:', error)
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return response
   }
 }
 

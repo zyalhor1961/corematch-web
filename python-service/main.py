@@ -1080,6 +1080,104 @@ async def generate_briefing():
         "action_items": flagged_items
     }
 
+
+# --- SHERLOCK OSINT AGENT ENDPOINTS ---
+class SherlockRequest(BaseModel):
+    article_text: str              # Full article content
+    offer_type: str = "renovation" # User's business type (beton, logiciel_btp, etc.)
+    article_url: str | None = None # Optional source URL
+
+
+@app.post("/sherlock/enrich")
+async def sherlock_enrich_endpoint(request: SherlockRequest):
+    """
+    Sherlock OSINT Agent - Intelligent Lead Enrichment from Articles
+
+    This endpoint takes an article about a project (construction, renovation,
+    infrastructure, etc.) and returns qualified decision-maker contacts.
+
+    Pipeline:
+    1. Extract entities (company, project_type, location, budget, phase)
+    2. Infer target roles based on project and offer_type
+    3. Build Exa queries for LinkedIn profiles
+    4. Score profiles for relevance (anti-homonymy)
+    5. Return ranked contacts with scores
+
+    Example:
+        POST /sherlock/enrich
+        {
+            "article_text": "Toulouse Métropole lance un projet de réhabilitation...",
+            "offer_type": "beton",
+            "article_url": "https://ladepeche.fr/article/..."
+        }
+
+    Returns:
+        {
+            "success": true,
+            "company": {
+                "name": "Toulouse Métropole Habitat",
+                "location": "Toulouse",
+                "project_type": "réhabilitation logements sociaux",
+                "budget": 12000000
+            },
+            "contacts": [
+                {
+                    "name": "Michel Martin",
+                    "role": "Directeur du Patrimoine",
+                    "score": 0.92,
+                    "score_label": "A",
+                    "linkedin_url": "https://linkedin.com/in/...",
+                    "why_relevant": "..."
+                }
+            ],
+            "target_roles": ["Directeur du patrimoine", "Chargé d'opérations"]
+        }
+    """
+    try:
+        from agents.sherlock_agent import sherlock_enrich
+
+        print(f"[Sherlock] Received enrichment request")
+        print(f"[Sherlock] Offer type: {request.offer_type}")
+        print(f"[Sherlock] Article length: {len(request.article_text)} chars")
+
+        result = await sherlock_enrich(
+            article_text=request.article_text,
+            offer_type=request.offer_type,
+            article_url=request.article_url
+        )
+
+        return result
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sherlock agent not available: {str(e)}"
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sherlock/status")
+async def sherlock_status():
+    """Check if Sherlock agent is available."""
+    try:
+        from agents.sherlock_agent import exa_client
+        exa_key = os.getenv("EXA_API_KEY")
+
+        return {
+            "available": bool(exa_key),
+            "exa_configured": bool(exa_key),
+            "message": "Sherlock Agent ready" if exa_key else "EXA_API_KEY not configured"
+        }
+    except ImportError:
+        return {
+            "available": False,
+            "message": "Sherlock agent module not found"
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     import os

@@ -11,6 +11,8 @@ interface GlassCardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
   /** Add a subtle glow effect */
   glow?: 'none' | 'teal' | 'purple';
+  /** Optional click handler */
+  onClick?: () => void;
 }
 
 /**
@@ -29,6 +31,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
   hoverEffect = false,
   padding = 'md',
   glow = 'none',
+  onClick,
 }) => {
   const paddingClasses = {
     none: '',
@@ -45,6 +48,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
 
   return (
     <div
+      onClick={onClick}
       className={cn(
         // Base Glassmorphism
         'bg-[#0F172A]/60',

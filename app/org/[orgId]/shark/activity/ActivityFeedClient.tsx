@@ -14,6 +14,8 @@ import {
     ExternalLink,
     Clock,
     X,
+    AlertCircle,
+    Sparkles,
 } from 'lucide-react';
 import {
     SharkActivityItem,
@@ -21,6 +23,7 @@ import {
     ACTIVITY_TYPE_COLORS,
     ACTIVITY_TYPE_LABELS,
 } from '@/types/shark';
+import { GlassCard } from '@/components/ui/GlassCard';
 
 // =============================================================================
 // Types
@@ -95,14 +98,46 @@ function groupActivitiesByDate(items: SharkActivityItem[]): GroupedActivities[] 
 }
 
 // =============================================================================
+// Loading Skeleton
+// =============================================================================
+
+function ActivitySkeleton() {
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+                <div className="h-4 bg-slate-700/50 rounded w-24 animate-pulse" />
+                <div className="flex-1 h-px bg-white/10" />
+            </div>
+            {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-[#0F172A]/40 rounded-xl p-4 animate-pulse">
+                    <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 bg-slate-700/50 rounded-full" />
+                        <div className="flex-1 space-y-3">
+                            <div className="h-4 bg-slate-700/50 rounded w-full" />
+                            <div className="h-4 bg-slate-700/30 rounded w-3/4" />
+                            <div className="flex gap-3">
+                                <div className="h-4 bg-slate-700/40 rounded w-16" />
+                                <div className="h-4 bg-slate-700/40 rounded w-20" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// =============================================================================
 // Sub-components
 // =============================================================================
 
 function ActivityTypeBadge({ type }: { type: SharkActivityType }) {
     const Icon = getActivityIcon(type);
+    const glowClass = type === 'score_update' ? 'shadow-[0_0_10px_rgba(20,184,166,0.3)]' : '';
+
     return (
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${ACTIVITY_TYPE_COLORS[type]}`}>
-            <Icon size={16} className="text-white" />
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${ACTIVITY_TYPE_COLORS[type]} ${glowClass}`}>
+            <Icon size={18} className="text-white" />
         </div>
     );
 }
@@ -126,14 +161,14 @@ function FilterButton({
         <button
             onClick={onClick}
             title={tooltip}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl border transition-all min-h-[44px] ${
                 active
-                    ? `${color || 'bg-teal-500/20'} border-teal-500/50 text-teal-300`
-                    : 'bg-slate-800/50 border-white/10 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300'
+                    ? `${color || 'bg-teal-500/20'} border-teal-500/50 text-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.2)]`
+                    : 'bg-[#0F172A]/60 backdrop-blur-xl border-white/10 text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
             }`}
         >
-            {Icon && <Icon size={14} />}
-            {label}
+            {Icon && <Icon size={16} />}
+            <span className="hidden sm:inline">{label}</span>
         </button>
     );
 }
@@ -164,13 +199,11 @@ export default function ActivityFeedClient() {
 
         try {
             const response = await fetch('/api/shark/activity?limit=100', {
-                headers: {
-                    'X-Org-Id': orgId,
-                },
+                headers: { 'X-Org-Id': orgId },
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch activity feed');
+                throw new Error('Impossible de charger l\'historique');
             }
 
             const data = await response.json();
@@ -196,12 +229,10 @@ export default function ActivityFeedClient() {
     const filteredActivities = useMemo(() => {
         let items = activities;
 
-        // Filter by type
         if (filterType !== 'all') {
             items = items.filter((item) => item.type === filterType);
         }
 
-        // Filter by search query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             items = items.filter((item) => item.summary.toLowerCase().includes(query));
@@ -220,37 +251,35 @@ export default function ActivityFeedClient() {
 
     return (
         <div className="space-y-6">
-            {/* Filters Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                {/* Search */}
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            {/* Search & Refresh Bar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Rechercher dans les evenements..."
-                        className="w-full bg-slate-900/50 border border-white/10 text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/30 transition-all placeholder:text-slate-500"
+                        placeholder="Rechercher dans l'historique..."
+                        className="w-full bg-[#0F172A]/60 backdrop-blur-xl border border-white/10 text-white rounded-xl pl-11 pr-10 py-3 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all placeholder:text-slate-500"
                     />
                     {searchQuery && (
                         <button
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
                         >
                             <X size={16} />
                         </button>
                     )}
                 </div>
 
-                {/* Refresh */}
                 <button
                     onClick={fetchActivities}
                     disabled={loading}
                     title="Voir si du nouveau est apparu depuis votre derniere visite"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 px-5 py-3 bg-[#0F172A]/60 backdrop-blur-xl hover:bg-slate-800/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50 min-h-[48px]"
                 >
                     <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                    Actualiser
+                    <span className="hidden sm:inline">Actualiser</span>
                 </button>
             </div>
 
@@ -297,33 +326,55 @@ export default function ActivityFeedClient() {
                 />
             </div>
 
-            {/* Loading State */}
-            {loading && (
-                <div className="flex items-center justify-center py-12">
-                    <RefreshCw size={32} className="animate-spin text-teal-500" />
+            {/* Stats */}
+            {!loading && !error && (
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Sparkles size={14} className="text-teal-500" />
+                    <span>{filteredActivities.length} evenement{filteredActivities.length !== 1 ? 's' : ''} detecte{filteredActivities.length !== 1 ? 's' : ''}</span>
                 </div>
             )}
 
+            {/* Loading State */}
+            {loading && <ActivitySkeleton />}
+
             {/* Error State */}
             {error && (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300">
-                    {error}
-                </div>
+                <GlassCard className="border-red-500/30 bg-red-500/5">
+                    <div className="flex items-start gap-4">
+                        <div className="p-2 bg-red-500/20 rounded-lg">
+                            <AlertCircle size={20} className="text-red-400" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-red-300 font-medium">Une erreur est survenue</h4>
+                            <p className="text-red-300/70 text-sm mt-1">{error}</p>
+                        </div>
+                        <button
+                            onClick={fetchActivities}
+                            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm transition-colors"
+                        >
+                            Reessayer
+                        </button>
+                    </div>
+                </GlassCard>
             )}
 
             {/* Empty State */}
             {!loading && !error && filteredActivities.length === 0 && (
-                <div className="text-center py-12">
-                    <Activity size={48} className="mx-auto text-slate-600 mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">
-                        Aucune activite recente
-                    </h3>
-                    <p className="text-slate-400 max-w-md mx-auto">
-                        {searchQuery || filterType !== 'all'
-                            ? 'Essayez de modifier vos filtres pour voir plus de resultats'
-                            : 'Notre IA surveille le marche en continu. Les nouvelles opportunites apparaitront ici automatiquement.'}
-                    </p>
-                </div>
+                <GlassCard className="py-16">
+                    <div className="text-center">
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                            <Activity size={40} className="text-purple-400" />
+                        </div>
+                        <h3 className="text-xl font-light text-white mb-3">
+                            Pas encore d&apos;activite enregistree
+                        </h3>
+                        <p className="text-slate-400 max-w-md mx-auto leading-relaxed">
+                            {searchQuery || filterType !== 'all'
+                                ? 'Essayez de modifier vos filtres pour voir plus de resultats.'
+                                : 'Des qu\'un projet bouge, il apparaitra ici. Notre IA surveille le marche en continu pour vous.'}
+                        </p>
+                    </div>
+                </GlassCard>
             )}
 
             {/* Timeline */}
@@ -333,46 +384,48 @@ export default function ActivityFeedClient() {
                         <div key={group.label}>
                             {/* Date Group Header */}
                             <div className="flex items-center gap-3 mb-4">
-                                <span className="text-sm font-medium text-slate-400">{group.label}</span>
-                                <div className="flex-1 h-px bg-white/10" />
+                                <span className="text-sm font-medium text-slate-400 whitespace-nowrap">{group.label}</span>
+                                <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
                             </div>
 
                             {/* Activity Items */}
                             <div className="space-y-3">
                                 {group.items.map((item) => (
-                                    <div
+                                    <GlassCard
                                         key={item.id}
-                                        className="flex gap-4 p-4 bg-slate-900/50 border border-white/10 rounded-xl hover:bg-slate-800/50 transition-colors group"
+                                        padding="md"
+                                        hoverEffect
+                                        className={item.project_id ? 'cursor-pointer' : ''}
+                                        onClick={item.project_id ? () => router.push(`/org/${orgId}/shark/projects/${item.project_id}`) : undefined}
                                     >
-                                        {/* Type Badge */}
-                                        <ActivityTypeBadge type={item.type} />
+                                        <div className="flex gap-4">
+                                            {/* Type Badge */}
+                                            <ActivityTypeBadge type={item.type} />
 
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white text-sm leading-relaxed">
-                                                {item.summary}
-                                            </p>
-                                            <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                                                <span className="flex items-center gap-1">
-                                                    <Clock size={12} />
-                                                    {formatTime(item.timestamp)}
-                                                </span>
-                                                <span className={`px-2 py-0.5 rounded ${ACTIVITY_TYPE_COLORS[item.type]}/20 text-slate-300`}>
-                                                    {ACTIVITY_TYPE_LABELS[item.type]}
-                                                </span>
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white text-sm leading-relaxed">
+                                                    {item.summary}
+                                                </p>
+                                                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
+                                                    <span className="flex items-center gap-1 text-slate-500">
+                                                        <Clock size={12} />
+                                                        {formatTime(item.timestamp)}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-lg ${ACTIVITY_TYPE_COLORS[item.type]} text-white/90 text-xs`}>
+                                                        {ACTIVITY_TYPE_LABELS[item.type]}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {/* Link to Project */}
-                                        {item.project_id && (
-                                            <button
-                                                onClick={() => router.push(`/org/${orgId}/shark/projects/${item.project_id}`)}
-                                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-700/50 rounded-lg transition-all text-slate-400 hover:text-white"
-                                            >
-                                                <ExternalLink size={16} />
-                                            </button>
-                                        )}
-                                    </div>
+                                            {/* Link Arrow */}
+                                            {item.project_id && (
+                                                <div className="hidden sm:flex items-center">
+                                                    <ExternalLink size={16} className="text-slate-500" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </GlassCard>
                                 ))}
                             </div>
                         </div>

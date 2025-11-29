@@ -13,11 +13,11 @@ import {
     Search,
     MapPin,
     Building2,
-    Calendar,
     TrendingUp,
     AlertCircle,
     X,
     ExternalLink,
+    Sparkles,
 } from 'lucide-react';
 import {
     SharkProjectWithScore,
@@ -32,6 +32,7 @@ import {
     PRIORITY_COLORS,
     PRIORITY_LABELS,
 } from '@/types/shark';
+import { GlassCard } from '@/components/ui/GlassCard';
 
 // =============================================================================
 // Constants
@@ -44,72 +45,145 @@ const PRIORITIES: SharkPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const DEFAULT_PAGE_SIZE = 20;
 
 // =============================================================================
+// Loading Skeleton
+// =============================================================================
+
+function ProjectSkeleton() {
+    return (
+        <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-[#0F172A]/40 rounded-xl p-4 animate-pulse">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-3">
+                            <div className="h-5 bg-slate-700/50 rounded w-3/4" />
+                            <div className="h-4 bg-slate-700/30 rounded w-1/2" />
+                            <div className="flex gap-2">
+                                <div className="h-6 bg-slate-700/40 rounded-lg w-20" />
+                                <div className="h-6 bg-slate-700/40 rounded-lg w-16" />
+                            </div>
+                        </div>
+                        <div className="h-12 w-12 bg-slate-700/50 rounded-full" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// =============================================================================
 // Sub-components
 // =============================================================================
 
-interface FilterBadgeProps {
-    label: string;
-    onRemove: () => void;
-}
-
-function FilterBadge({ label, onRemove }: FilterBadgeProps) {
+function FilterBadge({ label, onRemove }: { label: string; onRemove: () => void }) {
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 bg-teal-500/20 text-teal-300 text-xs rounded-lg border border-teal-500/30">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-500/20 text-teal-300 text-xs rounded-lg border border-teal-500/30 backdrop-blur-sm">
             {label}
-            <button onClick={onRemove} className="hover:text-white transition-colors">
+            <button onClick={onRemove} className="hover:text-white transition-colors p-0.5">
                 <X size={12} />
             </button>
         </span>
     );
 }
 
-interface PriorityBadgeProps {
-    priority: SharkPriority;
-}
+function PriorityBadge({ priority }: { priority: SharkPriority }) {
+    const glowClass = {
+        LOW: '',
+        MEDIUM: '',
+        HIGH: 'shadow-[0_0_8px_rgba(245,158,11,0.3)]',
+        CRITICAL: 'shadow-[0_0_12px_rgba(239,68,68,0.4)]',
+    }[priority];
 
-function PriorityBadge({ priority }: PriorityBadgeProps) {
     return (
-        <span className={`px-2 py-0.5 text-xs font-medium rounded ${PRIORITY_COLORS[priority]}`}>
+        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${PRIORITY_COLORS[priority]} ${glowClass}`}>
             {PRIORITY_LABELS[priority]}
         </span>
     );
 }
 
-interface PhaseBadgeProps {
-    phase: SharkPhase;
-}
-
-function PhaseBadge({ phase }: PhaseBadgeProps) {
+function PhaseBadge({ phase }: { phase: SharkPhase }) {
     return (
-        <span className={`px-2 py-0.5 text-xs font-medium rounded text-white ${PHASE_COLORS[phase]}`}>
+        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg text-white ${PHASE_COLORS[phase]}`}>
             {PHASE_LABELS[phase]}
         </span>
     );
 }
 
-interface ScoreBarProps {
-    score: number;
-    priority: SharkPriority;
-}
+function ScoreGauge({ score, priority }: { score: number; priority: SharkPriority }) {
+    const colorClass = {
+        LOW: 'text-slate-400',
+        MEDIUM: 'text-blue-400',
+        HIGH: 'text-amber-400',
+        CRITICAL: 'text-red-400',
+    }[priority];
 
-function ScoreBar({ score, priority }: ScoreBarProps) {
-    const barColor = {
-        LOW: 'bg-slate-500',
-        MEDIUM: 'bg-blue-500',
-        HIGH: 'bg-amber-500',
-        CRITICAL: 'bg-red-500',
+    const glowClass = {
+        LOW: '',
+        MEDIUM: '',
+        HIGH: 'drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]',
+        CRITICAL: 'drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]',
     }[priority];
 
     return (
-        <div className="flex items-center gap-2">
-            <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                    className={`h-full ${barColor} transition-all duration-300`}
-                    style={{ width: `${Math.min(score, 100)}%` }}
-                />
-            </div>
-            <span className="text-sm font-medium text-white">{score}</span>
+        <div className={`flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/80 border border-white/10 ${glowClass}`}>
+            <span className={`text-lg font-bold font-mono ${colorClass}`}>{score}</span>
         </div>
+    );
+}
+
+// =============================================================================
+// Project Card (Mobile View)
+// =============================================================================
+
+function ProjectCard({ project, orgId }: { project: SharkProjectWithScore; orgId: string }) {
+    const router = useRouter();
+
+    return (
+        <GlassCard
+            hoverEffect
+            padding="md"
+            className="cursor-pointer"
+            onClick={() => router.push(`/org/${orgId}/shark/projects/${project.id}`)}
+        >
+            <div className="flex items-start gap-4">
+                {/* Score Circle */}
+                <ScoreGauge score={project.score} priority={project.priority} />
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 space-y-2">
+                    <h3 className="font-medium text-white line-clamp-2 leading-tight">
+                        {project.title}
+                    </h3>
+
+                    <div className="flex flex-wrap gap-2">
+                        <PhaseBadge phase={project.phase} />
+                        <PriorityBadge priority={project.priority} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                            <MapPin size={12} className="text-slate-500" />
+                            {project.city || project.department || 'Non renseigne'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <Building2 size={12} className="text-slate-500" />
+                            {project.organization_count} acteur{project.organization_count !== 1 ? 's' : ''}
+                        </span>
+                        {project.amount_estimate && (
+                            <span className="text-teal-400 font-medium">
+                                {new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR',
+                                    maximumFractionDigits: 0,
+                                }).format(project.amount_estimate)}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Arrow */}
+                <ExternalLink size={16} className="text-slate-500 flex-shrink-0 mt-1" />
+            </div>
+        </GlassCard>
     );
 }
 
@@ -129,7 +203,6 @@ export default function SharkRadarClient() {
     const [filters, setFilters] = useState<SharkRadarFilters>({});
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
-    const [alerts, setAlerts] = useState<SharkAlert[]>([]);
     const [unreadAlerts, setUnreadAlerts] = useState(0);
     const [showFilters, setShowFilters] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -181,13 +254,11 @@ export default function SharkRadarClient() {
             }
 
             const response = await fetch(`/api/shark/projects/top?${queryParams.toString()}`, {
-                headers: {
-                    'X-Org-Id': orgId,
-                },
+                headers: { 'X-Org-Id': orgId },
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch projects');
+                throw new Error('Impossible de charger les projets');
             }
 
             const data = await response.json();
@@ -204,14 +275,10 @@ export default function SharkRadarClient() {
     const fetchAlerts = useCallback(async () => {
         try {
             const response = await fetch('/api/shark/alerts?unread_only=true', {
-                headers: {
-                    'X-Org-Id': orgId,
-                },
+                headers: { 'X-Org-Id': orgId },
             });
-
             if (response.ok) {
                 const data = await response.json();
-                setAlerts(data.alerts || []);
                 setUnreadAlerts(data.unread_count || 0);
             }
         } catch (err) {
@@ -219,7 +286,6 @@ export default function SharkRadarClient() {
         }
     }, [orgId]);
 
-    // Initial load
     useEffect(() => {
         if (orgId) {
             fetchProjects();
@@ -281,166 +347,158 @@ export default function SharkRadarClient() {
 
     return (
         <div className="space-y-6">
-            {/* Header Actions Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                {/* Search */}
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        placeholder="Rechercher un projet..."
-                        className="w-full bg-slate-900/50 border border-white/10 text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/30 transition-all placeholder:text-slate-500"
-                    />
-                </div>
+            {/* Search & Actions Bar */}
+            <div className="flex flex-col gap-4">
+                {/* Search Row */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                            placeholder="Rechercher un projet, une ville..."
+                            className="w-full bg-[#0F172A]/60 backdrop-blur-xl border border-white/10 text-white rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all placeholder:text-slate-500"
+                        />
+                    </div>
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-3">
-                    {/* Filter Toggle */}
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all ${
-                            showFilters || hasActiveFilters
-                                ? 'bg-teal-500/20 border-teal-500/50 text-teal-300'
-                                : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
-                        }`}
-                    >
-                        <Filter size={18} />
-                        Filtres
-                        {hasActiveFilters && (
-                            <span className="w-2 h-2 rounded-full bg-teal-400" />
-                        )}
-                    </button>
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all min-h-[48px] ${
+                                showFilters || hasActiveFilters
+                                    ? 'bg-teal-500/20 border-teal-500/50 text-teal-300'
+                                    : 'bg-[#0F172A]/60 backdrop-blur-xl border-white/10 text-slate-300 hover:bg-slate-800/50'
+                            }`}
+                        >
+                            <Filter size={18} />
+                            <span className="hidden sm:inline">Filtres</span>
+                            {hasActiveFilters && (
+                                <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                            )}
+                        </button>
 
-                    {/* Alerts */}
-                    <Link
-                        href={`/org/${orgId}/shark/alerts`}
-                        className="relative flex items-center gap-2 px-4 py-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-xl border border-white/10 transition-all"
-                    >
-                        <Bell size={18} />
-                        Alertes
-                        {unreadAlerts > 0 && (
-                            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full">
-                                {unreadAlerts > 9 ? '9+' : unreadAlerts}
-                            </span>
-                        )}
-                    </Link>
+                        <Link
+                            href={`/org/${orgId}/shark/alerts`}
+                            className="relative flex items-center gap-2 px-4 py-3 bg-[#0F172A]/60 backdrop-blur-xl hover:bg-slate-800/50 text-slate-300 rounded-xl border border-white/10 transition-all min-h-[48px]"
+                        >
+                            <Bell size={18} />
+                            <span className="hidden sm:inline">Alertes</span>
+                            {unreadAlerts > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                                    {unreadAlerts > 9 ? '9+' : unreadAlerts}
+                                </span>
+                            )}
+                        </Link>
 
-                    {/* Refresh */}
-                    <button
-                        onClick={() => fetchProjects()}
-                        disabled={loading}
-                        title="Voir si de nouvelles opportunites sont apparues"
-                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50"
-                    >
-                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                        <button
+                            onClick={() => fetchProjects()}
+                            disabled={loading}
+                            title="Voir si de nouvelles opportunites sont apparues"
+                            className="flex items-center justify-center w-12 h-12 bg-[#0F172A]/60 backdrop-blur-xl hover:bg-slate-800/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50"
+                        >
+                            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Filters Panel */}
             {showFilters && (
-                <div className="p-6 bg-slate-900/50 border border-white/10 rounded-xl space-y-6">
-                    {/* Phase Filters */}
-                    <div>
-                        <h4 className="text-sm font-medium text-slate-400 mb-3">Phase</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {PHASES.map((phase) => (
-                                <button
-                                    key={phase}
-                                    onClick={() => togglePhaseFilter(phase)}
-                                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
-                                        filters.phases?.includes(phase)
-                                            ? `${PHASE_COLORS[phase]} border-transparent text-white`
-                                            : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
-                                    }`}
-                                >
-                                    {PHASE_LABELS[phase]}
-                                </button>
-                            ))}
+                <GlassCard padding="lg">
+                    <div className="space-y-6">
+                        {/* Phase */}
+                        <div>
+                            <h4 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                                Phase du projet
+                                <span className="text-xs text-slate-500 font-normal">Plus c&apos;est avance, plus c&apos;est concret</span>
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                                {PHASES.map((phase) => (
+                                    <button
+                                        key={phase}
+                                        onClick={() => togglePhaseFilter(phase)}
+                                        className={`px-4 py-2 text-sm rounded-xl border transition-all min-h-[44px] ${
+                                            filters.phases?.includes(phase)
+                                                ? `${PHASE_COLORS[phase]} border-transparent text-white shadow-lg`
+                                                : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
+                                        }`}
+                                    >
+                                        {PHASE_LABELS[phase]}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Scale Filters */}
-                    <div>
-                        <h4 className="text-sm font-medium text-slate-400 mb-3">Envergure</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {SCALES.map((scale) => (
-                                <button
-                                    key={scale}
-                                    onClick={() => toggleScaleFilter(scale)}
-                                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
-                                        filters.scales?.includes(scale)
-                                            ? 'bg-teal-500 border-transparent text-white'
-                                            : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
-                                    }`}
-                                >
-                                    {scale} ({SCALE_LABELS[scale]})
-                                </button>
-                            ))}
+                        {/* Scale */}
+                        <div>
+                            <h4 className="text-sm font-medium text-slate-400 mb-3">Envergure du projet</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {SCALES.map((scale) => (
+                                    <button
+                                        key={scale}
+                                        onClick={() => toggleScaleFilter(scale)}
+                                        className={`px-4 py-2 text-sm rounded-xl border transition-all min-h-[44px] ${
+                                            filters.scales?.includes(scale)
+                                                ? 'bg-teal-500 border-transparent text-white shadow-[0_0_15px_rgba(20,184,166,0.3)]'
+                                                : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
+                                        }`}
+                                    >
+                                        {scale} <span className="text-xs opacity-70">({SCALE_LABELS[scale]})</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Priority Filters */}
-                    <div>
-                        <h4 className="text-sm font-medium text-slate-400 mb-3">Niveau d&apos;interet</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {PRIORITIES.map((priority) => (
-                                <button
-                                    key={priority}
-                                    onClick={() => togglePriorityFilter(priority)}
-                                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
-                                        filters.priorities?.includes(priority)
-                                            ? `${PRIORITY_COLORS[priority]} border-transparent`
-                                            : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
-                                    }`}
-                                >
-                                    {PRIORITY_LABELS[priority]}
-                                </button>
-                            ))}
+                        {/* Priority */}
+                        <div>
+                            <h4 className="text-sm font-medium text-slate-400 mb-3">Niveau d&apos;interet</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {PRIORITIES.map((priority) => (
+                                    <button
+                                        key={priority}
+                                        onClick={() => togglePriorityFilter(priority)}
+                                        className={`px-4 py-2 text-sm rounded-xl border transition-all min-h-[44px] ${
+                                            filters.priorities?.includes(priority)
+                                                ? `${PRIORITY_COLORS[priority]} border-transparent shadow-lg`
+                                                : 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-700/50'
+                                        }`}
+                                    >
+                                        {PRIORITY_LABELS[priority]}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Clear Filters */}
-                    {hasActiveFilters && (
-                        <div className="pt-4 border-t border-white/10">
-                            <button
-                                onClick={clearAllFilters}
-                                className="text-sm text-red-400 hover:text-red-300 transition-colors"
-                            >
-                                Effacer tous les filtres
-                            </button>
-                        </div>
-                    )}
-                </div>
+                        {/* Clear */}
+                        {hasActiveFilters && (
+                            <div className="pt-4 border-t border-white/10">
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                    Effacer tous les filtres
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </GlassCard>
             )}
 
             {/* Active Filters Display */}
             {hasActiveFilters && !showFilters && (
                 <div className="flex flex-wrap gap-2 items-center">
-                    <span className="text-sm text-slate-400">Filtres actifs:</span>
+                    <span className="text-sm text-slate-500">Filtres:</span>
                     {filters.phases?.map((phase) => (
-                        <FilterBadge
-                            key={`phase-${phase}`}
-                            label={PHASE_LABELS[phase]}
-                            onRemove={() => togglePhaseFilter(phase)}
-                        />
+                        <FilterBadge key={`phase-${phase}`} label={PHASE_LABELS[phase]} onRemove={() => togglePhaseFilter(phase)} />
                     ))}
                     {filters.scales?.map((scale) => (
-                        <FilterBadge
-                            key={`scale-${scale}`}
-                            label={scale}
-                            onRemove={() => toggleScaleFilter(scale)}
-                        />
+                        <FilterBadge key={`scale-${scale}`} label={scale} onRemove={() => toggleScaleFilter(scale)} />
                     ))}
                     {filters.priorities?.map((priority) => (
-                        <FilterBadge
-                            key={`priority-${priority}`}
-                            label={PRIORITY_LABELS[priority]}
-                            onRemove={() => togglePriorityFilter(priority)}
-                        />
+                        <FilterBadge key={`priority-${priority}`} label={PRIORITY_LABELS[priority]} onRemove={() => togglePriorityFilter(priority)} />
                     ))}
                     {filters.search && (
                         <FilterBadge
@@ -451,10 +509,7 @@ export default function SharkRadarClient() {
                             }}
                         />
                     )}
-                    <button
-                        onClick={clearAllFilters}
-                        className="text-xs text-slate-500 hover:text-slate-300 ml-2"
-                    >
+                    <button onClick={clearAllFilters} className="text-xs text-slate-500 hover:text-slate-300 ml-2">
                         Tout effacer
                     </button>
                 </div>
@@ -462,161 +517,175 @@ export default function SharkRadarClient() {
 
             {/* Results Stats */}
             <div className="flex items-center justify-between text-sm text-slate-400">
-                <span>
-                    {total} projet{total !== 1 ? 's' : ''} trouve{total !== 1 ? 's' : ''}
+                <span className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-teal-500" />
+                    {total} opportunite{total !== 1 ? 's' : ''} detectee{total !== 1 ? 's' : ''} par l&apos;IA
                 </span>
-                <span>
-                    Page {page} sur {totalPages || 1}
-                </span>
+                {totalPages > 1 && (
+                    <span>Page {page} sur {totalPages}</span>
+                )}
             </div>
 
             {/* Error State */}
             {error && (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-red-300">
-                    <AlertCircle size={20} />
-                    <span>{error}</span>
-                </div>
+                <GlassCard className="border-red-500/30 bg-red-500/5">
+                    <div className="flex items-start gap-4">
+                        <div className="p-2 bg-red-500/20 rounded-lg">
+                            <AlertCircle size={20} className="text-red-400" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-red-300 font-medium">Une erreur est survenue</h4>
+                            <p className="text-red-300/70 text-sm mt-1">{error}</p>
+                        </div>
+                        <button
+                            onClick={() => fetchProjects()}
+                            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm transition-colors"
+                        >
+                            Reessayer
+                        </button>
+                    </div>
+                </GlassCard>
             )}
 
             {/* Loading State */}
-            {loading && (
-                <div className="flex items-center justify-center py-12">
-                    <RefreshCw size={32} className="animate-spin text-teal-500" />
-                </div>
-            )}
+            {loading && <ProjectSkeleton />}
 
-            {/* Projects Table */}
+            {/* Projects List - Mobile Cards */}
             {!loading && !error && projects.length > 0 && (
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-white/10">
-                                <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">
-                                    Projet
-                                </th>
-                                <th
-                                    className="text-left py-3 px-4 text-sm font-medium text-slate-400 cursor-help"
-                                    title="Plus la phase est avancee, plus l'opportunite est concrete"
-                                >
-                                    Phase
-                                </th>
-                                <th
-                                    className="text-left py-3 px-4 text-sm font-medium text-slate-400 cursor-help"
-                                    title="La taille estimee du projet par notre IA"
-                                >
-                                    Envergure
-                                </th>
-                                <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">
-                                    Localisation
-                                </th>
-                                <th
-                                    className="text-left py-3 px-4 text-sm font-medium text-slate-400 cursor-help"
-                                    title="Analyse IA : synthese automatique du potentiel commercial"
-                                >
-                                    Evaluation
-                                </th>
-                                <th
-                                    className="text-left py-3 px-4 text-sm font-medium text-slate-400 cursor-help"
-                                    title="Estimation de l'urgence et de l'interet du projet"
-                                >
-                                    Interet
-                                </th>
-                                <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {projects.map((project) => (
-                                <tr
-                                    key={project.id}
-                                    onClick={() => router.push(`/org/${orgId}/shark/projects/${project.id}`)}
-                                    className="border-b border-white/5 hover:bg-slate-800/30 transition-colors cursor-pointer"
-                                >
-                                    <td className="py-4 px-4">
-                                        <div className="space-y-1">
-                                            <div className="font-medium text-white line-clamp-1">
-                                                {project.title}
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                <Building2 size={12} />
-                                                {project.organization_count} acteur
-                                                {project.organization_count !== 1 ? 's' : ''}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <PhaseBadge phase={project.phase} />
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <span className="text-sm text-slate-300">
-                                            {project.scale}
-                                        </span>
-                                        {project.amount_estimate && (
-                                            <div className="text-xs text-slate-500 mt-0.5">
-                                                {new Intl.NumberFormat('fr-FR', {
-                                                    style: 'currency',
-                                                    currency: 'EUR',
-                                                    maximumFractionDigits: 0,
-                                                }).format(project.amount_estimate)}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                                            <MapPin size={14} className="text-slate-500" />
-                                            {project.city || project.department || 'Non renseigne'}
-                                        </div>
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <ScoreBar score={project.score} priority={project.priority} />
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <PriorityBadge priority={project.priority} />
-                                    </td>
-                                    <td className="py-4 px-4 text-right">
-                                        <Link
-                                            href={`/org/${orgId}/shark/projects/${project.id}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white inline-block"
-                                        >
-                                            <ExternalLink size={16} />
-                                        </Link>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    {/* Mobile: Cards */}
+                    <div className="lg:hidden space-y-3">
+                        {projects.map((project) => (
+                            <ProjectCard key={project.id} project={project} orgId={orgId} />
+                        ))}
+                    </div>
+
+                    {/* Desktop: Table */}
+                    <div className="hidden lg:block">
+                        <GlassCard padding="none">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-white/10">
+                                            <th className="text-left py-4 px-6 text-sm font-medium text-slate-400">Projet</th>
+                                            <th className="text-left py-4 px-4 text-sm font-medium text-slate-400 cursor-help" title="Plus la phase est avancee, plus l'opportunite est concrete">
+                                                Phase
+                                            </th>
+                                            <th className="text-left py-4 px-4 text-sm font-medium text-slate-400 cursor-help" title="La taille estimee du projet">
+                                                Envergure
+                                            </th>
+                                            <th className="text-left py-4 px-4 text-sm font-medium text-slate-400">Localisation</th>
+                                            <th className="text-left py-4 px-4 text-sm font-medium text-slate-400 cursor-help" title="Analyse IA : synthese du potentiel commercial">
+                                                Evaluation
+                                            </th>
+                                            <th className="text-left py-4 px-4 text-sm font-medium text-slate-400 cursor-help" title="Estimation de l'urgence et de l'interet">
+                                                Interet
+                                            </th>
+                                            <th className="w-16"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {projects.map((project) => (
+                                            <tr
+                                                key={project.id}
+                                                onClick={() => router.push(`/org/${orgId}/shark/projects/${project.id}`)}
+                                                className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer group"
+                                            >
+                                                <td className="py-4 px-6">
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium text-white line-clamp-1 group-hover:text-teal-300 transition-colors">
+                                                            {project.title}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                            <Building2 size={12} />
+                                                            {project.organization_count} acteur{project.organization_count !== 1 ? 's' : ''}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <PhaseBadge phase={project.phase} />
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <span className="text-sm text-slate-300">{project.scale}</span>
+                                                    {project.amount_estimate && (
+                                                        <div className="text-xs text-teal-400 mt-0.5 font-medium">
+                                                            {new Intl.NumberFormat('fr-FR', {
+                                                                style: 'currency',
+                                                                currency: 'EUR',
+                                                                maximumFractionDigits: 0,
+                                                            }).format(project.amount_estimate)}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                                                        <MapPin size={14} className="text-slate-500" />
+                                                        {project.city || project.department || 'Non renseigne'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <ScoreGauge score={project.score} priority={project.priority} />
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <PriorityBadge priority={project.priority} />
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <Link
+                                                        href={`/org/${orgId}/shark/projects/${project.id}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white inline-block opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <ExternalLink size={16} />
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </GlassCard>
+                    </div>
+                </>
             )}
 
             {/* Empty State */}
             {!loading && !error && projects.length === 0 && (
-                <div className="text-center py-12">
-                    <Radar size={48} className="mx-auto text-slate-600 mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">
-                        Aucune opportunite detectee
-                    </h3>
-                    <p className="text-slate-400 max-w-md mx-auto">
-                        {hasActiveFilters
-                            ? 'Essayez de modifier vos filtres pour voir plus de resultats'
-                            : 'Notre IA travaille en continu pour detecter de nouvelles opportunites. Revenez bientot !'}
-                    </p>
-                </div>
+                <GlassCard className="py-16">
+                    <div className="text-center">
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-teal-500/20 to-cyan-500/20 flex items-center justify-center">
+                            <Radar size={40} className="text-teal-400" />
+                        </div>
+                        <h3 className="text-xl font-light text-white mb-3">
+                            {hasActiveFilters ? 'Aucun resultat pour ces filtres' : 'Aucune opportunite detectee'}
+                        </h3>
+                        <p className="text-slate-400 max-w-md mx-auto leading-relaxed">
+                            {hasActiveFilters
+                                ? 'Essayez de modifier ou supprimer vos filtres pour voir plus de resultats.'
+                                : 'Notre IA analyse en continu le marche pour vous. Les nouvelles opportunites apparaitront ici automatiquement.'}
+                        </p>
+                        {hasActiveFilters && (
+                            <button
+                                onClick={clearAllFilters}
+                                className="mt-6 px-6 py-3 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 rounded-xl border border-teal-500/30 transition-all"
+                            >
+                                Effacer les filtres
+                            </button>
+                        )}
+                    </div>
+                </GlassCard>
             )}
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {totalPages > 1 && !loading && (
                 <div className="flex items-center justify-center gap-2 pt-4">
                     <button
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                         disabled={page === 1}
-                        className="p-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-3 bg-[#0F172A]/60 hover:bg-slate-800/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[48px] min-h-[48px] flex items-center justify-center"
                     >
-                        <ChevronLeft size={18} />
+                        <ChevronLeft size={20} />
                     </button>
 
-                    {/* Page Numbers */}
                     <div className="flex items-center gap-1">
                         {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                             let pageNum: number;
@@ -633,10 +702,10 @@ export default function SharkRadarClient() {
                                 <button
                                     key={pageNum}
                                     onClick={() => setPage(pageNum)}
-                                    className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                                    className={`min-w-[48px] h-12 rounded-xl text-sm font-medium transition-all ${
                                         page === pageNum
-                                            ? 'bg-teal-500 text-white'
-                                            : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 border border-white/10'
+                                            ? 'bg-teal-500 text-white shadow-[0_0_20px_rgba(20,184,166,0.3)]'
+                                            : 'bg-[#0F172A]/60 text-slate-300 hover:bg-slate-800/50 border border-white/10'
                                     }`}
                                 >
                                     {pageNum}
@@ -648,9 +717,9 @@ export default function SharkRadarClient() {
                     <button
                         onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                         disabled={page === totalPages}
-                        className="p-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-3 bg-[#0F172A]/60 hover:bg-slate-800/50 text-slate-300 rounded-xl border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[48px] min-h-[48px] flex items-center justify-center"
                     >
-                        <ChevronRight size={18} />
+                        <ChevronRight size={20} />
                     </button>
                 </div>
             )}

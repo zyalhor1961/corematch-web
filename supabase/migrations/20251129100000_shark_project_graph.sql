@@ -569,7 +569,7 @@ CREATE OR REPLACE VIEW shark_project_full AS
 SELECT
     p.*,
     COALESCE(
-        json_agg(
+        (SELECT json_agg(
             json_build_object(
                 'organization_id', o.id,
                 'organization_name', o.name,
@@ -577,11 +577,14 @@ SELECT
                 'role_in_project', po.role_in_project,
                 'lot_name', po.lot_name
             )
-        ) FILTER (WHERE o.id IS NOT NULL),
+        )
+        FROM shark_project_organizations po
+        JOIN shark_organizations o ON o.id = po.organization_id
+        WHERE po.project_id = p.id),
         '[]'::json
     ) as organizations,
     COALESCE(
-        json_agg(DISTINCT
+        (SELECT json_agg(
             json_build_object(
                 'news_id', n.id,
                 'title', n.title,
@@ -589,15 +592,13 @@ SELECT
                 'published_at', n.published_at,
                 'role_of_news', pn.role_of_news
             )
-        ) FILTER (WHERE n.id IS NOT NULL),
+        )
+        FROM shark_project_news pn
+        JOIN shark_news_items n ON n.id = pn.news_id
+        WHERE pn.project_id = p.id),
         '[]'::json
     ) as news_items
-FROM shark_projects p
-LEFT JOIN shark_project_organizations po ON po.project_id = p.id
-LEFT JOIN shark_organizations o ON o.id = po.organization_id
-LEFT JOIN shark_project_news pn ON pn.project_id = p.id
-LEFT JOIN shark_news_items n ON n.id = pn.news_id
-GROUP BY p.id;
+FROM shark_projects p;
 
 COMMENT ON VIEW shark_project_full IS 'Vue enrichie d''un projet avec ses organisations et news associées';
 

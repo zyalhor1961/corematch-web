@@ -128,7 +128,7 @@ from models import SharkProjectCreate, SharkOrganizationCreate
 
 # 1. Créer le projet
 project = SharkProjectCreate(
-    org_id=user_org_id,
+    tenant_id=user_tenant_id,  # ID du client SaaS CoreMatch
     name="Rénovation Hôtel Martinez",
     type="renovation",
     location_city="Cannes",
@@ -140,9 +140,9 @@ project = SharkProjectCreate(
     shark_priority="high"
 )
 
-# 2. Créer l'organisation (MOA)
+# 2. Créer l'organisation BTP (MOA)
 moa = SharkOrganizationCreate(
-    org_id=user_org_id,
+    tenant_id=user_tenant_id,  # Même tenant
     name="Groupe Barrière",
     org_type="moa",
     city="Paris",
@@ -160,9 +160,9 @@ link = SharkProjectOrganizationBase(
 ### Requêter le graphe
 
 ```sql
--- Tous les projets d'une org avec leurs organisations
+-- Tous les projets d'un tenant avec leurs organisations
 SELECT * FROM shark_project_full
-WHERE org_id = 'xxx';
+WHERE tenant_id = 'xxx';
 
 -- Personnes impliquées dans un projet
 SELECT p.*, op.role_in_org, o.name as org_name
@@ -193,6 +193,7 @@ Chaque projet a un `shark_score` (0-100) et une `shark_priority` qui seront calc
 ## Notes techniques
 
 - Préfixe `shark_` pour éviter conflit avec tables existantes
-- RLS activé sur toutes les tables
+- **`tenant_id`** = ID du client SaaS CoreMatch (multi-tenancy), PAS une org BTP
+- RLS activé sur toutes les tables via `user_belongs_to_tenant()`
 - Vue `shark_project_full` pour requêtes enrichies
 - Indexes optimisés pour recherche par location/type/phase

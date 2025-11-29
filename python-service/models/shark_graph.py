@@ -154,7 +154,7 @@ class SharkProjectBase(BaseModel):
 class SharkProject(SharkProjectBase):
     """Projet avec ID et timestamps (lecture depuis DB)."""
     id: UUID
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
     ai_extracted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -162,7 +162,7 @@ class SharkProject(SharkProjectBase):
 
 class SharkProjectCreate(SharkProjectBase):
     """Données pour créer un nouveau projet."""
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
 
 
 class SharkOrganizationBase(BaseModel):
@@ -197,14 +197,14 @@ class SharkOrganizationBase(BaseModel):
 class SharkOrganization(SharkOrganizationBase):
     """Organisation avec ID et timestamps."""
     id: UUID
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
     created_at: datetime
     updated_at: datetime
 
 
 class SharkOrganizationCreate(SharkOrganizationBase):
     """Données pour créer une organisation."""
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
 
 
 class SharkPersonBase(BaseModel):
@@ -237,14 +237,14 @@ class SharkPersonBase(BaseModel):
 class SharkPerson(SharkPersonBase):
     """Personne avec ID et timestamps."""
     id: UUID
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
     created_at: datetime
     updated_at: datetime
 
 
 class SharkPersonCreate(SharkPersonBase):
     """Données pour créer une personne."""
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
 
 
 class SharkNewsItemBase(BaseModel):
@@ -280,14 +280,14 @@ class SharkNewsItemBase(BaseModel):
 class SharkNewsItem(SharkNewsItemBase):
     """News avec ID et timestamps."""
     id: UUID
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
     created_at: datetime
     updated_at: datetime
 
 
 class SharkNewsItemCreate(SharkNewsItemBase):
     """Données pour créer une news."""
-    org_id: UUID
+    tenant_id: UUID  # ID du client SaaS CoreMatch (multi-tenancy)
 
 
 # ============================================================

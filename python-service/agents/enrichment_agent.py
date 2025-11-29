@@ -1,9 +1,15 @@
 """
-Enrichment Agent - Deep Company Data Extraction (v2.0 - Multi-Page Crawl)
+Enrichment Agent - Deep Company Data Extraction (v3.0 - Smart PIVOT Mode)
 
 Uses Firecrawl for intelligent web scraping and OpenAI for structured data extraction.
 This agent powers the "Gatherer Mode" in the CRM Lead Form, providing rich company
 intelligence from any URL.
+
+v3.0 IMPROVEMENTS - PIVOT MODE FOR NEWS/ARTICLES:
+- Detects if URL is a news site (actu.fr, ladepeche, linkedin, facebook, etc.)
+- PIVOT Mode: Extracts the REAL company from the article, not the journalist
+- Secondary Hunt: Uses Exa to find decision-makers on LinkedIn
+- Returns the actual prospect contact, not the media site info
 
 v2.0 IMPROVEMENTS:
 - Intelligent crawl: Discovers and scrapes /contact, /mentions-legales, /a-propos pages
@@ -11,12 +17,19 @@ v2.0 IMPROVEMENTS:
 - Multi-page scraping for better contact extraction
 - Improved French phone/email pattern recognition
 
-Flow:
-1. User clicks "Analyser" on a URL/domain
-2. Firecrawl maps the website -> Finds contact pages
-3. Firecrawl scrapes Homepage + Contact page -> Returns clean Markdown
-4. OpenAI extracts structured contact data with French patterns
-5. Returns enriched company profile to frontend
+Flow (Standard):
+1. User clicks "Analyser" on a corporate URL
+2. Firecrawl scrapes Homepage + Contact page
+3. OpenAI extracts structured contact data
+4. Returns enriched company profile
+
+Flow (PIVOT Mode - News Articles):
+1. Detect news/media URL -> Trigger PIVOT
+2. Scrape the article content
+3. LLM extracts: "Who is the main company executing the project?"
+4. LLM determines: "What decision-maker role to target?"
+5. Exa searches: site:linkedin.com/in "Company" "Role" "City"
+6. Returns the REAL prospect, not the journalist
 """
 
 import os
@@ -25,12 +38,326 @@ import re
 from typing import Optional
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
+from exa_py import Exa
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# ============================================================
+# NEWS/MEDIA DOMAIN DETECTION
+# ============================================================
+
+NEWS_MEDIA_DOMAINS = [
+    # French News
+    'ladepeche.fr', 'actu.fr', 'lefigaro.fr', 'lemonde.fr', 'liberation.fr',
+    'lesechos.fr', 'latribune.fr', 'bfmtv.com', 'francetvinfo.fr', 'leparisien.fr',
+    'ouest-france.fr', 'sudouest.fr', 'midilibre.fr', 'lavoixdunord.fr',
+    'leprogres.fr', 'ledauphine.com', 'lalsace.fr', 'dna.fr', 'estrepublicain.fr',
+    'lanouvellerepublique.fr', 'courrier-picard.fr', 'lunion.fr', 'lardennais.fr',
+    '20minutes.fr', 'huffingtonpost.fr', 'francebleu.fr', 'rtl.fr', 'europe1.fr',
+    # Regional/Local News
+    'actu.fr', 'maville.com', 'info-tours.fr', 'toulouse-infos.fr',
+    # Business News
+    'usinenouvelle.com', 'journaldunet.com', 'challenges.fr', 'capital.fr',
+    'businessinsider.fr', 'maddyness.com', 'frenchweb.fr',
+    # International
+    'linkedin.com', 'facebook.com', 'twitter.com', 'x.com',
+    'reuters.com', 'bloomberg.com', 'forbes.com', 'fortune.com',
+    # Press Releases
+    'prnewswire.com', 'businesswire.com', 'globenewswire.com',
+    # Others
+    'wikipedia.org', 'medium.com', 'blogspot.com', 'wordpress.com',
+]
+
+
+def is_news_media_url(url: str) -> bool:
+    """
+    Check if the URL is from a news/media site that requires PIVOT mode.
+    Returns True if we should extract the REAL company from the article.
+    """
+    url_lower = url.lower()
+
+    # Check against known news domains
+    for domain in NEWS_MEDIA_DOMAINS:
+        if domain in url_lower:
+            return True
+
+    # Check for news-like URL patterns
+    news_patterns = [
+        '/article/', '/actualite/', '/news/', '/actu/',
+        '/posts/', '/pulse/', '/blog/', '/press/',
+        '-annonce-', '-inaugur', '-projet-', '-lance-',
+    ]
+    for pattern in news_patterns:
+        if pattern in url_lower:
+            return True
+
+    return False
+
 # Initialize clients
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+exa_client = Exa(api_key=os.getenv("EXA_API_KEY")) if os.getenv("EXA_API_KEY") else None
+
+
+# ============================================================
+# PIVOT MODE - Extract Real Company from News Articles
+# ============================================================
+
+class PivotResult(BaseModel):
+    """Result from PIVOT mode analysis"""
+    company_name: str = Field(..., description="The real company executing the project")
+    company_city: Optional[str] = Field(None, description="City where the company operates")
+    project_description: str = Field(..., description="What the company is doing")
+    target_role: str = Field(..., description="Decision-maker role to target")
+    target_person: Optional[str] = Field(None, description="Person name if found")
+    target_linkedin: Optional[str] = Field(None, description="LinkedIn URL if found")
+    target_email_pattern: Optional[str] = Field(None, description="Guessed email pattern")
+    article_source: str = Field(..., description="Original article URL")
+    pivot_reasoning: str = Field(..., description="Why this company was identified")
+
+
+async def extract_entity_from_article(
+    article_content: str,
+    article_url: str,
+    user_business: Optional[str] = None
+) -> dict:
+    """
+    Step 1 of PIVOT: Extract the REAL company from a news article.
+
+    The LLM reads the article and identifies:
+    - Who is the main company executing the project?
+    - What city are they in?
+    - What decision-maker role should we target?
+    """
+    business_context = ""
+    if user_business:
+        business_context = f"""
+The user's business is: "{user_business}"
+Identify the company that would NEED this service (the buyer), not the company providing it.
+"""
+
+    system_prompt = f"""You are a sales intelligence analyst reading a news article.
+Your task is to identify the REAL COMPANY that is the subject of the article.
+
+CRITICAL RULES:
+- IGNORE the journalist, the newspaper, the media outlet
+- IGNORE any company mentioned as "provider" or "contractor" - we want the CLIENT
+- FIND the company that is:
+  - Launching a project
+  - Expanding/renovating
+  - Hiring
+  - Making an investment
+  - Being acquired/merged
+
+{business_context}
+
+Return ONLY valid JSON, no markdown."""
+
+    user_prompt = f"""Analyze this article from {article_url}:
+
+{article_content[:8000]}
+
+Extract:
+{{
+  "company_name": "The main company executing the project (NOT the journalist/media)",
+  "company_city": "City where the company operates (or null)",
+  "project_description": "What they are doing (expansion, renovation, hiring, etc.)",
+  "target_role": "The decision-maker role to contact (DG, DAF, Directeur Technique, etc.)",
+  "confidence": "high | medium | low",
+  "reasoning": "1 sentence explaining why this is the right company to target"
+}}
+
+RULES:
+- If the article is about "Company X opens new factory in Lyon" -> company_name = "Company X"
+- If the article is about "Hotel Y undergoes renovation" -> company_name = "Hotel Y"
+- target_role should match who decides on "{user_business or 'this type of service'}"
+"""
+
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=800
+        )
+
+        content = response.choices[0].message.content.strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+        data = json.loads(content)
+
+        return {
+            "success": True,
+            "company_name": data.get("company_name"),
+            "company_city": data.get("company_city"),
+            "project_description": data.get("project_description"),
+            "target_role": data.get("target_role", "Directeur Général"),
+            "confidence": data.get("confidence", "medium"),
+            "reasoning": data.get("reasoning")
+        }
+
+    except Exception as e:
+        print(f"[PIVOT] Entity extraction error: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def find_decision_maker_on_linkedin(
+    company_name: str,
+    target_role: str,
+    city: Optional[str] = None
+) -> dict:
+    """
+    Step 2 of PIVOT: Use Exa to find the decision-maker on LinkedIn.
+
+    Searches: site:linkedin.com/in "Company Name" "Role" "City"
+    """
+    if not exa_client:
+        return {
+            "success": False,
+            "error": "Exa client not configured (missing EXA_API_KEY)"
+        }
+
+    # Build LinkedIn search query
+    query_parts = [f'site:linkedin.com/in "{company_name}"']
+
+    # Add role keywords
+    role_keywords = target_role.replace("Directeur", "Director").replace("Gérant", "Manager")
+    query_parts.append(f'"{target_role}" OR "{role_keywords}"')
+
+    if city:
+        query_parts.append(f'"{city}"')
+
+    query = " ".join(query_parts)
+    print(f"[PIVOT] LinkedIn search: {query}")
+
+    try:
+        results = exa_client.search_and_contents(
+            query,
+            num_results=3,
+            text=True
+        )
+
+        if not results.results:
+            return {
+                "success": False,
+                "error": "No LinkedIn profiles found"
+            }
+
+        # Parse the first result
+        first_result = results.results[0]
+        linkedin_url = first_result.url
+        title = first_result.title or ""
+        text = first_result.text or ""
+
+        # Extract person name from title (usually "Name - Role at Company | LinkedIn")
+        person_name = None
+        if " - " in title:
+            person_name = title.split(" - ")[0].strip()
+        elif " | " in title:
+            person_name = title.split(" | ")[0].strip()
+
+        # Try to extract email pattern from domain
+        email_pattern = None
+        if company_name:
+            # Common French patterns
+            domain_guess = company_name.lower().replace(" ", "").replace("-", "")[:20]
+            if person_name:
+                first_name = person_name.split()[0].lower() if person_name.split() else "prenom"
+                last_name = person_name.split()[-1].lower() if len(person_name.split()) > 1 else "nom"
+                email_pattern = f"{first_name}.{last_name}@{domain_guess}.fr"
+
+        return {
+            "success": True,
+            "linkedin_url": linkedin_url,
+            "person_name": person_name,
+            "person_title": title,
+            "email_pattern": email_pattern,
+            "snippet": text[:300] if text else None
+        }
+
+    except Exception as e:
+        print(f"[PIVOT] LinkedIn search error: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def pivot_enrich_from_article(
+    article_url: str,
+    article_content: str,
+    user_business: Optional[str] = None
+) -> PivotResult:
+    """
+    Main PIVOT function: Extract real company from article and find decision-maker.
+
+    This is the "Sherlock Logic":
+    1. Read the article -> Find the REAL company
+    2. Determine target role based on user's business
+    3. Search LinkedIn for that person
+    4. Return the actual prospect, not the journalist
+    """
+    print(f"[PIVOT] Starting PIVOT mode for: {article_url}")
+    print(f"[PIVOT] User business: {user_business}")
+
+    # Step 1: Extract entity from article
+    entity_result = await extract_entity_from_article(
+        article_content,
+        article_url,
+        user_business
+    )
+
+    if not entity_result.get("success"):
+        return PivotResult(
+            company_name="Unknown",
+            project_description="Could not extract company from article",
+            target_role="Directeur Général",
+            article_source=article_url,
+            pivot_reasoning=f"Extraction failed: {entity_result.get('error')}"
+        )
+
+    company_name = entity_result["company_name"]
+    company_city = entity_result.get("company_city")
+    target_role = entity_result.get("target_role", "Directeur Général")
+
+    print(f"[PIVOT] Found company: {company_name} in {company_city}")
+    print(f"[PIVOT] Target role: {target_role}")
+
+    # Step 2: Search LinkedIn for decision-maker
+    linkedin_result = await find_decision_maker_on_linkedin(
+        company_name,
+        target_role,
+        company_city
+    )
+
+    target_person = None
+    target_linkedin = None
+    email_pattern = None
+
+    if linkedin_result.get("success"):
+        target_person = linkedin_result.get("person_name")
+        target_linkedin = linkedin_result.get("linkedin_url")
+        email_pattern = linkedin_result.get("email_pattern")
+        print(f"[PIVOT] Found contact: {target_person} -> {target_linkedin}")
+    else:
+        print(f"[PIVOT] LinkedIn search failed: {linkedin_result.get('error')}")
+
+    return PivotResult(
+        company_name=company_name,
+        company_city=company_city,
+        project_description=entity_result.get("project_description", ""),
+        target_role=target_role,
+        target_person=target_person,
+        target_linkedin=target_linkedin,
+        target_email_pattern=email_pattern,
+        article_source=article_url,
+        pivot_reasoning=entity_result.get("reasoning", "Extracted from article")
+    )
 
 
 # ============================================================
@@ -570,7 +897,8 @@ async def enrich_company_data(
 ) -> EnrichmentResult:
     """
     Main entry point: Scrape URL and extract structured company data.
-    Now with multi-page crawling for better contact extraction.
+
+    v3.0: Smart routing with PIVOT mode for news articles.
 
     Args:
         url: Website URL to analyze
@@ -584,6 +912,18 @@ async def enrich_company_data(
     # Normalize URL
     if not url.startswith(('http://', 'https://')):
         url = f'https://{url}'
+
+    # ============================================================
+    # SMART ROUTING: Check if this is a news/media URL
+    # ============================================================
+    if is_news_media_url(url):
+        print(f"[EnrichmentAgent] 🔄 PIVOT MODE ACTIVATED - News/Media URL detected")
+        return await _enrich_with_pivot_mode(url, my_business)
+
+    # ============================================================
+    # STANDARD MODE: Corporate website
+    # ============================================================
+    print(f"[EnrichmentAgent] 📊 STANDARD MODE - Corporate URL")
 
     # Step A: Multi-page scrape (homepage + contact pages)
     scrape_result = await scrape_multiple_pages(url)
@@ -620,6 +960,75 @@ async def enrich_company_data(
         source_url=url,
         scraped_content_preview=markdown[:500] if markdown else None,
         pages_scraped=pages_scraped
+    )
+
+
+async def _enrich_with_pivot_mode(
+    article_url: str,
+    my_business: Optional[str] = None
+) -> EnrichmentResult:
+    """
+    PIVOT MODE: Handle news/media URLs by extracting the REAL company.
+
+    Instead of returning "La Dépêche" as the company, we:
+    1. Scrape the article
+    2. Extract the real company being discussed
+    3. Find the decision-maker on LinkedIn
+    4. Return the ACTUAL prospect data
+    """
+    print(f"[PIVOT] Scraping article: {article_url}")
+
+    # Step 1: Scrape the article
+    scrape_result = await scrape_website(article_url)
+
+    if not scrape_result["success"]:
+        return EnrichmentResult(
+            success=False,
+            error=f"Could not scrape article: {scrape_result['error']}",
+            source_url=article_url,
+            pages_scraped=[]
+        )
+
+    article_content = scrape_result["markdown"]
+
+    # Step 2: Run PIVOT analysis
+    pivot_result = await pivot_enrich_from_article(
+        article_url,
+        article_content,
+        my_business
+    )
+
+    # Step 3: Convert PivotResult to CompanyData format
+    suggested_contact = None
+    if pivot_result.target_person or pivot_result.target_linkedin:
+        suggested_contact = SuggestedContact(
+            name=pivot_result.target_person,
+            role=pivot_result.target_role,
+            email_pattern=pivot_result.target_email_pattern,
+            linkedin_url=pivot_result.target_linkedin
+        )
+
+    company_data = CompanyData(
+        company_name=pivot_result.company_name,
+        short_description=pivot_result.project_description,
+        headquarters=pivot_result.company_city,
+        suggested_contact=suggested_contact,
+        linkedin_url=pivot_result.target_linkedin,
+        relationship_type="prospect",
+        relationship_reasoning=pivot_result.pivot_reasoning,
+        ai_score=75,  # News mentions = active company = good score
+        ai_summary=f"🔄 PIVOT: Extrait de l'article {article_url}. {pivot_result.project_description}",
+        ai_next_action=f"Contacter {pivot_result.target_person or pivot_result.target_role} chez {pivot_result.company_name}",
+        buying_signals=[pivot_result.project_description] if pivot_result.project_description else None
+    )
+
+    return EnrichmentResult(
+        success=True,
+        company_data=company_data,
+        error=None,
+        source_url=article_url,
+        scraped_content_preview=f"[PIVOT MODE] Article source: {article_url}\nReal company: {pivot_result.company_name}",
+        pages_scraped=[article_url]
     )
 
 

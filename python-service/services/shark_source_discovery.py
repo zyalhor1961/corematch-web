@@ -780,23 +780,46 @@ async def discover_urls_for_tenant_zone(
 async def discover_daily_urls_for_tenant(
     tenant_id: UUID,
     limit: Optional[int] = None,
+    lookback_days: int = 3,
 ) -> List[ArticleSource]:
     """
     Discover URLs for a tenant's daily ingestion run.
 
-    Wrapper around discover_urls_for_tenant_zone with daily_url_limit from config.
+    Reuses discover_urls_for_tenant_zone with Exa API discovery.
+    Default parameters optimized for daily runs:
+    - lookback_days: 3 (catches weekend articles)
+    - limit: from tenant config (daily_url_limit, default 10)
+
+    Args:
+        tenant_id: UUID of the tenant
+        limit: Override URL limit (default: from tenant config)
+        lookback_days: Days to look back (default: 3)
+
+    Returns:
+        List of ArticleSource for ingestion
     """
     zone_config = await get_tenant_zone_config(tenant_id)
 
+    # Use tenant's daily_url_limit or default to 10
     if limit is None:
         limit = zone_config.daily_url_limit if zone_config else 10
 
-    # For daily runs, use shorter lookback (1 day)
-    return await discover_urls_for_tenant_zone(
+    # Cap limit to reasonable range (5-15)
+    limit = max(5, min(limit, 15))
+
+    logger.info(
+        f"[DailyDiscovery] tenant={tenant_id}, limit={limit}, lookback={lookback_days}d"
+    )
+
+    # Reuse zone-based Exa discovery
+    sources = await discover_urls_for_tenant_zone(
         tenant_id=tenant_id,
         limit=limit,
-        lookback_days=1,
+        lookback_days=lookback_days,
     )
+
+    logger.info(f"[DailyDiscovery] Found {len(sources)} sources for tenant {tenant_id}")
+    return sources
 
 
 # ============================================================

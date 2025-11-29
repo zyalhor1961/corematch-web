@@ -17,6 +17,7 @@ import base64
 import json
 from agent_graph import app_graph
 from privacy_guard import airlock
+from api.shark_api import router as shark_router
 from datetime import datetime, timedelta
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
@@ -41,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Shark Hunter API router
+app.include_router(shark_router)
 
 # Supabase client
 url: str = os.environ.get("SUPABASE_URL")
@@ -1426,6 +1430,363 @@ async def shark_status():
             "available": False,
             "message": f"Import error: {str(e)}"
         }
+
+
+# ============================================================
+# SHARK GRAPH API - Data Access Endpoints (Phase 1)
+# ============================================================
+
+class SharkProjectFilters(BaseModel):
+    """Filters for project listing."""
+    phase: Optional[str] = None
+    type: Optional[str] = None
+    location_city: Optional[str] = None
+    location_region: Optional[str] = None
+    estimated_scale: Optional[str] = None
+    shark_priority: Optional[str] = None
+    min_shark_score: Optional[int] = None
+    search: Optional[str] = None
+    order_by: str = "created_at"
+    order_desc: bool = True
+    page: int = 1
+    page_size: int = 20
+
+
+class SharkOrganizationFilters(BaseModel):
+    """Filters for organization listing."""
+    org_type: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    size_bucket: Optional[str] = None
+    search: Optional[str] = None
+    order_by: str = "name"
+    order_desc: bool = False
+    page: int = 1
+    page_size: int = 20
+
+
+@app.get("/shark/projects/{tenant_id}")
+async def list_shark_projects(
+    tenant_id: str,
+    phase: Optional[str] = None,
+    type: Optional[str] = None,
+    location_city: Optional[str] = None,
+    estimated_scale: Optional[str] = None,
+    shark_priority: Optional[str] = None,
+    min_shark_score: Optional[int] = None,
+    search: Optional[str] = None,
+    order_by: str = "created_at",
+    order_desc: bool = True,
+    page: int = 1,
+    page_size: int = 20
+):
+    """
+    List Shark projects for a tenant with optional filters.
+
+    Returns paginated list from shark_project_full view.
+    """
+    try:
+        from services.shark_graph_service import SharkGraphService, ProjectFilters
+
+        service = SharkGraphService()
+        filters = ProjectFilters(
+            phase=phase,
+            type=type,
+            location_city=location_city,
+            estimated_scale=estimated_scale,
+            shark_priority=shark_priority,
+            min_shark_score=min_shark_score,
+            search=search,
+            order_by=order_by,
+            order_desc=order_desc,
+            page=page,
+            page_size=page_size
+        )
+
+        result = await service.list_projects(tenant_id, filters)
+
+        return {
+            "items": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "type": p.type,
+                    "phase": p.phase,
+                    "location_city": p.location_city,
+                    "location_region": p.location_region,
+                    "budget_amount": p.budget_amount,
+                    "shark_score": p.shark_score,
+                    "shark_priority": p.shark_priority,
+                    "estimated_scale": p.estimated_scale,
+                    "created_at": p.created_at,
+                    "org_count": p.org_count,
+                    "news_count": p.news_count
+                }
+                for p in result.items
+            ],
+            "total_count": result.total_count,
+            "page": result.page,
+            "page_size": result.page_size,
+            "has_more": result.has_more
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/projects/{tenant_id}/{project_id}")
+async def get_shark_project(tenant_id: str, project_id: str):
+    """
+    Get a full Shark project with organizations and news.
+
+    Uses shark_project_full view for optimal performance.
+    """
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        project = await service.get_project_full(tenant_id, project_id)
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        return {
+            "id": project.id,
+            "tenant_id": project.tenant_id,
+            "name": project.name,
+            "type": project.type,
+            "description_short": project.description_short,
+            "location_city": project.location_city,
+            "location_region": project.location_region,
+            "country": project.country,
+            "budget_amount": project.budget_amount,
+            "budget_currency": project.budget_currency,
+            "start_date_est": project.start_date_est,
+            "end_date_est": project.end_date_est,
+            "phase": project.phase,
+            "sector_tags": project.sector_tags,
+            "shark_score": project.shark_score,
+            "shark_priority": project.shark_priority,
+            "estimated_scale": project.estimated_scale,
+            "ai_confidence": project.ai_confidence,
+            "ai_extracted_at": project.ai_extracted_at,
+            "created_at": project.created_at,
+            "updated_at": project.updated_at,
+            "organizations": project.organizations,
+            "news_items": project.news_items,
+            "org_count": project.org_count,
+            "news_count": project.news_count
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/projects/{tenant_id}/{project_id}/organizations")
+async def get_shark_project_organizations(tenant_id: str, project_id: str):
+    """Get organizations linked to a Shark project."""
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        organizations = await service.get_project_organizations(tenant_id, project_id)
+
+        return {"organizations": organizations}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/projects/{tenant_id}/{project_id}/news")
+async def get_shark_project_news(tenant_id: str, project_id: str):
+    """Get news items linked to a Shark project."""
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        news_items = await service.get_project_news(tenant_id, project_id)
+
+        return {"news_items": news_items}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/organizations/{tenant_id}")
+async def list_shark_organizations(
+    tenant_id: str,
+    org_type: Optional[str] = None,
+    city: Optional[str] = None,
+    region: Optional[str] = None,
+    size_bucket: Optional[str] = None,
+    search: Optional[str] = None,
+    order_by: str = "name",
+    order_desc: bool = False,
+    page: int = 1,
+    page_size: int = 20
+):
+    """List Shark organizations for a tenant with optional filters."""
+    try:
+        from services.shark_graph_service import SharkGraphService, OrganizationFilters
+
+        service = SharkGraphService()
+        filters = OrganizationFilters(
+            org_type=org_type,
+            city=city,
+            region=region,
+            size_bucket=size_bucket,
+            search=search,
+            order_by=order_by,
+            order_desc=order_desc,
+            page=page,
+            page_size=page_size
+        )
+
+        result = await service.list_organizations(tenant_id, filters)
+
+        return {
+            "items": [
+                {
+                    "id": o.id,
+                    "name": o.name,
+                    "org_type": o.org_type,
+                    "city": o.city,
+                    "region": o.region,
+                    "size_bucket": o.size_bucket,
+                    "project_count": o.project_count,
+                    "people_count": o.people_count
+                }
+                for o in result.items
+            ],
+            "total_count": result.total_count,
+            "page": result.page,
+            "page_size": result.page_size,
+            "has_more": result.has_more
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/organizations/{tenant_id}/{organization_id}")
+async def get_shark_organization(tenant_id: str, organization_id: str):
+    """Get a full Shark organization with projects and people."""
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        org = await service.get_organization_full(tenant_id, organization_id)
+
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        return org
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/organizations/{tenant_id}/{organization_id}/people")
+async def get_shark_organization_people(tenant_id: str, organization_id: str):
+    """Get people linked to a Shark organization."""
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        people = await service.get_organization_people(tenant_id, organization_id)
+
+        return {"people": people}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/stats/{tenant_id}")
+async def get_shark_tenant_stats(tenant_id: str):
+    """
+    Get aggregate statistics for a tenant's Shark data.
+
+    Useful for dashboards and overview pages.
+    """
+    try:
+        from services.shark_graph_service import SharkGraphService
+
+        service = SharkGraphService()
+        stats = await service.get_tenant_stats(tenant_id)
+
+        return stats
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# ADMIN - Manual Daily Ingestion Trigger
+# ============================================================
+
+@app.get("/admin/run-daily-ingestion")
+async def run_daily_ingestion():
+    """
+    Manually trigger the daily Shark Hunter ingestion job.
+
+    This endpoint:
+    1. Discovers recent BTP articles (via Exa/RSS/static sources)
+    2. Scrapes content with Firecrawl
+    3. Ingests articles as projects
+    4. Returns statistics
+
+    Environment Variables Required:
+    - SHARK_DAILY_TENANT_ID: UUID of the target tenant
+    - FIRECRAWL_API_KEY: Firecrawl API key
+    - EXA_API_KEY: (optional) Exa API key for discovery
+
+    Railway Cron Command:
+        python -m scripts.daily_shark_ingestion
+
+    Returns:
+        Statistics about the ingestion run (sources, scraped, ingested, etc.)
+    """
+    try:
+        from scripts.daily_shark_ingestion import run_daily_ingestion as execute_daily_job
+
+        print("[Admin] Starting manual daily ingestion...")
+        stats = await execute_daily_job()
+
+        return {
+            "status": "ok",
+            "stats": stats.to_dict()
+        }
+
+    except ValueError as e:
+        # Missing environment variables
+        raise HTTPException(
+            status_code=400,
+            detail=f"Configuration error: {str(e)}"
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

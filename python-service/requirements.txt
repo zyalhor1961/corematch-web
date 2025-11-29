@@ -24,3 +24,5 @@ presidio-anonymizer
 spacy>=3.0.0
 # CRM Enrichment Agent - Web Scraping
 firecrawl-py
+# Shark Hunter - Logging & Daily Ingestion
+loguru

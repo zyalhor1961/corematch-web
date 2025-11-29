@@ -738,19 +738,31 @@ async def get_sourced_leads(org_id: str, search_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class EnrichConvertRequest(BaseModel):
+    offer_type: str = "renovation"  # User's business type for Sherlock
+
+
 @app.post("/crm/sourced-leads/{lead_id}/enrich-and-convert")
-async def enrich_and_convert_sourced_lead(lead_id: str):
+async def enrich_and_convert_sourced_lead(lead_id: str, request: EnrichConvertRequest = None):
     """
-    Enrich a sourced lead with Firecrawl and convert it to a CRM lead.
+    Enrich a sourced lead and convert it to a CRM lead.
+
+    Now with SMART ROUTING:
+    - News/Media URL → Sherlock Agent (extracts real company + decision-makers)
+    - Corporate URL → Standard Enrichment Agent
 
     Steps:
     1. Fetch the sourced_lead
-    2. Call enrichment agent (Firecrawl + OpenAI)
-    3. Create a new lead in the CRM
-    4. Update sourced_lead with is_enriched=true, is_converted_to_lead=true, lead_id
+    2. Detect URL type (news vs corporate)
+    3. Call appropriate agent (Sherlock or Enrichment)
+    4. Create a new lead in the CRM with contacts
+    5. Update sourced_lead with enrichment data
     """
     try:
-        from agents.enrichment_agent import enrich_company_data
+        from agents.enrichment_agent import enrich_company_data, is_news_media_url, scrape_website
+        from agents.sherlock_agent import sherlock_enrich
+
+        offer_type = request.offer_type if request else "renovation"
 
         # 1. Fetch the sourced lead
         sourced_result = supabase.table("sourced_leads") \
@@ -779,14 +791,61 @@ async def enrich_and_convert_sourced_lead(lead_id: str):
 
         print(f"[Enrich&Convert] Enriching: {url}")
 
-        # 2. Call enrichment agent
-        enrichment_result = await enrich_company_data(url=url)
-
         enrichment_data = None
-        if enrichment_result.success and enrichment_result.company_data:
-            enrichment_data = enrichment_result.company_data.model_dump()
+        sherlock_contacts = []
+        enrichment_mode = "standard"
 
-        # 3. Create CRM lead
+        # 2. SMART ROUTING: Detect if this is a news article
+        if is_news_media_url(url):
+            print(f"[Enrich&Convert] 🕵️ SHERLOCK MODE - News/Media URL detected")
+            enrichment_mode = "sherlock"
+
+            # Scrape the article first
+            scrape_result = await scrape_website(url)
+            if scrape_result.get("success") and scrape_result.get("markdown"):
+                article_text = scrape_result["markdown"]
+
+                # Run Sherlock
+                sherlock_result = await sherlock_enrich(
+                    article_text=article_text,
+                    offer_type=offer_type,
+                    article_url=url
+                )
+
+                if sherlock_result.get("success"):
+                    # Build enrichment_data from Sherlock result
+                    company_info = sherlock_result.get("company", {})
+                    sherlock_contacts = sherlock_result.get("contacts", [])
+
+                    enrichment_data = {
+                        "company_name": company_info.get("name"),
+                        "short_description": company_info.get("project_type"),
+                        "headquarters": company_info.get("location"),
+                        "ai_score": 75,  # News = active company
+                        "ai_summary": f"🕵️ Sherlock: {company_info.get('project_type', 'Projet identifié')}",
+                        "ai_next_action": f"Contacter les {len(sherlock_contacts)} décideurs identifiés",
+                        "sherlock_contacts": sherlock_contacts,
+                        "target_roles": sherlock_result.get("target_roles", []),
+                    }
+
+                    # Add best contact if available
+                    if sherlock_contacts:
+                        best_contact = sherlock_contacts[0]
+                        enrichment_data["suggested_contact"] = {
+                            "name": best_contact.get("name"),
+                            "role": best_contact.get("role"),
+                            "linkedin_url": best_contact.get("linkedin_url"),
+                        }
+
+        # 3. Standard enrichment for corporate sites
+        if enrichment_mode == "standard" or not enrichment_data:
+            print(f"[Enrich&Convert] 📊 STANDARD MODE - Corporate URL")
+            enrichment_result = await enrich_company_data(url=url)
+
+            if enrichment_result.success and enrichment_result.company_data:
+                enrichment_data = enrichment_result.company_data.model_dump()
+
+        # 4. Create CRM lead
         lead_data = {
             "org_id": sourced_lead["org_id"],
             "company_name": enrichment_data.get("company_name") if enrichment_data else sourced_lead["company_name"],
@@ -809,16 +868,21 @@ async def enrich_and_convert_sourced_lead(lead_id: str):
             if enrichment_data.get("contact_email"):
                 lead_data["contact_email"] = enrichment_data.get("contact_email")
 
-        # Extract domain for logo
-        domain = url.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
-        lead_data["logo_url"] = f"https://logo.clearbit.com/{domain}"
+        # Extract domain for logo (use company name for news articles)
+        if enrichment_mode == "sherlock" and enrichment_data:
+            company_name = enrichment_data.get("company_name", "")
+            domain_guess = company_name.lower().replace(" ", "").replace("-", "")[:20] + ".fr"
+            lead_data["logo_url"] = f"https://logo.clearbit.com/{domain_guess}"
+        else:
+            domain = url.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
+            lead_data["logo_url"] = f"https://logo.clearbit.com/{domain}"
 
         lead_result = supabase.table("leads").insert(lead_data).execute()
         new_lead_id = lead_result.data[0]["id"] if lead_result.data else None
 
         print(f"[Enrich&Convert] Created lead: {new_lead_id}")
 
-        # 4. Update sourced_lead
+        # 5. Update sourced_lead
         update_data = {
             "is_enriched": True,
             "is_converted_to_lead": True,
@@ -838,8 +902,10 @@ async def enrich_and_convert_sourced_lead(lead_id: str):
         return {
             "success": True,
             "lead_id": new_lead_id,
+            "enrichment_mode": enrichment_mode,
             "enrichment_data": enrichment_data,
-            "message": "Lead enriched and added to CRM"
+            "sherlock_contacts": sherlock_contacts if enrichment_mode == "sherlock" else [],
+            "message": f"Lead enriched via {enrichment_mode.upper()} and added to CRM"
         }
 
     except HTTPException:

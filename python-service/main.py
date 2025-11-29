@@ -6,6 +6,7 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
+from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -1244,15 +1245,198 @@ async def sherlock_status():
         }
 
 
+# ============================================================
+# SHARK HUNTER - Project Extraction & Ingestion
+# ============================================================
+
+class SharkIngestArticleRequest(BaseModel):
+    """Request to ingest an article and extract project data."""
+    tenant_id: str
+    article_text: str
+    source_url: str
+    source_name: Optional[str] = None
+    region_hint: Optional[str] = None
+    published_at: Optional[str] = None
+    article_title: Optional[str] = None
+
+
+class SharkBatchIngestRequest(BaseModel):
+    """Request to batch ingest multiple articles."""
+    tenant_id: str
+    articles: list  # List of article dicts
+
+
+@app.post("/shark/ingest")
+async def shark_ingest_article(request: SharkIngestArticleRequest):
+    """
+    Ingest a single article: extract BTP project data and store in shark_* tables.
+
+    This endpoint:
+    1. Uses LLM to extract project/organization/news data from the article
+    2. Upserts into shark_news_items, shark_projects, shark_organizations
+    3. Creates relationships in shark_project_organizations, shark_project_news
+
+    Returns:
+        - project_id: UUID of the created/updated project (null if no project found)
+        - news_id: UUID of the news item
+        - organization_ids: List of organization UUIDs
+        - extraction: The raw extraction result
+    """
+    try:
+        from services.shark_ingestion import ingest_article_as_project
+
+        print(f"[Shark] Ingesting article: {request.source_url}")
+
+        result = await ingest_article_as_project(
+            tenant_id=request.tenant_id,
+            article_text=request.article_text,
+            source_url=request.source_url,
+            source_name=request.source_name,
+            region_hint=request.region_hint,
+            published_at=request.published_at,
+            article_title=request.article_title
+        )
+
+        return {
+            "success": result.success,
+            "project_id": result.project_id,
+            "news_id": result.news_id,
+            "organization_ids": result.organization_ids,
+            "error_message": result.error_message,
+            "extraction": {
+                "project": result.extraction_result.project.model_dump() if result.extraction_result and result.extraction_result.project else None,
+                "organizations": [org.model_dump() for org in result.extraction_result.organizations] if result.extraction_result else [],
+                "news": result.extraction_result.news.model_dump() if result.extraction_result and result.extraction_result.news else None
+            } if result.extraction_result else None
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/shark/ingest/batch")
+async def shark_batch_ingest(request: SharkBatchIngestRequest):
+    """
+    Batch ingest multiple articles.
+
+    Each article in the list should have:
+    - article_text: str
+    - source_url: str
+    - source_name: Optional[str]
+    - region_hint: Optional[str]
+    - published_at: Optional[str]
+    - article_title: Optional[str]
+
+    Returns summary statistics and individual results.
+    """
+    try:
+        from services.shark_ingestion import batch_ingest_articles
+
+        print(f"[Shark] Batch ingesting {len(request.articles)} articles")
+
+        results = await batch_ingest_articles(
+            tenant_id=request.tenant_id,
+            articles=request.articles
+        )
+
+        # Build summary
+        success_count = sum(1 for r in results if r.success and r.project_id)
+        no_project_count = sum(1 for r in results if r.success and not r.project_id)
+        error_count = sum(1 for r in results if not r.success)
+
+        return {
+            "summary": {
+                "total": len(results),
+                "projects_created": success_count,
+                "no_project_found": no_project_count,
+                "errors": error_count
+            },
+            "results": [
+                {
+                    "source_url": request.articles[i].get("source_url", ""),
+                    "success": r.success,
+                    "project_id": r.project_id,
+                    "error_message": r.error_message
+                }
+                for i, r in enumerate(results)
+            ]
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/shark/extract")
+async def shark_extract_only(request: SharkIngestArticleRequest):
+    """
+    Extract project data from an article WITHOUT storing it.
+
+    Useful for previewing what would be extracted before committing to the database.
+    """
+    try:
+        from agents.project_extractor import extract_project_from_article
+
+        print(f"[Shark] Extracting (preview) from: {request.source_url}")
+
+        result = await extract_project_from_article(
+            article_text=request.article_text,
+            source_url=request.source_url,
+            source_name=request.source_name,
+            region_hint=request.region_hint,
+            published_at=request.published_at
+        )
+
+        return {
+            "success": result.extraction_success,
+            "error_message": result.error_message,
+            "project": result.project.model_dump() if result.project else None,
+            "organizations": [org.model_dump() for org in result.organizations],
+            "news": result.news.model_dump() if result.news else None
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/shark/status")
+async def shark_status():
+    """Check if Shark Hunter ingestion is available."""
+    try:
+        from agents.project_extractor import ProjectExtractor
+        from services.shark_ingestion import SharkIngestionService
+
+        openai_key = os.getenv("OPENAI_API_KEY")
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+        return {
+            "available": bool(openai_key and supabase_url and supabase_key),
+            "openai_configured": bool(openai_key),
+            "supabase_configured": bool(supabase_url and supabase_key),
+            "message": "Shark Hunter ready" if (openai_key and supabase_url and supabase_key) else "Missing configuration"
+        }
+    except ImportError as e:
+        return {
+            "available": False,
+            "message": f"Import error: {str(e)}"
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     import os
-    
+
     # 1. Get the PORT from Railway (default to 8000 if running locally)
     port = int(os.getenv("PORT", 8000))
-    
+
     # 2. Print it so we can see it in the logs
     print(f"🚀 Starting Brain on 0.0.0.0:{port}")
-    
+
     # 3. Run the server
     uvicorn.run(app, host="0.0.0.0", port=port)

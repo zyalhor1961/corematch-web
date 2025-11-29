@@ -1160,3 +1160,242 @@ async def get_ingestion_stats(
     except Exception as e:
         logger.error(f"Failed to get ingestion stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+
+
+# ============================================================
+# PHASE 6: WELCOME SCAN
+# ============================================================
+
+class WelcomeScanRequest(BaseModel):
+    """Request body for Welcome Scan."""
+    tenant_id: UUID
+
+
+class WelcomeScanResponse(BaseModel):
+    """Response from Welcome Scan."""
+    tenant_id: str
+    discovered_urls_count: int
+    ingested_articles_count: int
+    created_projects_count: int
+    reused_projects_count: int
+    no_btp_count: int
+    failed_count: int
+    message: str
+
+
+@router.post("/admin/welcome-scan", response_model=WelcomeScanResponse)
+async def run_welcome_scan(request: WelcomeScanRequest):
+    """
+    Trigger a Welcome Scan for a new tenant.
+
+    This endpoint:
+    1. Retrieves the tenant's zone configuration (city/region)
+    2. Discovers BTP articles for that zone
+    3. Scrapes and ingests articles
+    4. Updates welcome_scan_done_at in shark_tenant_settings
+
+    The Welcome Scan is designed to quickly populate a new tenant's
+    Shark Radar with local projects, without waiting for the daily run.
+
+    Request body:
+    - tenant_id: UUID of the tenant to scan
+
+    Returns:
+    - Statistics about the scan (discovered URLs, created projects, etc.)
+
+    Notes:
+    - Call this endpoint after creating a new organization with zone settings
+    - The scan is limited to 20 URLs max
+    - Requires FIRECRAWL_API_KEY environment variable
+
+    Usage from Next.js signup flow:
+    ```javascript
+    // After creating org and setting zone
+    const res = await fetch('/api/shark/admin/welcome-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: newOrgId })
+    });
+    ```
+    """
+    try:
+        from services.shark_welcome_service import run_welcome_scan_for_tenant
+
+        logger.info(f"[API] Starting Welcome Scan for tenant {request.tenant_id}")
+
+        result = await run_welcome_scan_for_tenant(request.tenant_id)
+
+        return WelcomeScanResponse(
+            tenant_id=str(result.tenant_id),
+            discovered_urls_count=result.discovered_urls_count,
+            ingested_articles_count=result.ingested_articles_count,
+            created_projects_count=result.created_projects_count,
+            reused_projects_count=result.reused_projects_count,
+            no_btp_count=result.no_btp_count,
+            failed_count=result.failed_count,
+            message=result.message or "welcome_scan_completed"
+        )
+
+    except Exception as e:
+        logger.error(f"[API] Welcome Scan failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Welcome Scan failed: {str(e)}"
+        )
+
+
+class TenantZoneSettingsRequest(BaseModel):
+    """Request body for creating/updating tenant zone settings."""
+    city: Optional[str] = None
+    region: Optional[str] = None
+    country: str = "FR"
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    search_radius_km: int = 50
+    shark_enabled: bool = True
+    daily_url_limit: int = 10
+
+
+class TenantZoneSettingsResponse(BaseModel):
+    """Response for tenant zone settings."""
+    tenant_id: str
+    city: Optional[str] = None
+    region: Optional[str] = None
+    country: str = "FR"
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    search_radius_km: int = 50
+    shark_enabled: bool = True
+    daily_url_limit: int = 10
+    welcome_scan_done_at: Optional[str] = None
+    welcome_scan_projects_count: int = 0
+
+
+@router.put("/admin/tenant-settings", response_model=TenantZoneSettingsResponse)
+async def upsert_tenant_settings(
+    request: TenantZoneSettingsRequest,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """
+    Create or update tenant zone settings for Shark Hunter.
+
+    This endpoint configures the geographic zone for a tenant,
+    which is used by Welcome Scan and Daily Ingestion.
+
+    Body params:
+    - city: Target city for discovery
+    - region: Target region
+    - country: Country code (default: FR)
+    - lat/lon: Coordinates for geo search
+    - search_radius_km: Search radius (default: 50)
+    - shark_enabled: Enable/disable Shark for this tenant
+    - daily_url_limit: Max URLs per daily run
+    """
+    try:
+        from supabase import create_client
+
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+        if not supabase_url or not supabase_key:
+            raise HTTPException(status_code=500, detail="Supabase not configured")
+
+        supabase = create_client(supabase_url, supabase_key)
+
+        # Upsert settings
+        data = {
+            "tenant_id": str(tenant_id),
+            "city": request.city,
+            "region": request.region,
+            "country": request.country,
+            "lat": request.lat,
+            "lon": request.lon,
+            "search_radius_km": request.search_radius_km,
+            "shark_enabled": request.shark_enabled,
+            "daily_url_limit": request.daily_url_limit,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        result = supabase.table("shark_tenant_settings") \
+            .upsert(data, on_conflict="tenant_id") \
+            .execute()
+
+        if result.data and len(result.data) > 0:
+            row = result.data[0]
+            return TenantZoneSettingsResponse(
+                tenant_id=str(tenant_id),
+                city=row.get("city"),
+                region=row.get("region"),
+                country=row.get("country", "FR"),
+                lat=float(row["lat"]) if row.get("lat") else None,
+                lon=float(row["lon"]) if row.get("lon") else None,
+                search_radius_km=row.get("search_radius_km", 50),
+                shark_enabled=row.get("shark_enabled", True),
+                daily_url_limit=row.get("daily_url_limit", 10),
+                welcome_scan_done_at=row.get("welcome_scan_done_at"),
+                welcome_scan_projects_count=row.get("welcome_scan_projects_count", 0),
+            )
+
+        raise HTTPException(status_code=500, detail="Failed to save settings")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Failed to upsert tenant settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/tenant-settings", response_model=TenantZoneSettingsResponse)
+async def get_tenant_settings(
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """
+    Get tenant zone settings for Shark Hunter.
+    """
+    try:
+        from supabase import create_client
+
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+        if not supabase_url or not supabase_key:
+            raise HTTPException(status_code=500, detail="Supabase not configured")
+
+        supabase = create_client(supabase_url, supabase_key)
+
+        result = supabase.table("shark_tenant_settings") \
+            .select("*") \
+            .eq("tenant_id", str(tenant_id)) \
+            .execute()
+
+        if result.data and len(result.data) > 0:
+            row = result.data[0]
+            return TenantZoneSettingsResponse(
+                tenant_id=str(tenant_id),
+                city=row.get("city"),
+                region=row.get("region"),
+                country=row.get("country", "FR"),
+                lat=float(row["lat"]) if row.get("lat") else None,
+                lon=float(row["lon"]) if row.get("lon") else None,
+                search_radius_km=row.get("search_radius_km", 50),
+                shark_enabled=row.get("shark_enabled", True),
+                daily_url_limit=row.get("daily_url_limit", 10),
+                welcome_scan_done_at=row.get("welcome_scan_done_at"),
+                welcome_scan_projects_count=row.get("welcome_scan_projects_count", 0),
+            )
+
+        # No settings found - return defaults
+        return TenantZoneSettingsResponse(
+            tenant_id=str(tenant_id),
+            country="FR",
+            search_radius_km=50,
+            shark_enabled=True,
+            daily_url_limit=10,
+            welcome_scan_projects_count=0,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Failed to get tenant settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

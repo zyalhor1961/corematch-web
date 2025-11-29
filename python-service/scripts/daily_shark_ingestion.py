@@ -1,10 +1,14 @@
 """
-Daily Shark Ingestion - Script de job quotidien pour Shark Hunter.
+Daily Shark Ingestion - Script de job quotidien multi-tenant pour Shark Hunter.
 
 Ce script est concu pour etre execute quotidiennement via:
 - Railway Cron Job
 - Crontab externe
 - Appel HTTP depuis l'API
+
+Modes:
+- Multi-tenant: Lit tous les tenants depuis shark_tenant_settings (shark_enabled=true)
+- Single-tenant: Si SHARK_DAILY_TENANT_ID est defini (legacy mode)
 
 Usage:
     python -m scripts.daily_shark_ingestion
@@ -14,8 +18,8 @@ Railway Cron:
     Schedule: 0 5 * * *  (tous les jours a 5h UTC)
 
 Environment Variables:
-    SHARK_DAILY_TENANT_ID: UUID du tenant cible
-    SHARK_DAILY_MAX_URLS: Nombre max d'URLs a traiter (default: 30)
+    SHARK_DAILY_TENANT_ID: (Optional) UUID du tenant unique (legacy mode)
+    SHARK_DAILY_MAX_URLS: Nombre max d'URLs par tenant (default: 10)
     SHARK_DAILY_LOOKBACK_DAYS: Jours a remonter (default: 1)
     FIRECRAWL_ENDPOINT: URL de l'API Firecrawl
     FIRECRAWL_API_KEY: Cle API Firecrawl
@@ -40,8 +44,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.shark_source_discovery import (
     discover_recent_articles,
+    discover_daily_urls_for_tenant,
+    get_all_enabled_tenants,
+    get_tenant_zone_config,
     ArticleSource,
     DiscoveryConfig,
+    TenantZoneConfig,
 )
 from services.shark_ingestion_service import (
     ingest_article_as_project,
@@ -57,8 +65,9 @@ from services.shark_ingestion_service import (
 
 class DailyConfig(BaseModel):
     """Configuration pour le job quotidien."""
-    tenant_id: UUID
-    max_urls: int = 30
+    multi_tenant: bool = True
+    single_tenant_id: Optional[UUID] = None
+    default_max_urls: int = 10
     lookback_days: int = 1
     firecrawl_endpoint: str = "https://api.firecrawl.dev/v1"
     firecrawl_api_key: str
@@ -68,17 +77,18 @@ class DailyConfig(BaseModel):
 
 def load_config() -> DailyConfig:
     """Charge la configuration depuis les variables d'environnement."""
-    tenant_id_str = os.getenv("SHARK_DAILY_TENANT_ID")
-    if not tenant_id_str:
-        raise ValueError("SHARK_DAILY_TENANT_ID is required")
-
     firecrawl_key = os.getenv("FIRECRAWL_API_KEY")
     if not firecrawl_key:
         raise ValueError("FIRECRAWL_API_KEY is required")
 
+    # Check for single-tenant mode (legacy)
+    single_tenant_id_str = os.getenv("SHARK_DAILY_TENANT_ID")
+    single_tenant_id = UUID(single_tenant_id_str) if single_tenant_id_str else None
+
     return DailyConfig(
-        tenant_id=UUID(tenant_id_str),
-        max_urls=int(os.getenv("SHARK_DAILY_MAX_URLS", "30")),
+        multi_tenant=single_tenant_id is None,  # Multi-tenant if no specific tenant
+        single_tenant_id=single_tenant_id,
+        default_max_urls=int(os.getenv("SHARK_DAILY_MAX_URLS", "10")),
         lookback_days=int(os.getenv("SHARK_DAILY_LOOKBACK_DAYS", "1")),
         firecrawl_endpoint=os.getenv("FIRECRAWL_ENDPOINT", "https://api.firecrawl.dev/v1"),
         firecrawl_api_key=firecrawl_key,
@@ -88,7 +98,7 @@ def load_config() -> DailyConfig:
 
 
 # ============================================================
-# FIRECRAWL CLIENT (SAME AS BOOTSTRAP)
+# FIRECRAWL CLIENT
 # ============================================================
 
 class FirecrawlClient:
@@ -150,15 +160,14 @@ class FirecrawlClient:
 
 
 # ============================================================
-# INGESTION STATS
+# STATISTICS
 # ============================================================
 
-class DailyStats:
-    """Statistiques du job quotidien."""
+class TenantStats:
+    """Statistics for a single tenant."""
 
-    def __init__(self):
-        self.start_time = datetime.utcnow()
-        self.end_time: Optional[datetime] = None
+    def __init__(self, tenant_id: UUID):
+        self.tenant_id = tenant_id
         self.sources_discovered = 0
         self.scraped_success = 0
         self.scraped_failed = 0
@@ -169,25 +178,61 @@ class DailyStats:
         self.no_btp_project = 0
         self.errors: List[Dict[str, str]] = []
 
+
+class DailyStats:
+    """Statistiques globales du job quotidien."""
+
+    def __init__(self):
+        self.start_time = datetime.utcnow()
+        self.end_time: Optional[datetime] = None
+        self.tenants_processed = 0
+        self.tenants_skipped = 0
+        self.total_sources_discovered = 0
+        self.total_scraped_success = 0
+        self.total_scraped_failed = 0
+        self.total_ingested_success = 0
+        self.total_ingested_failed = 0
+        self.total_projects_created = 0
+        self.total_projects_reused = 0
+        self.total_no_btp_project = 0
+        self.tenant_stats: Dict[str, TenantStats] = {}
+        self.errors: List[Dict[str, str]] = []
+
     @property
     def duration_seconds(self) -> float:
         if self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return 0
 
+    def add_tenant_stats(self, ts: TenantStats):
+        """Add a tenant's stats to the global stats."""
+        self.tenant_stats[str(ts.tenant_id)] = ts
+        self.tenants_processed += 1
+        self.total_sources_discovered += ts.sources_discovered
+        self.total_scraped_success += ts.scraped_success
+        self.total_scraped_failed += ts.scraped_failed
+        self.total_ingested_success += ts.ingested_success
+        self.total_ingested_failed += ts.ingested_failed
+        self.total_projects_created += ts.projects_created
+        self.total_projects_reused += ts.projects_reused
+        self.total_no_btp_project += ts.no_btp_project
+        self.errors.extend(ts.errors)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "duration_seconds": self.duration_seconds,
-            "sources_discovered": self.sources_discovered,
-            "scraped_success": self.scraped_success,
-            "scraped_failed": self.scraped_failed,
-            "ingested_success": self.ingested_success,
-            "ingested_failed": self.ingested_failed,
-            "projects_created": self.projects_created,
-            "projects_reused": self.projects_reused,
-            "no_btp_project": self.no_btp_project,
+            "tenants_processed": self.tenants_processed,
+            "tenants_skipped": self.tenants_skipped,
+            "total_sources_discovered": self.total_sources_discovered,
+            "total_scraped_success": self.total_scraped_success,
+            "total_scraped_failed": self.total_scraped_failed,
+            "total_ingested_success": self.total_ingested_success,
+            "total_ingested_failed": self.total_ingested_failed,
+            "total_projects_created": self.total_projects_created,
+            "total_projects_reused": self.total_projects_reused,
+            "total_no_btp_project": self.total_no_btp_project,
             "errors_count": len(self.errors),
         }
 
@@ -196,26 +241,38 @@ class DailyStats:
         self.end_time = datetime.utcnow()
 
         logger.info("=" * 60)
-        logger.info("DAILY INGESTION SUMMARY")
+        logger.info("DAILY INGESTION SUMMARY (MULTI-TENANT)")
         logger.info("=" * 60)
         logger.info(f"Duration:           {self.duration_seconds:.1f}s")
-        logger.info(f"Sources discovered: {self.sources_discovered}")
-        logger.info(f"Scraped success:    {self.scraped_success}")
-        logger.info(f"Scraped failed:     {self.scraped_failed}")
-        logger.info(f"Ingested success:   {self.ingested_success}")
-        logger.info(f"Ingested failed:    {self.ingested_failed}")
-        logger.info(f"No BTP project:     {self.no_btp_project}")
+        logger.info(f"Tenants processed:  {self.tenants_processed}")
+        logger.info(f"Tenants skipped:    {self.tenants_skipped}")
         logger.info("-" * 40)
-        logger.info(f"Projects created:   {self.projects_created}")
-        logger.info(f"Projects reused:    {self.projects_reused}")
+        logger.info(f"Sources discovered: {self.total_sources_discovered}")
+        logger.info(f"Scraped success:    {self.total_scraped_success}")
+        logger.info(f"Scraped failed:     {self.total_scraped_failed}")
+        logger.info(f"Ingested success:   {self.total_ingested_success}")
+        logger.info(f"Ingested failed:    {self.total_ingested_failed}")
+        logger.info(f"No BTP project:     {self.total_no_btp_project}")
+        logger.info("-" * 40)
+        logger.info(f"Projects created:   {self.total_projects_created}")
+        logger.info(f"Projects reused:    {self.total_projects_reused}")
         logger.info("=" * 60)
+
+        # Per-tenant summary
+        for tenant_id, ts in self.tenant_stats.items():
+            logger.info(
+                f"[Tenant {tenant_id[:8]}...] "
+                f"Sources: {ts.sources_discovered}, "
+                f"Created: {ts.projects_created}, "
+                f"Reused: {ts.projects_reused}"
+            )
 
         # Final one-liner for Railway logs
         logger.info(
-            f"[Daily] Sources: {self.sources_discovered}, "
-            f"Scraped: {self.scraped_success}, "
-            f"Created: {self.projects_created}, "
-            f"Updated: {self.projects_reused}"
+            f"[Daily] Tenants: {self.tenants_processed}, "
+            f"Sources: {self.total_sources_discovered}, "
+            f"Created: {self.total_projects_created}, "
+            f"Reused: {self.total_projects_reused}"
         )
 
 
@@ -225,10 +282,10 @@ class DailyStats:
 
 async def process_source(
     source: ArticleSource,
+    tenant_id: UUID,
     firecrawl: FirecrawlClient,
-    config: DailyConfig,
     semaphore: asyncio.Semaphore,
-    stats: DailyStats,
+    stats: TenantStats,
 ) -> Optional[IngestionResult]:
     """Traite une source: scrape + ingestion."""
 
@@ -236,7 +293,7 @@ async def process_source(
         url = source.source_url
         source_name = source.source_name
 
-        logger.info(f"[Processing] {url}")
+        logger.info(f"[{str(tenant_id)[:8]}] Processing {url}")
 
         # 1. Scrape
         content = await firecrawl.scrape(url)
@@ -253,7 +310,7 @@ async def process_source(
         published_at = source.published_at or datetime.utcnow()
 
         input_data = ArticleIngestionInput(
-            tenant_id=config.tenant_id,
+            tenant_id=tenant_id,
             source_url=url,
             source_name=source_name,
             published_at=published_at,
@@ -278,92 +335,222 @@ async def process_source(
                     stats.projects_reused += 1
 
                 logger.info(
-                    f"[OK] project_id={result.project_id}, "
+                    f"[{str(tenant_id)[:8]}] OK project_id={result.project_id}, "
                     f"created={result.created_project}"
                 )
             else:
                 stats.no_btp_project += 1
-                logger.info(f"[No BTP] {url}")
+                logger.info(f"[{str(tenant_id)[:8]}] No BTP project for {url}")
 
             return result
 
         except SharkIngestionError as e:
             stats.ingested_failed += 1
             stats.errors.append({"url": url, "error": str(e)})
-            logger.error(f"[Error] {url}: {e}")
+            logger.error(f"[{str(tenant_id)[:8]}] Error: {e}")
             return None
 
         except Exception as e:
             stats.ingested_failed += 1
             stats.errors.append({"url": url, "error": str(e)})
-            logger.exception(f"[Error] {url}: {e}")
+            logger.exception(f"[{str(tenant_id)[:8]}] Unexpected error: {e}")
             return None
 
 
 # ============================================================
-# MAIN DAILY FUNCTION
+# PROCESS SINGLE TENANT
+# ============================================================
+
+async def process_tenant(
+    tenant_config: TenantZoneConfig,
+    firecrawl: FirecrawlClient,
+    config: DailyConfig,
+) -> TenantStats:
+    """
+    Process a single tenant's daily ingestion.
+
+    Args:
+        tenant_config: Tenant zone configuration
+        firecrawl: Firecrawl client
+        config: Daily config
+
+    Returns:
+        TenantStats for this tenant
+    """
+    tenant_id = tenant_config.tenant_id
+    stats = TenantStats(tenant_id)
+
+    logger.info(f"[{str(tenant_id)[:8]}] Starting daily ingestion...")
+    logger.info(
+        f"[{str(tenant_id)[:8]}] Zone: city={tenant_config.city}, "
+        f"region={tenant_config.region}, limit={tenant_config.daily_url_limit}"
+    )
+
+    # 1. Discover sources for this tenant's zone
+    try:
+        sources = await discover_daily_urls_for_tenant(
+            tenant_id=tenant_id,
+            limit=tenant_config.daily_url_limit,
+        )
+    except Exception as e:
+        logger.error(f"[{str(tenant_id)[:8]}] Discovery failed: {e}")
+        stats.errors.append({"url": "discovery", "error": str(e)})
+        return stats
+
+    stats.sources_discovered = len(sources)
+    logger.info(f"[{str(tenant_id)[:8]}] Discovered {len(sources)} sources")
+
+    if not sources:
+        logger.warning(f"[{str(tenant_id)[:8]}] No sources found")
+        return stats
+
+    # 2. Process sources
+    semaphore = asyncio.Semaphore(config.max_concurrent)
+
+    tasks = [
+        process_source(source, tenant_id, firecrawl, semaphore, stats)
+        for source in sources
+    ]
+
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    logger.info(
+        f"[{str(tenant_id)[:8]}] Completed: "
+        f"created={stats.projects_created}, reused={stats.projects_reused}"
+    )
+
+    return stats
+
+
+# ============================================================
+# MAIN DAILY FUNCTION (MULTI-TENANT)
+# ============================================================
+
+async def run_daily_ingestion_multi_tenant(config: DailyConfig) -> DailyStats:
+    """
+    Execute le job d'ingestion quotidien pour tous les tenants actifs.
+
+    Returns:
+        DailyStats avec les statistiques globales
+    """
+    global_stats = DailyStats()
+
+    # 1. Get all enabled tenants
+    logger.info("[Daily] Fetching enabled tenants...")
+
+    try:
+        tenants = await get_all_enabled_tenants()
+    except Exception as e:
+        logger.error(f"[Daily] Failed to get tenants: {e}")
+        global_stats.errors.append({"url": "get_tenants", "error": str(e)})
+        global_stats.log_summary()
+        return global_stats
+
+    if not tenants:
+        logger.warning("[Daily] No enabled tenants found")
+        global_stats.log_summary()
+        return global_stats
+
+    logger.info(f"[Daily] Found {len(tenants)} enabled tenants")
+
+    # 2. Process each tenant
+    async with FirecrawlClient(config.firecrawl_endpoint, config.firecrawl_api_key) as firecrawl:
+        for tenant_config in tenants:
+            try:
+                # Skip tenants without geographic zone
+                if not tenant_config.city and not tenant_config.region:
+                    logger.warning(
+                        f"[{str(tenant_config.tenant_id)[:8]}] "
+                        "No geographic zone configured, skipping"
+                    )
+                    global_stats.tenants_skipped += 1
+                    continue
+
+                tenant_stats = await process_tenant(tenant_config, firecrawl, config)
+                global_stats.add_tenant_stats(tenant_stats)
+
+            except Exception as e:
+                logger.error(
+                    f"[{str(tenant_config.tenant_id)[:8]}] "
+                    f"Tenant processing failed: {e}"
+                )
+                global_stats.errors.append({
+                    "url": f"tenant_{tenant_config.tenant_id}",
+                    "error": str(e)
+                })
+
+    # 3. Log summary
+    global_stats.log_summary()
+
+    return global_stats
+
+
+# ============================================================
+# MAIN DAILY FUNCTION (SINGLE TENANT - LEGACY)
+# ============================================================
+
+async def run_daily_ingestion_single_tenant(config: DailyConfig) -> DailyStats:
+    """
+    Execute le job d'ingestion quotidien pour un seul tenant (mode legacy).
+
+    Returns:
+        DailyStats avec les statistiques
+    """
+    if not config.single_tenant_id:
+        raise ValueError("single_tenant_id required for single-tenant mode")
+
+    global_stats = DailyStats()
+    tenant_id = config.single_tenant_id
+
+    logger.info(f"[Daily] Single-tenant mode: {tenant_id}")
+
+    # Get tenant config (or use defaults)
+    tenant_config = await get_tenant_zone_config(tenant_id)
+
+    if not tenant_config:
+        # Create a minimal config with defaults
+        tenant_config = TenantZoneConfig(
+            tenant_id=tenant_id,
+            daily_url_limit=config.default_max_urls,
+        )
+        logger.warning(f"[Daily] No zone config for tenant, using defaults")
+
+    async with FirecrawlClient(config.firecrawl_endpoint, config.firecrawl_api_key) as firecrawl:
+        tenant_stats = await process_tenant(tenant_config, firecrawl, config)
+        global_stats.add_tenant_stats(tenant_stats)
+
+    global_stats.log_summary()
+
+    return global_stats
+
+
+# ============================================================
+# MAIN DAILY FUNCTION (AUTO-SELECT MODE)
 # ============================================================
 
 async def run_daily_ingestion() -> DailyStats:
     """
     Execute le job d'ingestion quotidien.
 
+    Auto-selects mode based on environment:
+    - If SHARK_DAILY_TENANT_ID is set: single-tenant mode
+    - Otherwise: multi-tenant mode
+
     Returns:
         DailyStats avec les statistiques du job
     """
-    stats = DailyStats()
-
     try:
-        # Load config
         config = load_config()
-        logger.info(
-            f"[Daily] Config: tenant={config.tenant_id}, "
-            f"max_urls={config.max_urls}, lookback={config.lookback_days}d"
-        )
 
-        # 1. Discover sources
-        logger.info("[Daily] Discovering sources...")
-
-        discovery_config = DiscoveryConfig(
-            exa_api_key=config.exa_api_key,
-            exa_enabled=bool(config.exa_api_key),
-            static_enabled=True,
-        )
-
-        sources = await discover_recent_articles(
-            lookback_days=config.lookback_days,
-            max_urls=config.max_urls,
-            config=discovery_config,
-        )
-
-        stats.sources_discovered = len(sources)
-        logger.info(f"[Daily] Discovered {len(sources)} sources")
-
-        if not sources:
-            logger.warning("[Daily] No sources found, exiting")
-            stats.log_summary()
-            return stats
-
-        # 2. Process sources
-        semaphore = asyncio.Semaphore(config.max_concurrent)
-
-        async with FirecrawlClient(config.firecrawl_endpoint, config.firecrawl_api_key) as firecrawl:
-            tasks = [
-                process_source(source, firecrawl, config, semaphore, stats)
-                for source in sources
-            ]
-
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-        # 3. Log summary
-        stats.log_summary()
-
-        return stats
+        if config.multi_tenant:
+            logger.info("[Daily] Running in MULTI-TENANT mode")
+            return await run_daily_ingestion_multi_tenant(config)
+        else:
+            logger.info("[Daily] Running in SINGLE-TENANT mode (legacy)")
+            return await run_daily_ingestion_single_tenant(config)
 
     except Exception as e:
         logger.exception(f"[Daily] Fatal error: {e}")
-        stats.errors.append({"url": "global", "error": str(e)})
-        stats.log_summary()
         raise
 
 
@@ -388,7 +575,7 @@ async def main():
         stats = await run_daily_ingestion()
 
         # Exit code based on success
-        if stats.ingested_failed > stats.ingested_success:
+        if stats.total_ingested_failed > stats.total_ingested_success:
             logger.error("[Daily] More failures than successes, exiting with error")
             sys.exit(1)
 

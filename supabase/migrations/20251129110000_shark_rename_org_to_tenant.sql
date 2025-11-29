@@ -75,10 +75,51 @@ ALTER TABLE shark_news_items
 
 
 -- ============================================================
--- 4. CRÉER LA NOUVELLE HELPER FUNCTION
+-- 4. SUPPRIMER LES ANCIENNES POLICIES RLS (avant de supprimer la fonction)
 -- ============================================================
 
--- Supprimer l'ancienne fonction
+-- -------------------- shark_projects --------------------
+DROP POLICY IF EXISTS "shark_projects_select" ON shark_projects;
+DROP POLICY IF EXISTS "shark_projects_insert" ON shark_projects;
+DROP POLICY IF EXISTS "shark_projects_update" ON shark_projects;
+DROP POLICY IF EXISTS "shark_projects_delete" ON shark_projects;
+DROP POLICY IF EXISTS "shark_projects_service" ON shark_projects;
+
+-- -------------------- shark_organizations --------------------
+DROP POLICY IF EXISTS "shark_organizations_select" ON shark_organizations;
+DROP POLICY IF EXISTS "shark_organizations_insert" ON shark_organizations;
+DROP POLICY IF EXISTS "shark_organizations_update" ON shark_organizations;
+DROP POLICY IF EXISTS "shark_organizations_delete" ON shark_organizations;
+DROP POLICY IF EXISTS "shark_organizations_service" ON shark_organizations;
+
+-- -------------------- shark_people --------------------
+DROP POLICY IF EXISTS "shark_people_select" ON shark_people;
+DROP POLICY IF EXISTS "shark_people_insert" ON shark_people;
+DROP POLICY IF EXISTS "shark_people_update" ON shark_people;
+DROP POLICY IF EXISTS "shark_people_delete" ON shark_people;
+DROP POLICY IF EXISTS "shark_people_service" ON shark_people;
+
+-- -------------------- shark_news_items --------------------
+DROP POLICY IF EXISTS "shark_news_select" ON shark_news_items;
+DROP POLICY IF EXISTS "shark_news_insert" ON shark_news_items;
+DROP POLICY IF EXISTS "shark_news_update" ON shark_news_items;
+DROP POLICY IF EXISTS "shark_news_delete" ON shark_news_items;
+DROP POLICY IF EXISTS "shark_news_service" ON shark_news_items;
+
+-- -------------------- Tables de liaison --------------------
+DROP POLICY IF EXISTS "shark_po_access" ON shark_project_organizations;
+DROP POLICY IF EXISTS "shark_po_service" ON shark_project_organizations;
+DROP POLICY IF EXISTS "shark_op_access" ON shark_organization_people;
+DROP POLICY IF EXISTS "shark_op_service" ON shark_organization_people;
+DROP POLICY IF EXISTS "shark_pn_access" ON shark_project_news;
+DROP POLICY IF EXISTS "shark_pn_service" ON shark_project_news;
+
+
+-- ============================================================
+-- 5. SUPPRIMER L'ANCIENNE FONCTION ET CRÉER LA NOUVELLE
+-- ============================================================
+
+-- Maintenant on peut supprimer la fonction (plus de dépendances)
 DROP FUNCTION IF EXISTS user_belongs_to_org(UUID);
 
 -- Créer la nouvelle fonction avec un nom plus clair
@@ -98,15 +139,10 @@ COMMENT ON FUNCTION user_belongs_to_tenant(UUID) IS
 
 
 -- ============================================================
--- 5. METTRE À JOUR LES POLICIES RLS
+-- 6. CRÉER LES NOUVELLES POLICIES RLS
 -- ============================================================
 
 -- -------------------- shark_projects --------------------
-DROP POLICY IF EXISTS "shark_projects_select" ON shark_projects;
-DROP POLICY IF EXISTS "shark_projects_insert" ON shark_projects;
-DROP POLICY IF EXISTS "shark_projects_update" ON shark_projects;
-DROP POLICY IF EXISTS "shark_projects_delete" ON shark_projects;
-DROP POLICY IF EXISTS "shark_projects_service" ON shark_projects;
 
 CREATE POLICY "shark_projects_tenant_select" ON shark_projects
     FOR SELECT USING (user_belongs_to_tenant(tenant_id));
@@ -120,12 +156,6 @@ CREATE POLICY "shark_projects_service_role" ON shark_projects
     FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
 -- -------------------- shark_organizations --------------------
-DROP POLICY IF EXISTS "shark_organizations_select" ON shark_organizations;
-DROP POLICY IF EXISTS "shark_organizations_insert" ON shark_organizations;
-DROP POLICY IF EXISTS "shark_organizations_update" ON shark_organizations;
-DROP POLICY IF EXISTS "shark_organizations_delete" ON shark_organizations;
-DROP POLICY IF EXISTS "shark_organizations_service" ON shark_organizations;
-
 CREATE POLICY "shark_organizations_tenant_select" ON shark_organizations
     FOR SELECT USING (user_belongs_to_tenant(tenant_id));
 CREATE POLICY "shark_organizations_tenant_insert" ON shark_organizations
@@ -138,12 +168,6 @@ CREATE POLICY "shark_organizations_service_role" ON shark_organizations
     FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
 -- -------------------- shark_people --------------------
-DROP POLICY IF EXISTS "shark_people_select" ON shark_people;
-DROP POLICY IF EXISTS "shark_people_insert" ON shark_people;
-DROP POLICY IF EXISTS "shark_people_update" ON shark_people;
-DROP POLICY IF EXISTS "shark_people_delete" ON shark_people;
-DROP POLICY IF EXISTS "shark_people_service" ON shark_people;
-
 CREATE POLICY "shark_people_tenant_select" ON shark_people
     FOR SELECT USING (user_belongs_to_tenant(tenant_id));
 CREATE POLICY "shark_people_tenant_insert" ON shark_people
@@ -156,12 +180,6 @@ CREATE POLICY "shark_people_service_role" ON shark_people
     FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
 -- -------------------- shark_news_items --------------------
-DROP POLICY IF EXISTS "shark_news_select" ON shark_news_items;
-DROP POLICY IF EXISTS "shark_news_insert" ON shark_news_items;
-DROP POLICY IF EXISTS "shark_news_update" ON shark_news_items;
-DROP POLICY IF EXISTS "shark_news_delete" ON shark_news_items;
-DROP POLICY IF EXISTS "shark_news_service" ON shark_news_items;
-
 CREATE POLICY "shark_news_tenant_select" ON shark_news_items
     FOR SELECT USING (user_belongs_to_tenant(tenant_id));
 CREATE POLICY "shark_news_tenant_insert" ON shark_news_items
@@ -176,9 +194,6 @@ CREATE POLICY "shark_news_service_role" ON shark_news_items
 -- -------------------- Tables de liaison --------------------
 -- Ces tables n'ont pas de tenant_id direct, l'accès est via les FK
 
-DROP POLICY IF EXISTS "shark_po_access" ON shark_project_organizations;
-DROP POLICY IF EXISTS "shark_po_service" ON shark_project_organizations;
-
 CREATE POLICY "shark_po_tenant_access" ON shark_project_organizations
     FOR ALL USING (
         project_id IN (SELECT id FROM shark_projects WHERE user_belongs_to_tenant(tenant_id))
@@ -186,18 +201,12 @@ CREATE POLICY "shark_po_tenant_access" ON shark_project_organizations
 CREATE POLICY "shark_po_service_role" ON shark_project_organizations
     FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
-DROP POLICY IF EXISTS "shark_op_access" ON shark_organization_people;
-DROP POLICY IF EXISTS "shark_op_service" ON shark_organization_people;
-
 CREATE POLICY "shark_op_tenant_access" ON shark_organization_people
     FOR ALL USING (
         organization_id IN (SELECT id FROM shark_organizations WHERE user_belongs_to_tenant(tenant_id))
     );
 CREATE POLICY "shark_op_service_role" ON shark_organization_people
     FOR ALL USING (auth.jwt()->>'role' = 'service_role');
-
-DROP POLICY IF EXISTS "shark_pn_access" ON shark_project_news;
-DROP POLICY IF EXISTS "shark_pn_service" ON shark_project_news;
 
 CREATE POLICY "shark_pn_tenant_access" ON shark_project_news
     FOR ALL USING (

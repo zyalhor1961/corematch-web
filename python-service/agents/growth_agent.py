@@ -16,6 +16,7 @@ import json
 import asyncio
 from typing import Optional
 from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta
 from openai import AsyncOpenAI
 from exa_py import Exa
 from supabase import create_client, Client
@@ -316,38 +317,52 @@ class LeadSniper:
         self,
         queries: list[str],
         geo: GeoLocation,
-        exclude_domains: Optional[list[str]] = None
+        exclude_domains: Optional[list[str]] = None,
+        use_news_filter: bool = True,
+        freshness_months: int = 6
     ) -> list[dict]:
         """
-        Step 3: Execute Exa searches with domain filtering for local results.
+        Step 3: Execute Exa searches with domain filtering and temporal filtering.
+
+        Args:
+            queries: List of search queries
+            geo: Geographic location constraints
+            exclude_domains: Domains to exclude
+            use_news_filter: If True, prioritize recent news/articles
+            freshness_months: Only return results from the last N months (default 6)
         """
         all_results = []
         seen_urls = set()
 
-        # Build domain filter for French companies
-        include_domains = None
-        if geo.country and geo.country.lower() in ["france", "fr"]:
-            # Favor French domains for French searches
-            include_domains = [".fr"]
+        # Calculate date filter (only results from last N months)
+        start_date = (datetime.now() - timedelta(days=freshness_months * 30)).strftime("%Y-%m-%d")
+        print(f"[LeadSniper] Temporal filter: Only results after {start_date}")
 
         for query in queries:
             try:
-                # Build search kwargs (Note: use_autoprompt not supported in search_and_contents)
+                # Build search kwargs with temporal filtering
                 search_kwargs = {
                     "num_results": self.max_results_per_query,
                     "text": True,
+                    "start_published_date": start_date,  # Only recent content!
                 }
 
-                # For French searches, add city/region context instead of site restriction
-                # (site:.fr is too restrictive - many French companies have .com domains)
+                # For French searches, add city/region context
                 modified_query = query
                 if geo.city:
-                    # Add city context to improve local relevance
                     if geo.city.lower() not in query.lower():
                         modified_query = f"{query} {geo.city}"
 
+                # Add news/actualité keywords for fresher results
+                if use_news_filter:
+                    news_query = f"{modified_query} actualité OR projet OR annonce OR inauguration"
+                else:
+                    news_query = modified_query
+
+                print(f"[LeadSniper] Searching: '{news_query[:80]}...'")
+
                 search_results = exa_client.search_and_contents(
-                    modified_query,
+                    news_query,
                     **search_kwargs
                 )
 
@@ -363,18 +378,30 @@ class LeadSniper:
                         if any(exc in domain for exc in exclude_domains):
                             continue
 
+                    # Extract publish date if available
+                    published_date = None
+                    if hasattr(result, 'published_date') and result.published_date:
+                        published_date = result.published_date
+
                     all_results.append({
                         "url": result.url,
                         "title": result.title,
                         "text": result.text[:3000] if result.text else "",
                         "highlights": result.highlights if hasattr(result, 'highlights') else [],
                         "score": result.score if hasattr(result, 'score') else 0,
-                        "source_query": query
+                        "source_query": query,
+                        "published_date": published_date  # Track freshness
                     })
 
             except Exception as e:
                 print(f"[LeadSniper] Search error for query '{query}': {e}")
                 continue
+
+        # Sort by freshness (most recent first) if dates available
+        all_results.sort(
+            key=lambda x: x.get("published_date") or "1900-01-01",
+            reverse=True
+        )
 
         return all_results
 
@@ -589,12 +616,16 @@ class LeadSniper:
                 "potential_value": 0,
                 "probability": min(p.get("ai_score", 50), 100),
                 "currency": "EUR",
-                "status": "new"
+                "status": "new",
+                "published_date": p.get("published_date"),  # When the article/news was published
             }
             formatted.append(lead)
 
-        # Sort by score descending
-        formatted.sort(key=lambda x: x["ai_score"], reverse=True)
+        # Sort by freshness first, then by score
+        formatted.sort(
+            key=lambda x: (x.get("published_date") or "1900-01-01", x["ai_score"]),
+            reverse=True
+        )
 
         return formatted
 

@@ -738,7 +738,7 @@ export default function SourcingPage() {
 
                             {lead.is_converted_to_lead ? (
                               <a
-                                href={`/org/${orgId}/crm`}
+                                href={`/org/${orgId}/crm/leads`}
                                 className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-400 text-xs hover:bg-white/10 transition-colors flex items-center gap-1"
                               >
                                 Voir CRM

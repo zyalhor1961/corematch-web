@@ -16,10 +16,16 @@ import {
     X,
     AlertCircle,
     Sparkles,
+    Building2,
+    FileText,
+    Gavel,
+    ArrowRight,
+    MapPin,
 } from 'lucide-react';
 import {
     SharkActivityItem,
     SharkActivityType,
+    SharkPriority,
     ACTIVITY_TYPE_COLORS,
     ACTIVITY_TYPE_LABELS,
 } from '@/types/shark';
@@ -50,10 +56,39 @@ function getActivityIcon(type: SharkActivityType) {
             return Users;
         case 'ingestion':
             return Database;
+        case 'tender_detected':
+            return Gavel;
+        case 'permit_detected':
+            return FileText;
         default:
             return Activity;
     }
 }
+
+// Priority badge colors
+const PRIORITY_COLORS: Record<SharkPriority, { bg: string; text: string; glow: string }> = {
+    CRITICAL: { bg: 'bg-red-500/20', text: 'text-red-300', glow: 'shadow-[0_0_10px_rgba(239,68,68,0.3)]' },
+    HIGH: { bg: 'bg-orange-500/20', text: 'text-orange-300', glow: 'shadow-[0_0_8px_rgba(249,115,22,0.2)]' },
+    MEDIUM: { bg: 'bg-yellow-500/20', text: 'text-yellow-300', glow: '' },
+    LOW: { bg: 'bg-slate-500/20', text: 'text-slate-400', glow: '' },
+};
+
+const PRIORITY_LABELS: Record<SharkPriority, string> = {
+    CRITICAL: 'CRITIQUE',
+    HIGH: 'ELEVE',
+    MEDIUM: 'MOYEN',
+    LOW: 'FAIBLE',
+};
+
+// Source type badge config
+const SOURCE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+    tender: { label: 'Marche public', color: 'bg-purple-500/20 text-purple-300', icon: Gavel },
+    boamp: { label: 'BOAMP', color: 'bg-purple-500/20 text-purple-300', icon: Gavel },
+    permit: { label: 'Permis de construire', color: 'bg-amber-500/20 text-amber-300', icon: FileText },
+    news: { label: 'Actualite', color: 'bg-blue-500/20 text-blue-300', icon: Newspaper },
+    exa: { label: 'Veille web', color: 'bg-cyan-500/20 text-cyan-300', icon: Search },
+    manual: { label: 'Manuel', color: 'bg-slate-500/20 text-slate-400', icon: Users },
+};
 
 function formatTime(timestamp: string): string {
     const date = new Date(timestamp);
@@ -139,6 +174,46 @@ function ActivityTypeBadge({ type }: { type: SharkActivityType }) {
         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${ACTIVITY_TYPE_COLORS[type]} ${glowClass}`}>
             <Icon size={18} className="text-white" />
         </div>
+    );
+}
+
+function PriorityBadge({ priority }: { priority?: SharkPriority }) {
+    if (!priority) return null;
+    const colors = PRIORITY_COLORS[priority];
+    return (
+        <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${colors.bg} ${colors.text} ${colors.glow}`}>
+            {PRIORITY_LABELS[priority]}
+        </span>
+    );
+}
+
+function SourceTypeBadge({ sourceType }: { sourceType?: string }) {
+    if (!sourceType) return null;
+    const config = SOURCE_TYPE_CONFIG[sourceType];
+    if (!config) return null;
+    const Icon = config.icon;
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs ${config.color}`}>
+            <Icon size={12} />
+            {config.label}
+        </span>
+    );
+}
+
+function ScoreChange({ before, after }: { before?: number; after?: number }) {
+    if (before === undefined || after === undefined) return null;
+    const isIncrease = after > before;
+    const change = after - before;
+
+    return (
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+            <span className="text-slate-400">{before}</span>
+            <ArrowRight size={14} className={isIncrease ? 'text-teal-400' : 'text-red-400'} />
+            <span className={isIncrease ? 'text-teal-300' : 'text-red-300'}>{after}</span>
+            <span className={`text-xs ${isIncrease ? 'text-teal-500' : 'text-red-500'}`}>
+                ({isIncrease ? '+' : ''}{change})
+            </span>
+        </span>
     );
 }
 
@@ -404,17 +479,61 @@ export default function ActivityFeedClient() {
 
                                             {/* Content */}
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-white text-sm leading-relaxed">
-                                                    {item.summary}
-                                                </p>
-                                                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
-                                                    <span className="flex items-center gap-1 text-slate-500">
+                                                {/* Title Line - enriched display */}
+                                                {item.type === 'score_update' && item.title ? (
+                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                        <span className="text-white font-medium">Score mis a jour :</span>
+                                                        <ScoreChange before={item.score_before} after={item.score_after} />
+                                                        <PriorityBadge priority={item.priority_after} />
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-white font-medium mb-1">
+                                                        {item.title || item.summary}
+                                                    </p>
+                                                )}
+
+                                                {/* Subtitle Line - location + context */}
+                                                {item.subtitle && (
+                                                    <p className="text-slate-400 text-sm mb-2">
+                                                        {item.subtitle}
+                                                    </p>
+                                                )}
+
+                                                {/* Location info when available */}
+                                                {(item.project_city || item.project_region) && !item.subtitle && (
+                                                    <div className="flex items-center gap-1.5 text-slate-400 text-sm mb-2">
+                                                        <MapPin size={12} />
+                                                        <span>
+                                                            {item.project_city}
+                                                            {item.project_city && item.project_region && ' – '}
+                                                            {item.project_region}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Badges row */}
+                                                <div className="flex flex-wrap items-center gap-2 mt-3">
+                                                    <span className="flex items-center gap-1 text-slate-500 text-xs">
                                                         <Clock size={12} />
                                                         {formatTime(item.timestamp)}
                                                     </span>
-                                                    <span className={`px-2 py-0.5 rounded-lg ${ACTIVITY_TYPE_COLORS[item.type]} text-white/90 text-xs`}>
-                                                        {ACTIVITY_TYPE_LABELS[item.type]}
-                                                    </span>
+
+                                                    {/* Source type badge */}
+                                                    <SourceTypeBadge sourceType={item.source_type} />
+
+                                                    {/* Activity type badge (fallback) */}
+                                                    {!item.source_type && (
+                                                        <span className={`px-2 py-0.5 rounded-lg ${ACTIVITY_TYPE_COLORS[item.type]} text-white/90 text-xs`}>
+                                                            {ACTIVITY_TYPE_LABELS[item.type]}
+                                                        </span>
+                                                    )}
+
+                                                    {/* Project name if available */}
+                                                    {item.project_name && item.type !== 'score_update' && (
+                                                        <span className="text-xs text-slate-500 truncate max-w-[200px]">
+                                                            {item.project_name}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
 

@@ -172,8 +172,27 @@ export interface SharkActivityItem {
     project_id: string | null;
     type: SharkActivityType;
     timestamp: string;
-    summary: string;
+    summary: string;  // Backward compatible field
     details?: Record<string, unknown>;
+
+    // Enriched fields for standalone display
+    title?: string;  // Generated title for UI
+    subtitle?: string;  // Generated subtitle for UI
+
+    // Project context
+    project_name?: string;
+    project_city?: string;
+    project_region?: string;
+    project_phase?: SharkPhase;
+
+    // Score change details (for score_update type)
+    score_before?: number;
+    score_after?: number;
+    priority_before?: SharkPriority;
+    priority_after?: SharkPriority;
+
+    // Source tracking
+    source_type?: 'tender' | 'permit' | 'news' | 'manual' | 'exa' | 'boamp';
 }
 
 // =============================================================================
@@ -185,6 +204,7 @@ export interface SharkRadarFilters {
     scales?: SharkScale[];
     priorities?: SharkPriority[];
     regions?: string[];
+    cities?: string[];
     departments?: string[];
     search?: string;
     // Geo filter
@@ -228,6 +248,46 @@ export interface SharkAlertsResponse {
 
 export interface SharkActivityFeedResponse {
     items: SharkActivityItem[];
+}
+
+// =============================================================================
+// Radar Views (Saved Filters)
+// =============================================================================
+
+export interface RadarViewFilters {
+    search_text?: string;
+    phases?: SharkPhase[];
+    scales?: SharkScale[];
+    priorities?: SharkPriority[];
+    regions?: string[];
+    cities?: string[];
+    departments?: string[];
+    min_score?: number;
+}
+
+export interface RadarView {
+    id: string;
+    name: string;
+    is_default: boolean;
+    filters: RadarViewFilters;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RadarViewsResponse {
+    views: RadarView[];
+}
+
+export interface RadarViewCreateRequest {
+    name: string;
+    filters: RadarViewFilters;
+    is_default?: boolean;
+}
+
+export interface RadarViewUpdateRequest {
+    name?: string;
+    filters?: RadarViewFilters;
+    is_default?: boolean;
 }
 
 // =============================================================================
@@ -487,6 +547,21 @@ export const PERMIT_TYPE_LABELS: Record<string, string> = {
     PA: 'Permis d\'Amenager',
     PD: 'Permis de Demolir',
 };
+
+// =============================================================================
+// Filter Options Types
+// =============================================================================
+
+export interface CityOption {
+    city: string;
+    region?: string;
+    count: number;
+}
+
+export interface RegionOption {
+    region: string;
+    count: number;
+}
 
 // =============================================================================
 // Extended Project with Tenders/Permits

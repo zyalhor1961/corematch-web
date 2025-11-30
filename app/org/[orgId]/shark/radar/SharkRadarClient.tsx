@@ -24,6 +24,13 @@ import {
     Zap,
     ArrowRight,
     Rocket,
+    Save,
+    Plus,
+    MoreVertical,
+    Trash2,
+    Check,
+    Edit3,
+    Bookmark,
 } from 'lucide-react';
 import {
     SharkProjectWithScore,
@@ -38,6 +45,9 @@ import {
     PRIORITY_LABELS,
     getTenderUrgencyColor,
     formatDeadlineCountdown,
+    RadarView,
+    RadarViewFilters,
+    CityOption,
 } from '@/types/shark';
 import { FileText, Timer } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -60,6 +70,11 @@ const SCORE_INTERPRETATIONS: Record<SharkPriority, string> = {
     MEDIUM: 'Projet a surveiller, peut devenir interessant.',
     LOW: 'Projet identifie, mais priorite moindre pour l\'instant.',
 };
+
+// Helper to normalize priority to uppercase (DB stores lowercase, types use uppercase)
+function normalizePriority(priority: string | SharkPriority): SharkPriority {
+    return (priority?.toUpperCase() || 'LOW') as SharkPriority;
+}
 
 // =============================================================================
 // Utility Functions
@@ -145,17 +160,18 @@ function FilterBadge({ label, onRemove }: { label: string; onRemove: () => void 
     );
 }
 
-function PriorityBadge({ priority }: { priority: SharkPriority }) {
+function PriorityBadge({ priority }: { priority: SharkPriority | string }) {
+    const normalizedPriority = normalizePriority(priority);
     const glowClass = {
         LOW: '',
         MEDIUM: '',
         HIGH: 'shadow-[0_0_8px_rgba(245,158,11,0.3)]',
         CRITICAL: 'shadow-[0_0_12px_rgba(239,68,68,0.4)]',
-    }[priority];
+    }[normalizedPriority];
 
     return (
-        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${PRIORITY_COLORS[priority]} ${glowClass}`}>
-            {PRIORITY_LABELS[priority]}
+        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${PRIORITY_COLORS[normalizedPriority]} ${glowClass}`}>
+            {PRIORITY_LABELS[normalizedPriority]}
         </span>
     );
 }
@@ -228,11 +244,12 @@ function ScoreGauge({
     animate = true,
 }: {
     score: number;
-    priority: SharkPriority;
+    priority: SharkPriority | string;
     showInterpretation?: boolean;
     animate?: boolean;
 }) {
     const [displayScore, setDisplayScore] = useState(animate ? 0 : score);
+    const normalizedPriority = normalizePriority(priority);
 
     useEffect(() => {
         if (!animate) {
@@ -268,27 +285,27 @@ function ScoreGauge({
         MEDIUM: 'text-blue-400',
         HIGH: 'text-amber-400',
         CRITICAL: 'text-red-400',
-    }[priority];
+    }[normalizedPriority];
 
     const glowClass = {
         LOW: '',
         MEDIUM: '',
         HIGH: 'drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]',
         CRITICAL: 'drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]',
-    }[priority];
+    }[normalizedPriority];
 
     const ringColor = {
         LOW: 'border-slate-600',
         MEDIUM: 'border-blue-500/50',
         HIGH: 'border-amber-500/50',
         CRITICAL: 'border-red-500/50',
-    }[priority];
+    }[normalizedPriority];
 
     return (
         <div className="flex flex-col items-center gap-1">
             <div
                 className={`relative flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/80 border-2 ${ringColor} ${glowClass} transition-all duration-300`}
-                title={SCORE_INTERPRETATIONS[priority]}
+                title={SCORE_INTERPRETATIONS[normalizedPriority]}
             >
                 <span className={`text-lg font-bold font-mono ${colorClass} transition-all duration-300`}>
                     {displayScore}
@@ -296,7 +313,7 @@ function ScoreGauge({
             </div>
             {showInterpretation && (
                 <p className="text-[10px] text-slate-500 text-center max-w-[100px] leading-tight mt-1">
-                    {SCORE_INTERPRETATIONS[priority].split('.')[0]}
+                    {SCORE_INTERPRETATIONS[normalizedPriority].split('.')[0]}
                 </p>
             )}
         </div>
@@ -445,10 +462,10 @@ function TopOpportunityCard({
 
                 {/* Micro-interpretation */}
                 <p className="text-xs text-slate-500 italic border-t border-white/5 pt-2">
-                    {project.priority === 'CRITICAL' && 'Signaux forts detectes'}
-                    {project.priority === 'HIGH' && 'Plusieurs indicateurs positifs'}
-                    {project.priority === 'MEDIUM' && 'A suivre de pres'}
-                    {project.priority === 'LOW' && 'En phase d\'observation'}
+                    {normalizePriority(project.priority) === 'CRITICAL' && 'Signaux forts detectes'}
+                    {normalizePriority(project.priority) === 'HIGH' && 'Plusieurs indicateurs positifs'}
+                    {normalizePriority(project.priority) === 'MEDIUM' && 'A suivre de pres'}
+                    {normalizePriority(project.priority) === 'LOW' && 'En phase d\'observation'}
                 </p>
             </div>
         </GlassCard>
@@ -479,7 +496,7 @@ function ProjectCard({ project, orgId }: { project: SharkProjectWithScore; orgId
                             {project.title}
                         </h3>
                         <p className="text-xs text-slate-500">
-                            {SCORE_INTERPRETATIONS[project.priority].split('.')[0]}
+                            {SCORE_INTERPRETATIONS[normalizePriority(project.priority)].split('.')[0]}
                         </p>
                     </div>
 
@@ -565,6 +582,24 @@ export default function SharkRadarClient() {
     const [showFilters, setShowFilters] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Saved views state
+    const [savedViews, setSavedViews] = useState<RadarView[]>([]);
+    const [activeViewId, setActiveViewId] = useState<string | null>(null);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [saveViewName, setSaveViewName] = useState('');
+    const [saveAsDefault, setSaveAsDefault] = useState(false);
+    const [viewsLoading, setViewsLoading] = useState(false);
+    const [viewMenuOpen, setViewMenuOpen] = useState<string | null>(null);
+
+    // City filter state
+    const [cityOptions, setCityOptions] = useState<CityOption[]>([]);
+    const [citySearch, setCitySearch] = useState('');
+    const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+    const [citiesLoading, setCitiesLoading] = useState(false);
+
+    // Get current user ID (from session or context - simplified for now)
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') || 'default-user' : 'default-user';
+
     // Derived state
     const totalPages = useMemo(() => Math.ceil(total / DEFAULT_PAGE_SIZE), [total]);
     const hasActiveFilters = useMemo(() => {
@@ -573,6 +608,7 @@ export default function SharkRadarClient() {
             (filters.scales?.length ?? 0) > 0 ||
             (filters.priorities?.length ?? 0) > 0 ||
             (filters.regions?.length ?? 0) > 0 ||
+            (filters.cities?.length ?? 0) > 0 ||
             (filters.search?.length ?? 0) > 0
         );
     }, [filters]);
@@ -592,11 +628,11 @@ export default function SharkRadarClient() {
     const topOpportunities = useMemo(() => {
         if (projects.length <= 3) return [];
 
-        const priorityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+        const priorityOrder: Record<SharkPriority, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
         return [...projects]
             .sort((a, b) => {
-                const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+                const priorityDiff = priorityOrder[normalizePriority(a.priority)] - priorityOrder[normalizePriority(b.priority)];
                 if (priorityDiff !== 0) return priorityDiff;
                 return b.score - a.score;
             })
@@ -634,6 +670,10 @@ export default function SharkRadarClient() {
             }
             if (filters.regions?.length) {
                 queryParams.set('regions', filters.regions.join(','));
+            }
+            if (filters.cities?.length) {
+                // For now, use the first selected city (API supports single city)
+                queryParams.set('city', filters.cities[0]);
             }
             if (filters.search) {
                 queryParams.set('search', filters.search);
@@ -676,6 +716,184 @@ export default function SharkRadarClient() {
             console.error('Failed to fetch alerts:', err);
         }
     }, [orgId]);
+
+    // =============================================================================
+    // Saved Views Functions
+    // =============================================================================
+
+    const fetchSavedViews = useCallback(async () => {
+        setViewsLoading(true);
+        try {
+            const response = await fetch('/api/shark/radar/views', {
+                headers: {
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setSavedViews(data.views || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch saved views:', err);
+        } finally {
+            setViewsLoading(false);
+        }
+    }, [orgId, userId]);
+
+    const fetchDefaultView = useCallback(async () => {
+        try {
+            const response = await fetch('/api/shark/radar/views/default', {
+                headers: {
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+            });
+            if (response.ok) {
+                const view = await response.json();
+                if (view && view.filters) {
+                    // Apply default view filters
+                    applyViewFilters(view);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch default view:', err);
+        }
+    }, [orgId, userId]);
+
+    const applyViewFilters = (view: RadarView) => {
+        const f = view.filters;
+        setFilters({
+            phases: f.phases as SharkPhase[] | undefined,
+            scales: f.scales as SharkScale[] | undefined,
+            priorities: f.priorities as SharkPriority[] | undefined,
+            regions: f.regions,
+            search: f.search_text,
+        });
+        setSearchQuery(f.search_text || '');
+        setActiveViewId(view.id);
+        setPage(1);
+    };
+
+    const saveCurrentView = async () => {
+        if (!saveViewName.trim()) return;
+
+        try {
+            const currentFilters: RadarViewFilters = {
+                search_text: filters.search || undefined,
+                phases: filters.phases,
+                scales: filters.scales,
+                priorities: filters.priorities,
+                regions: filters.regions,
+            };
+
+            const response = await fetch('/api/shark/radar/views', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+                body: JSON.stringify({
+                    name: saveViewName,
+                    filters: currentFilters,
+                    is_default: saveAsDefault,
+                }),
+            });
+
+            if (response.ok) {
+                const newView = await response.json();
+                setSavedViews(prev => [...prev, newView]);
+                setActiveViewId(newView.id);
+                setShowSaveModal(false);
+                setSaveViewName('');
+                setSaveAsDefault(false);
+            }
+        } catch (err) {
+            console.error('Failed to save view:', err);
+        }
+    };
+
+    const updateView = async (viewId: string, updates: { name?: string; is_default?: boolean }) => {
+        try {
+            const response = await fetch(`/api/shark/radar/views/${viewId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+                body: JSON.stringify(updates),
+            });
+
+            if (response.ok) {
+                const updatedView = await response.json();
+                setSavedViews(prev => prev.map(v => v.id === viewId ? updatedView : v));
+            }
+        } catch (err) {
+            console.error('Failed to update view:', err);
+        }
+    };
+
+    const updateViewFilters = async (viewId: string) => {
+        try {
+            const currentFilters: RadarViewFilters = {
+                search_text: filters.search || undefined,
+                phases: filters.phases,
+                scales: filters.scales,
+                priorities: filters.priorities,
+                regions: filters.regions,
+            };
+
+            const response = await fetch(`/api/shark/radar/views/${viewId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+                body: JSON.stringify({ filters: currentFilters }),
+            });
+
+            if (response.ok) {
+                const updatedView = await response.json();
+                setSavedViews(prev => prev.map(v => v.id === viewId ? updatedView : v));
+            }
+        } catch (err) {
+            console.error('Failed to update view filters:', err);
+        }
+        setViewMenuOpen(null);
+    };
+
+    const deleteView = async (viewId: string) => {
+        try {
+            const response = await fetch(`/api/shark/radar/views/${viewId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-Org-Id': orgId,
+                    'X-User-Id': userId,
+                },
+            });
+
+            if (response.ok) {
+                setSavedViews(prev => prev.filter(v => v.id !== viewId));
+                if (activeViewId === viewId) {
+                    setActiveViewId(null);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to delete view:', err);
+        }
+        setViewMenuOpen(null);
+    };
+
+    // Initial load
+    useEffect(() => {
+        if (orgId) {
+            fetchSavedViews();
+            fetchDefaultView();
+        }
+    }, [orgId, fetchSavedViews, fetchDefaultView]);
 
     useEffect(() => {
         if (orgId) {
@@ -726,9 +944,65 @@ export default function SharkRadarClient() {
         setPage(1);
     };
 
+    // City filter functions
+    const fetchCities = useCallback(async (search?: string) => {
+        setCitiesLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (search) params.set('search', search);
+            params.set('limit', '20');
+
+            const response = await fetch(`/api/shark/filter-options/cities?${params.toString()}`, {
+                headers: { 'X-Org-Id': orgId },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setCityOptions(data.cities || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch cities:', err);
+        } finally {
+            setCitiesLoading(false);
+        }
+    }, [orgId]);
+
+    const selectCity = (city: string) => {
+        setFilters((prev) => {
+            const current = prev.cities || [];
+            if (!current.includes(city)) {
+                return { ...prev, cities: [...current, city] };
+            }
+            return prev;
+        });
+        setCitySearch('');
+        setCityDropdownOpen(false);
+        setPage(1);
+    };
+
+    const removeCity = (city: string) => {
+        setFilters((prev) => {
+            const current = prev.cities || [];
+            const updated = current.filter((c) => c !== city);
+            return { ...prev, cities: updated.length ? updated : undefined };
+        });
+        setPage(1);
+    };
+
+    // Fetch cities on search change
+    useEffect(() => {
+        if (cityDropdownOpen) {
+            const debounce = setTimeout(() => {
+                fetchCities(citySearch || undefined);
+            }, 300);
+            return () => clearTimeout(debounce);
+        }
+    }, [citySearch, cityDropdownOpen, fetchCities]);
+
     const clearAllFilters = () => {
         setFilters({});
         setSearchQuery('');
+        setCitySearch('');
         setPage(1);
     };
 
@@ -764,6 +1038,96 @@ export default function SharkRadarClient() {
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* Saved Views Selector */}
+            <div className="flex flex-wrap items-center gap-2">
+                <Bookmark size={16} className="text-slate-500" />
+                <span className="text-sm text-slate-400 mr-2">Vues :</span>
+
+                {/* All Projects (no filter) */}
+                <button
+                    onClick={() => {
+                        clearAllFilters();
+                        setActiveViewId(null);
+                    }}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
+                        !activeViewId && !hasActiveFilters
+                            ? 'bg-teal-500/20 border-teal-500/50 text-teal-300'
+                            : 'bg-[#0F172A]/60 border-white/10 text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
+                    }`}
+                >
+                    Tous les projets
+                </button>
+
+                {/* Saved Views */}
+                {savedViews.map((view) => (
+                    <div key={view.id} className="relative">
+                        <button
+                            onClick={() => applyViewFilters(view)}
+                            className={`px-3 py-1.5 text-sm rounded-lg border transition-all flex items-center gap-2 ${
+                                activeViewId === view.id
+                                    ? 'bg-teal-500/20 border-teal-500/50 text-teal-300'
+                                    : 'bg-[#0F172A]/60 border-white/10 text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
+                            }`}
+                        >
+                            {view.is_default && <Star size={12} className="text-yellow-400" />}
+                            {view.name}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewMenuOpen(viewMenuOpen === view.id ? null : view.id);
+                                }}
+                                className="ml-1 p-0.5 hover:bg-white/10 rounded"
+                            >
+                                <MoreVertical size={14} />
+                            </button>
+                        </button>
+
+                        {/* View Menu Dropdown */}
+                        {viewMenuOpen === view.id && (
+                            <div className="absolute top-full right-0 mt-1 w-48 bg-[#1E293B] border border-white/10 rounded-lg shadow-xl z-50">
+                                <button
+                                    onClick={() => updateViewFilters(view.id)}
+                                    className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2"
+                                >
+                                    <Edit3 size={14} />
+                                    Mettre a jour les filtres
+                                </button>
+                                {!view.is_default && (
+                                    <button
+                                        onClick={() => {
+                                            updateView(view.id, { is_default: true });
+                                            setViewMenuOpen(null);
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2"
+                                    >
+                                        <Star size={14} />
+                                        Definir par defaut
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => deleteView(view.id)}
+                                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                                >
+                                    <Trash2 size={14} />
+                                    Supprimer
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ))}
+
+                {/* Add New View Button */}
+                {hasActiveFilters && (
+                    <button
+                        onClick={() => setShowSaveModal(true)}
+                        className="px-3 py-1.5 text-sm rounded-lg border border-dashed border-teal-500/50 text-teal-400 hover:bg-teal-500/10 transition-all flex items-center gap-1"
+                    >
+                        <Plus size={14} />
+                        Enregistrer cette vue
+                    </button>
+                )}
             </div>
 
             {/* Search & Actions Bar */}
@@ -889,6 +1253,80 @@ export default function SharkRadarClient() {
                             </div>
                         </div>
 
+                        {/* City Filter */}
+                        <div>
+                            <h4 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                                <MapPin size={14} />
+                                Ville
+                            </h4>
+                            <div className="relative">
+                                {/* Selected cities */}
+                                {filters.cities && filters.cities.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {filters.cities.map((city) => (
+                                            <span
+                                                key={city}
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30"
+                                            >
+                                                {city}
+                                                <button
+                                                    onClick={() => removeCity(city)}
+                                                    className="hover:text-blue-100 transition-colors"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Search input */}
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={citySearch}
+                                        onChange={(e) => setCitySearch(e.target.value)}
+                                        onFocus={() => setCityDropdownOpen(true)}
+                                        placeholder="Rechercher une ville..."
+                                        className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50"
+                                    />
+                                    {citiesLoading && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <RefreshCw size={14} className="animate-spin text-slate-400" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Dropdown */}
+                                {cityDropdownOpen && cityOptions.length > 0 && (
+                                    <div className="absolute z-50 w-full mt-2 py-2 bg-slate-800 border border-white/10 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                                        {cityOptions
+                                            .filter((opt) => !filters.cities?.includes(opt.city))
+                                            .map((opt) => (
+                                                <button
+                                                    key={opt.city}
+                                                    onClick={() => selectCity(opt.city)}
+                                                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700/50 transition-colors flex items-center justify-between"
+                                                >
+                                                    <span className="text-white">{opt.city}</span>
+                                                    <span className="text-xs text-slate-500">
+                                                        {opt.region && `${opt.region} • `}{opt.count} projet{opt.count > 1 ? 's' : ''}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                    </div>
+                                )}
+
+                                {/* Click outside to close */}
+                                {cityDropdownOpen && (
+                                    <div
+                                        className="fixed inset-0 z-40"
+                                        onClick={() => setCityDropdownOpen(false)}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
                         {/* Clear */}
                         {hasActiveFilters && (
                             <div className="pt-4 border-t border-white/10">
@@ -916,6 +1354,9 @@ export default function SharkRadarClient() {
                     ))}
                     {filters.priorities?.map((priority) => (
                         <FilterBadge key={`priority-${priority}`} label={PRIORITY_LABELS[priority]} onRemove={() => togglePriorityFilter(priority)} />
+                    ))}
+                    {filters.cities?.map((city) => (
+                        <FilterBadge key={`city-${city}`} label={city} onRemove={() => removeCity(city)} />
                     ))}
                     {filters.search && (
                         <FilterBadge
@@ -1104,7 +1545,7 @@ export default function SharkRadarClient() {
                                                         <ScoreGauge score={project.score} priority={project.priority} animate={false} />
                                                         {/* Tooltip on hover */}
                                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 rounded-lg text-xs text-slate-300 whitespace-nowrap opacity-0 group-hover/score:opacity-100 transition-opacity pointer-events-none z-10 border border-white/10">
-                                                            {SCORE_INTERPRETATIONS[project.priority]}
+                                                            {SCORE_INTERPRETATIONS[normalizePriority(project.priority)]}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -1266,6 +1707,123 @@ export default function SharkRadarClient() {
                         <ChevronRight size={20} />
                     </button>
                 </div>
+            )}
+
+            {/* Save View Modal */}
+            {showSaveModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#1E293B] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-medium text-white flex items-center gap-2">
+                                <Save size={20} className="text-teal-400" />
+                                Enregistrer cette vue
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowSaveModal(false);
+                                    setSaveViewName('');
+                                    setSaveAsDefault(false);
+                                }}
+                                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-2">
+                                    Nom de la vue
+                                </label>
+                                <input
+                                    type="text"
+                                    value={saveViewName}
+                                    onChange={(e) => setSaveViewName(e.target.value)}
+                                    placeholder="Ex: Occitanie - Critiques"
+                                    className="w-full bg-[#0F172A] border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 placeholder:text-slate-500"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setSaveAsDefault(!saveAsDefault)}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                                        saveAsDefault
+                                            ? 'bg-teal-500 border-teal-500'
+                                            : 'border-white/20 hover:border-white/40'
+                                    }`}
+                                >
+                                    {saveAsDefault && <Check size={14} className="text-white" />}
+                                </button>
+                                <span className="text-sm text-slate-300">
+                                    En faire ma vue par defaut
+                                </span>
+                            </div>
+
+                            {/* Preview of active filters */}
+                            <div className="bg-[#0F172A]/50 rounded-lg p-3">
+                                <span className="text-xs text-slate-500 block mb-2">Filtres actuels :</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {filters.phases?.map(p => (
+                                        <span key={p} className="px-2 py-0.5 bg-teal-500/20 text-teal-300 rounded text-xs">
+                                            {PHASE_LABELS[p]}
+                                        </span>
+                                    ))}
+                                    {filters.scales?.map(s => (
+                                        <span key={s} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
+                                            {SCALE_LABELS[s]}
+                                        </span>
+                                    ))}
+                                    {filters.priorities?.map(p => (
+                                        <span key={p} className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs">
+                                            {PRIORITY_LABELS[p]}
+                                        </span>
+                                    ))}
+                                    {filters.regions?.map(r => (
+                                        <span key={r} className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded text-xs">
+                                            {r}
+                                        </span>
+                                    ))}
+                                    {filters.search && (
+                                        <span className="px-2 py-0.5 bg-slate-500/20 text-slate-300 rounded text-xs">
+                                            &quot;{filters.search}&quot;
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowSaveModal(false);
+                                    setSaveViewName('');
+                                    setSaveAsDefault(false);
+                                }}
+                                className="flex-1 px-4 py-3 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={saveCurrentView}
+                                disabled={!saveViewName.trim()}
+                                className="flex-1 px-4 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                <Save size={18} />
+                                Enregistrer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Click outside to close view menu */}
+            {viewMenuOpen && (
+                <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setViewMenuOpen(null)}
+                />
             )}
         </div>
     );

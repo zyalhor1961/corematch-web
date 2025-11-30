@@ -20,6 +20,12 @@ import {
     Target,
     ChevronDown,
     ChevronUp,
+    FileText,
+    Timer,
+    Gavel,
+    HardHat,
+    Ruler,
+    Home,
 } from 'lucide-react';
 import {
     SharkPhase,
@@ -29,6 +35,17 @@ import {
     PHASE_COLORS,
     PRIORITY_COLORS,
     PRIORITY_LABELS,
+    SharkTender,
+    TenderStatus,
+    TENDER_STATUS_LABELS,
+    TENDER_STATUS_COLORS,
+    getTenderUrgencyColor,
+    formatDeadlineCountdown,
+    SharkPermit,
+    PermitStatus,
+    PERMIT_STATUS_LABELS,
+    PERMIT_STATUS_COLORS,
+    PERMIT_TYPE_LABELS,
 } from '@/types/shark';
 
 // =============================================================================
@@ -106,12 +123,48 @@ interface NewsItem {
     excerpt?: string;
 }
 
+interface TenderItem {
+    tender_id: string;
+    external_id: string;
+    reference?: string;
+    title?: string;
+    description?: string;
+    procedure_type?: string;
+    published_at?: string;
+    deadline_at?: string;
+    status: string;
+    location_city?: string;
+    buyer_name?: string;
+    buyer_siret?: string;
+    cpv_codes?: string[];
+}
+
+interface PermitItem {
+    permit_id: string;
+    external_id: string;
+    reference?: string;
+    permit_type?: string;
+    status: string;
+    applicant_name?: string;
+    project_address?: string;
+    city?: string;
+    postcode?: string;
+    region?: string;
+    country: string;
+    description?: string;
+    estimated_surface?: number;
+    estimated_units?: number;
+    submission_date?: string;
+    decision_date?: string;
+}
+
 interface ProjectDetail {
     project: ProjectCore;
     score_details?: ScoreDetails;
     organizations: Organization[];
     people: Person[];
     news: NewsItem[];
+    tenders?: TenderItem[];
 }
 
 // =============================================================================
@@ -247,8 +300,12 @@ export default function ProjectDetailClient() {
         organizations: true,
         people: true,
         news: true,
+        tenders: true,
+        permits: true,
         score: false,
     });
+    const [tenders, setTenders] = useState<TenderItem[]>([]);
+    const [permits, setPermits] = useState<PermitItem[]>([]);
 
     const toggleSection = (section: keyof typeof expandedSections) => {
         setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -282,6 +339,40 @@ export default function ProjectDetailClient() {
         }
     }, [orgId, projectId]);
 
+    const fetchTenders = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/shark/projects/${projectId}/tenders`, {
+                headers: {
+                    'X-Org-Id': orgId,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setTenders(data || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch tenders:', err);
+        }
+    }, [orgId, projectId]);
+
+    const fetchPermits = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/shark/projects/${projectId}/permits`, {
+                headers: {
+                    'X-Org-Id': orgId,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setPermits(data || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch permits:', err);
+        }
+    }, [orgId, projectId]);
+
     const refreshScore = async () => {
         setRefreshing(true);
         try {
@@ -307,8 +398,10 @@ export default function ProjectDetailClient() {
     useEffect(() => {
         if (orgId && projectId) {
             fetchProject();
+            fetchTenders();
+            fetchPermits();
         }
-    }, [orgId, projectId, fetchProject]);
+    }, [orgId, projectId, fetchProject, fetchTenders, fetchPermits]);
 
     // =============================================================================
     // Loading & Error States
@@ -646,6 +739,257 @@ export default function ProjectDetailClient() {
                                                     <ExternalLink size={18} />
                                                 </a>
                                             )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Public Tenders / Marches Publics */}
+            <div className="bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
+                <SectionHeader
+                    icon={Gavel}
+                    title="Marches publics lies"
+                    count={tenders.length}
+                    expanded={expandedSections.tenders}
+                    onToggle={() => toggleSection('tenders')}
+                    tooltip="Appels d'offres publics detectes automatiquement pour ce projet"
+                />
+                {expandedSections.tenders && (
+                    <div className="p-4 border-t border-white/10">
+                        {tenders.length === 0 ? (
+                            <div className="text-center py-6">
+                                <FileText size={32} className="mx-auto text-slate-600 mb-3" />
+                                <p className="text-slate-400">Aucun marche public lie a ce projet</p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Les appels d&apos;offres BOAMP seront automatiquement detectes si disponibles
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {tenders.map((tender) => {
+                                    const daysUntilDeadline = tender.deadline_at
+                                        ? Math.ceil((new Date(tender.deadline_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                        : undefined;
+                                    const urgencyColor = getTenderUrgencyColor(daysUntilDeadline);
+                                    const countdownText = formatDeadlineCountdown(daysUntilDeadline);
+
+                                    return (
+                                        <div key={tender.tender_id} className="p-4 bg-slate-800/30 rounded-lg hover:bg-slate-800/50 transition-colors border border-white/5">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    {/* Title */}
+                                                    <h4 className="font-medium text-white line-clamp-2">
+                                                        {tender.title || tender.reference || 'Marche public'}
+                                                    </h4>
+
+                                                    {/* Description */}
+                                                    {tender.description && (
+                                                        <p className="text-sm text-slate-400 mt-2 line-clamp-2">
+                                                            {tender.description}
+                                                        </p>
+                                                    )}
+
+                                                    {/* Meta info */}
+                                                    <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
+                                                        {/* Buyer */}
+                                                        {tender.buyer_name && (
+                                                            <span className="flex items-center gap-1 text-slate-400">
+                                                                <Building2 size={12} />
+                                                                {tender.buyer_name}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Location */}
+                                                        {tender.location_city && (
+                                                            <span className="flex items-center gap-1 text-slate-400">
+                                                                <MapPin size={12} />
+                                                                {tender.location_city}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Reference */}
+                                                        {tender.reference && (
+                                                            <span className="text-slate-500">
+                                                                Ref: {tender.reference}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Published date */}
+                                                        {tender.published_at && (
+                                                            <span className="text-slate-500">
+                                                                Publie le {new Date(tender.published_at).toLocaleDateString('fr-FR')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Procedure type */}
+                                                    {tender.procedure_type && (
+                                                        <div className="mt-2">
+                                                            <span className="px-2 py-0.5 bg-slate-700 text-slate-300 text-xs rounded">
+                                                                {tender.procedure_type}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Right side: Status & Deadline */}
+                                                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                                    {/* Status badge */}
+                                                    <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${TENDER_STATUS_COLORS[tender.status as TenderStatus] || 'bg-slate-500/20 text-slate-400'}`}>
+                                                        {TENDER_STATUS_LABELS[tender.status as TenderStatus] || tender.status}
+                                                    </span>
+
+                                                    {/* Deadline countdown */}
+                                                    {tender.deadline_at && (
+                                                        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 ${urgencyColor}`}>
+                                                            <Timer size={14} />
+                                                            <div className="text-right">
+                                                                <div className="text-xs font-medium">{countdownText}</div>
+                                                                <div className="text-[10px] text-slate-500">
+                                                                    {new Date(tender.deadline_at).toLocaleDateString('fr-FR')}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* CPV codes */}
+                                            {tender.cpv_codes && tender.cpv_codes.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-white/5">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {tender.cpv_codes.slice(0, 5).map((cpv, idx) => (
+                                                            <span key={idx} className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 text-[10px] rounded border border-purple-500/20">
+                                                                {cpv}
+                                                            </span>
+                                                        ))}
+                                                        {tender.cpv_codes.length > 5 && (
+                                                            <span className="text-[10px] text-slate-500">
+                                                                +{tender.cpv_codes.length - 5}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Building Permits / Permis de Construire */}
+            <div className="bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
+                <SectionHeader
+                    icon={HardHat}
+                    title="Permis de construire"
+                    count={permits.length}
+                    expanded={expandedSections.permits}
+                    onToggle={() => toggleSection('permits')}
+                    tooltip="Permis de construire lies a ce projet, detectes automatiquement"
+                />
+                {expandedSections.permits && (
+                    <div className="p-4 border-t border-white/10">
+                        {permits.length === 0 ? (
+                            <div className="text-center py-6">
+                                <HardHat size={32} className="mx-auto text-slate-600 mb-3" />
+                                <p className="text-slate-400">Aucun permis de construire lie</p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Les permis sont detectes automatiquement depuis les donnees ouvertes
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {permits.map((permit) => (
+                                    <div key={permit.permit_id} className="p-4 bg-slate-800/30 rounded-lg hover:bg-slate-800/50 transition-colors border border-white/5">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                {/* Type badge + Reference */}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    {permit.permit_type && (
+                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs font-medium rounded">
+                                                            {PERMIT_TYPE_LABELS[permit.permit_type] || permit.permit_type}
+                                                        </span>
+                                                    )}
+                                                    {permit.reference && (
+                                                        <span className="text-xs text-slate-500 font-mono">
+                                                            {permit.reference}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Description */}
+                                                {permit.description && (
+                                                    <p className="text-sm text-white mt-2 line-clamp-2">
+                                                        {permit.description}
+                                                    </p>
+                                                )}
+
+                                                {/* Applicant */}
+                                                {permit.applicant_name && (
+                                                    <div className="flex items-center gap-2 mt-2 text-sm text-slate-300">
+                                                        <Building2 size={14} className="text-slate-500" />
+                                                        <span>{permit.applicant_name}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Location */}
+                                                <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                                                    <MapPin size={12} />
+                                                    <span>
+                                                        {[
+                                                            permit.project_address,
+                                                            permit.postcode,
+                                                            permit.city,
+                                                        ].filter(Boolean).join(', ') || 'Adresse non renseignee'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Surface & Units */}
+                                                {(permit.estimated_surface || permit.estimated_units) && (
+                                                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                                                        {permit.estimated_surface && (
+                                                            <span className="flex items-center gap-1">
+                                                                <Ruler size={12} />
+                                                                {permit.estimated_surface.toLocaleString('fr-FR')} m&sup2;
+                                                            </span>
+                                                        )}
+                                                        {permit.estimated_units && (
+                                                            <span className="flex items-center gap-1">
+                                                                <Home size={12} />
+                                                                {permit.estimated_units} logement{permit.estimated_units > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Dates */}
+                                                <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                                                    {permit.submission_date && (
+                                                        <span>
+                                                            Depose le {new Date(permit.submission_date).toLocaleDateString('fr-FR')}
+                                                        </span>
+                                                    )}
+                                                    {permit.decision_date && (
+                                                        <span>
+                                                            Decision le {new Date(permit.decision_date).toLocaleDateString('fr-FR')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Right side: Status */}
+                                            <div className="flex-shrink-0">
+                                                <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${PERMIT_STATUS_COLORS[permit.status as PermitStatus] || 'bg-slate-500/20 text-slate-400'}`}>
+                                                    {PERMIT_STATUS_LABELS[permit.status as PermitStatus] || permit.status}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

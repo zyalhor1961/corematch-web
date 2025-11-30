@@ -36,8 +36,12 @@ import {
     SCALE_LABELS,
     PRIORITY_COLORS,
     PRIORITY_LABELS,
+    getTenderUrgencyColor,
+    formatDeadlineCountdown,
 } from '@/types/shark';
+import { FileText, Timer } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
+import SharkTenderHighlights from './SharkTenderHighlights';
 
 // =============================================================================
 // Constants
@@ -160,6 +164,58 @@ function PhaseBadge({ phase }: { phase: SharkPhase }) {
     return (
         <span className={`px-2.5 py-1 text-xs font-medium rounded-lg text-white ${PHASE_COLORS[phase]}`}>
             {PHASE_LABELS[phase]}
+        </span>
+    );
+}
+
+// Tender Badge - shows if project has public tender with deadline
+function TenderBadge({
+    isPublicTender,
+    deadline,
+}: {
+    isPublicTender?: boolean;
+    deadline?: string | null;
+}) {
+    if (!isPublicTender) return null;
+
+    const daysUntilDeadline = deadline
+        ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        : undefined;
+
+    const urgencyColor = getTenderUrgencyColor(daysUntilDeadline);
+    const countdownText = formatDeadlineCountdown(daysUntilDeadline);
+
+    // Dynamic glow based on urgency
+    const getGlowClass = () => {
+        if (daysUntilDeadline === undefined) return '';
+        if (daysUntilDeadline <= 0) return 'shadow-[0_0_12px_rgba(239,68,68,0.5)]';
+        if (daysUntilDeadline <= 10) return 'shadow-[0_0_10px_rgba(239,68,68,0.4)] animate-pulse';
+        if (daysUntilDeadline <= 30) return 'shadow-[0_0_8px_rgba(245,158,11,0.3)]';
+        return '';
+    };
+
+    const getBgClass = () => {
+        if (daysUntilDeadline === undefined) return 'bg-purple-500/20 border-purple-500/30';
+        if (daysUntilDeadline <= 0) return 'bg-red-500/20 border-red-500/40';
+        if (daysUntilDeadline <= 10) return 'bg-red-500/20 border-red-500/40';
+        if (daysUntilDeadline <= 30) return 'bg-amber-500/20 border-amber-500/30';
+        return 'bg-purple-500/20 border-purple-500/30';
+    };
+
+    return (
+        <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg backdrop-blur-sm border ${getBgClass()} ${getGlowClass()}`}
+            title={deadline ? `Date limite: ${new Date(deadline).toLocaleDateString('fr-FR')}` : 'Marche public'}
+        >
+            <FileText size={12} className={urgencyColor} />
+            <span className={urgencyColor}>AO</span>
+            {deadline && (
+                <>
+                    <span className="opacity-30">|</span>
+                    <Timer size={10} className={urgencyColor} />
+                    <span className={`font-semibold ${urgencyColor}`}>{countdownText}</span>
+                </>
+            )}
         </span>
     );
 }
@@ -381,6 +437,10 @@ function TopOpportunityCard({
                 <div className="flex flex-wrap gap-2">
                     <PhaseBadge phase={project.phase} />
                     <PriorityBadge priority={project.priority} />
+                    <TenderBadge
+                        isPublicTender={(project as SharkProjectWithScore & { is_public_tender?: boolean }).is_public_tender}
+                        deadline={(project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline}
+                    />
                 </div>
 
                 {/* Micro-interpretation */}
@@ -430,6 +490,10 @@ function ProjectCard({ project, orgId }: { project: SharkProjectWithScore; orgId
                 <div className="flex flex-wrap gap-2">
                     <PhaseBadge phase={project.phase} />
                     <PriorityBadge priority={project.priority} />
+                    <TenderBadge
+                        isPublicTender={(project as SharkProjectWithScore & { is_public_tender?: boolean }).is_public_tender}
+                        deadline={(project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline}
+                    />
                 </div>
 
                 {/* Meta info */}
@@ -676,6 +740,9 @@ export default function SharkRadarClient() {
         <div className="space-y-6">
             {/* Introduction Banner */}
             <IntroBanner />
+
+            {/* Public Tenders Highlights */}
+            <SharkTenderHighlights orgId={orgId} maxItems={3} />
 
             {/* Header: Last Updated + Stats */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -980,12 +1047,34 @@ export default function SharkRadarClient() {
                                             >
                                                 <td className="py-4 px-6">
                                                     <div className="space-y-1">
-                                                        <div className="font-medium text-white line-clamp-1 group-hover:text-teal-300 transition-colors">
-                                                            {project.title}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium text-white line-clamp-1 group-hover:text-teal-300 transition-colors">
+                                                                {project.title}
+                                                            </span>
+                                                            {(project as SharkProjectWithScore & { is_public_tender?: boolean }).is_public_tender && (
+                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-[10px] rounded border border-purple-500/30" title="Marche public">
+                                                                    <FileText size={10} />
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-slate-500">
                                                             <Building2 size={12} />
                                                             {project.organization_count} acteur{project.organization_count !== 1 ? 's' : ''}
+                                                            {(project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline && (
+                                                                <>
+                                                                    <span className="text-slate-600">|</span>
+                                                                    <Timer size={10} className={getTenderUrgencyColor(
+                                                                        Math.ceil((new Date((project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline!).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                                                    )} />
+                                                                    <span className={getTenderUrgencyColor(
+                                                                        Math.ceil((new Date((project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline!).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                                                    )}>
+                                                                        {formatDeadlineCountdown(
+                                                                            Math.ceil((new Date((project as SharkProjectWithScore & { tender_deadline?: string }).tender_deadline!).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                                                        )}
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>

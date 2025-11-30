@@ -163,12 +163,14 @@ export interface SharkProjectDetail extends SharkProjectWithScore {
     people: SharkPerson[];
     news: SharkNews[];
     actions: SharkAction[];
+    tenders?: SharkTender[];
+    permits?: SharkPermit[];
 }
 
 export interface SharkActivityItem {
     id: string;
     project_id: string | null;
-    type: 'news' | 'score_update' | 'osint_enrichment' | 'ingestion';
+    type: SharkActivityType;
     timestamp: string;
     summary: string;
     details?: Record<string, unknown>;
@@ -298,13 +300,15 @@ export const PRIORITY_LABELS: Record<SharkPriority, string> = {
     CRITICAL: 'Critique',
 };
 
-export type SharkActivityType = 'news' | 'score_update' | 'osint_enrichment' | 'ingestion';
+export type SharkActivityType = 'news' | 'score_update' | 'osint_enrichment' | 'ingestion' | 'permit_detected' | 'tender_detected';
 
 export const ACTIVITY_TYPE_COLORS: Record<SharkActivityType, string> = {
     news: 'bg-blue-500',
     score_update: 'bg-teal-500',
     osint_enrichment: 'bg-purple-500',
     ingestion: 'bg-slate-500',
+    permit_detected: 'bg-amber-500',
+    tender_detected: 'bg-purple-500',
 };
 
 export const ACTIVITY_TYPE_LABELS: Record<SharkActivityType, string> = {
@@ -312,6 +316,8 @@ export const ACTIVITY_TYPE_LABELS: Record<SharkActivityType, string> = {
     score_update: 'Activite projet',
     osint_enrichment: 'Recherche Web',
     ingestion: 'Analyse IA',
+    permit_detected: 'Permis detecte',
+    tender_detected: 'Marche public',
 };
 
 // =============================================================================
@@ -339,4 +345,158 @@ export interface SharkFromSourcingResponse {
     created_project: boolean;
     reused_existing_project: boolean;
     message: string;
+}
+
+// =============================================================================
+// Public Tenders (Marches Publics / BOAMP)
+// =============================================================================
+
+export type TenderStatus =
+    | 'published'
+    | 'awarded'
+    | 'closed'
+    | 'cancelled';
+
+export interface SharkTender {
+    tender_id: string;
+    external_id: string;
+    reference?: string;
+    title?: string;
+    description?: string;
+    procedure_type?: string;
+    published_at?: string;
+    deadline_at?: string;
+    status: TenderStatus;
+    location_city?: string;
+    location_region?: string;
+    location_department?: string;
+    buyer_name?: string;
+    buyer_siret?: string;
+    cpv_codes: string[];
+    awarded_at?: string;
+    awarded_amount?: number;
+    days_until_deadline?: number;
+    project_id?: string;
+    project_name?: string;
+}
+
+export const TENDER_STATUS_LABELS: Record<TenderStatus, string> = {
+    published: 'Publie',
+    awarded: 'Attribue',
+    closed: 'Clos',
+    cancelled: 'Annule',
+};
+
+export const TENDER_STATUS_COLORS: Record<TenderStatus, string> = {
+    published: 'text-green-400 bg-green-500/20',
+    awarded: 'text-blue-400 bg-blue-500/20',
+    closed: 'text-slate-400 bg-slate-500/20',
+    cancelled: 'text-red-400 bg-red-500/20',
+};
+
+/**
+ * Get urgency color based on days until deadline
+ */
+export function getTenderUrgencyColor(daysUntilDeadline?: number): string {
+    if (daysUntilDeadline === undefined || daysUntilDeadline === null) {
+        return 'text-slate-400';
+    }
+    if (daysUntilDeadline <= 0) {
+        return 'text-red-500'; // Expired
+    }
+    if (daysUntilDeadline <= 7) {
+        return 'text-red-400'; // Very urgent
+    }
+    if (daysUntilDeadline <= 14) {
+        return 'text-amber-400'; // Urgent
+    }
+    if (daysUntilDeadline <= 30) {
+        return 'text-yellow-400'; // Coming soon
+    }
+    return 'text-green-400'; // Plenty of time
+}
+
+/**
+ * Format deadline countdown for display
+ */
+export function formatDeadlineCountdown(daysUntilDeadline?: number): string {
+    if (daysUntilDeadline === undefined || daysUntilDeadline === null) {
+        return '-';
+    }
+    if (daysUntilDeadline <= 0) {
+        return 'Expire';
+    }
+    if (daysUntilDeadline === 1) {
+        return '1 jour';
+    }
+    return `${daysUntilDeadline} jours`;
+}
+
+// =============================================================================
+// Building Permits (Permis de Construire)
+// =============================================================================
+
+export type PermitStatus =
+    | 'filed'
+    | 'accepted'
+    | 'refused'
+    | 'cancelled'
+    | 'unknown';
+
+export interface SharkPermit {
+    permit_id: string;
+    external_id: string;
+    reference?: string;
+    permit_type?: string;
+    status: PermitStatus;
+    applicant_name?: string;
+    project_address?: string;
+    city?: string;
+    postcode?: string;
+    region?: string;
+    country: string;
+    description?: string;
+    estimated_surface?: number;
+    estimated_units?: number;
+    submission_date?: string;
+    decision_date?: string;
+    project_id?: string;
+    project_name?: string;
+}
+
+export const PERMIT_STATUS_LABELS: Record<PermitStatus, string> = {
+    filed: 'Depose',
+    accepted: 'Accorde',
+    refused: 'Refuse',
+    cancelled: 'Annule',
+    unknown: 'Inconnu',
+};
+
+export const PERMIT_STATUS_COLORS: Record<PermitStatus, string> = {
+    filed: 'text-blue-400 bg-blue-500/20',
+    accepted: 'text-green-400 bg-green-500/20',
+    refused: 'text-red-400 bg-red-500/20',
+    cancelled: 'text-slate-400 bg-slate-500/20',
+    unknown: 'text-slate-400 bg-slate-500/20',
+};
+
+export const PERMIT_TYPE_LABELS: Record<string, string> = {
+    PC: 'Permis de Construire',
+    PCMI: 'Permis Maison Individuelle',
+    DP: 'Declaration Prealable',
+    PA: 'Permis d\'Amenager',
+    PD: 'Permis de Demolir',
+};
+
+// =============================================================================
+// Extended Project with Tenders/Permits
+// =============================================================================
+
+export interface SharkProjectWithTenders extends SharkProjectWithScore {
+    is_public_tender?: boolean;
+    tender_deadline?: string;
+    tender_count?: number;
+    permit_count?: number;
+    tenders?: SharkTender[];
+    permits?: SharkPermit[];
 }

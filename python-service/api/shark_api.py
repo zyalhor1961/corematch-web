@@ -1454,6 +1454,964 @@ async def ingest_from_sourcing(
         )
 
 
+# ============================================================
+# LEGAL ENRICHMENT ADMIN ENDPOINTS
+# ============================================================
+
+class LegalEnrichmentResult(BaseModel):
+    """Result of a single legal enrichment operation."""
+    organization_id: str
+    organization_name: Optional[str] = None
+    siren: Optional[str] = None
+    legal_name: Optional[str] = None
+    naf_code: Optional[str] = None
+    legal_form: Optional[str] = None
+    registered_city: Optional[str] = None
+    registered_postcode: Optional[str] = None
+    officers_count: int = 0
+    updated: bool = False
+    source: str = "api_entreprise"
+    message: Optional[str] = None
+
+
+class BulkLegalEnrichmentRequest(BaseModel):
+    """Request for bulk legal enrichment."""
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class BulkLegalEnrichmentResponse(BaseModel):
+    """Response for bulk legal enrichment."""
+    tenant_id: str
+    total_processed: int = 0
+    updated_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    results: List[LegalEnrichmentResult] = []
+
+
+@router.post(
+    "/admin/enrich-org-legal/{organization_id}",
+    response_model=LegalEnrichmentResult
+)
+async def enrich_organization_legal(
+    organization_id: str,
+    force: bool = Query(default=False, description="Force re-enrichment even if recent"),
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """
+    Trigger legal data enrichment for a single organization.
+
+    This endpoint:
+    1. Fetches legal data from API Entreprise (SIREN, legal name, NAF code, etc.)
+    2. Updates shark_organizations with legal data
+    3. Stores directors/officers in legal_officers JSONB column
+
+    Query params:
+    - force: If True, re-enrich even if recently enriched (default: False)
+
+    The legal_officers can then be used by Sherlock as decision-maker candidates.
+    """
+    db = get_supabase()
+
+    # Verify organization exists and belongs to tenant
+    org = db.table("shark_organizations").select("id, tenant_id, name").eq(
+        "id", organization_id
+    ).eq("tenant_id", str(tenant_id)).execute()
+
+    if not org.data:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    try:
+        from services.shark_legal_enrichment_service import (
+            enrich_organization_with_legal_data,
+        )
+
+        result = await enrich_organization_with_legal_data(
+            organization_id=UUID(organization_id),
+            db=db,
+            force=force
+        )
+
+        return LegalEnrichmentResult(
+            organization_id=str(result.organization_id),
+            organization_name=result.organization_name,
+            siren=result.siren,
+            legal_name=result.legal_name,
+            naf_code=result.naf_code,
+            legal_form=result.legal_form,
+            registered_city=result.registered_city,
+            registered_postcode=result.registered_postcode,
+            officers_count=result.officers_count,
+            updated=result.updated,
+            source=result.source,
+            message=result.message
+        )
+
+    except Exception as e:
+        logger.error(f"[API] Legal enrichment failed for {organization_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Legal enrichment failed: {str(e)}"
+        )
+
+
+@router.post(
+    "/admin/enrich-org-legal-bulk",
+    response_model=BulkLegalEnrichmentResponse
+)
+async def bulk_enrich_organizations_legal(
+    request: BulkLegalEnrichmentRequest = BulkLegalEnrichmentRequest(),
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """
+    Bulk enrich organizations missing legal data.
+
+    This endpoint processes organizations that:
+    - Have no SIREN
+    - Have never been legally enriched
+    - Were enriched more than 30 days ago
+
+    Request body:
+    - limit: Maximum organizations to process (default: 50, max: 200)
+
+    The enrichment fetches data from API Entreprise (free, no API key required)
+    and updates shark_organizations with:
+    - siren, siret
+    - legal_name (denomination sociale)
+    - naf_code (code NAF/APE)
+    - legal_form (SARL, SAS, etc.)
+    - registered_city, registered_postcode
+    - legal_officers (JSONB array of directors)
+    """
+    try:
+        from services.shark_legal_enrichment_service import (
+            bulk_enrich_missing_organizations,
+        )
+
+        db = get_supabase()
+
+        summary = await bulk_enrich_missing_organizations(
+            db=db,
+            tenant_id=tenant_id,
+            limit=request.limit
+        )
+
+        return BulkLegalEnrichmentResponse(
+            tenant_id=str(tenant_id),
+            total_processed=summary.total_processed,
+            updated_count=summary.updated_count,
+            skipped_count=summary.skipped_count,
+            failed_count=summary.failed_count,
+            results=[
+                LegalEnrichmentResult(
+                    organization_id=str(r.organization_id),
+                    organization_name=r.organization_name,
+                    siren=r.siren,
+                    legal_name=r.legal_name,
+                    naf_code=r.naf_code,
+                    legal_form=r.legal_form,
+                    registered_city=r.registered_city,
+                    registered_postcode=r.registered_postcode,
+                    officers_count=r.officers_count,
+                    updated=r.updated,
+                    source=r.source,
+                    message=r.message
+                )
+                for r in summary.results
+            ]
+        )
+
+    except Exception as e:
+        logger.error(f"[API] Bulk legal enrichment failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Bulk legal enrichment failed: {str(e)}"
+        )
+
+
+# ============================================================
+# BOAMP / PUBLIC TENDERS ENDPOINTS
+# ============================================================
+
+class TenderSummary(BaseModel):
+    """Summary of a public tender."""
+    tender_id: str
+    external_id: str
+    title: Optional[str] = None
+    procedure_type: Optional[str] = None
+    published_at: Optional[str] = None
+    deadline_at: Optional[str] = None
+    status: str = "published"
+    location_city: Optional[str] = None
+    location_region: Optional[str] = None
+    buyer_name: Optional[str] = None
+    cpv_codes: List[str] = Field(default_factory=list)
+    days_until_deadline: Optional[int] = None
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+
+
+class PaginatedTendersResponse(BaseModel):
+    """Paginated response for tender list."""
+    items: List[TenderSummary]
+    page: int
+    page_size: int
+    total: int
+
+
+class TenderDetail(BaseModel):
+    """Full tender detail."""
+    tender_id: str
+    external_id: str
+    reference: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    procedure_type: Optional[str] = None
+    published_at: Optional[str] = None
+    deadline_at: Optional[str] = None
+    status: str = "published"
+    location_city: Optional[str] = None
+    location_region: Optional[str] = None
+    location_department: Optional[str] = None
+    buyer_name: Optional[str] = None
+    buyer_siret: Optional[str] = None
+    cpv_codes: List[str] = Field(default_factory=list)
+    awarded_at: Optional[str] = None
+    awarded_amount: Optional[float] = None
+    linked_projects: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ManualTenderIngestionRequest(BaseModel):
+    """Request for manual tender ingestion."""
+    external_id: str
+    title: str
+    description: Optional[str] = None
+    procedure_type: Optional[str] = None
+    published_at: Optional[str] = None
+    deadline_at: Optional[str] = None
+    cpv_codes: List[str] = Field(default_factory=list)
+    location_city: Optional[str] = None
+    location_region: Optional[str] = None
+    buyer_name: Optional[str] = None
+    buyer_siret: Optional[str] = None
+
+
+class ManualTenderIngestionResponse(BaseModel):
+    """Response for manual tender ingestion."""
+    tender_id: str
+    project_id: Optional[str] = None
+    created_project: bool = False
+    reused_project: bool = False
+    created_tender: bool = False
+    message: str
+
+
+@router.get("/tenders/recent", response_model=PaginatedTendersResponse)
+async def get_recent_tenders(
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    days: int = Query(default=30, ge=1, le=90),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status: Optional[str] = Query(default=None, regex="^(published|awarded|closed|cancelled)$"),
+):
+    """
+    Get recent public tenders for the tenant.
+
+    Query params:
+    - days: How many days back to search (default: 30, max: 90)
+    - page: Page number (default: 1)
+    - page_size: Items per page (default: 20, max: 100)
+    - status: Filter by tender status
+    """
+    db = get_supabase()
+
+    # Calculate date cutoff
+    from datetime import timedelta
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+    # Build query
+    query = db.table("shark_public_tenders").select(
+        "id, external_id, title, procedure_type, published_at, deadline_at, "
+        "status, location_city, location_region, buyer_name, cpv_codes",
+        count="exact"
+    ).eq("tenant_id", str(tenant_id)).gte("published_at", cutoff)
+
+    if status:
+        query = query.eq("status", status)
+
+    # Order by deadline (urgent first), then published date
+    query = query.order("deadline_at", desc=False, nullsfirst=False)
+
+    # Execute count
+    count_result = query.execute()
+    total = count_result.count if count_result.count else 0
+
+    # Apply pagination
+    offset = (page - 1) * page_size
+    query = query.range(offset, offset + page_size - 1)
+
+    result = query.execute()
+    tenders = result.data or []
+
+    # Enrich with project links and days until deadline
+    items = []
+    for t in tenders:
+        tender_id = t["id"]
+
+        # Get linked project
+        project_link = db.table("shark_project_tenders").select(
+            "project_id"
+        ).eq("tender_id", tender_id).limit(1).execute()
+
+        project_id = None
+        project_name = None
+        if project_link.data:
+            project_id = project_link.data[0]["project_id"]
+            project = db.table("shark_projects").select("name").eq(
+                "id", project_id
+            ).execute()
+            if project.data:
+                project_name = project.data[0]["name"]
+
+        # Calculate days until deadline
+        days_until = None
+        if t.get("deadline_at"):
+            try:
+                deadline = datetime.fromisoformat(t["deadline_at"].replace("Z", "+00:00"))
+                if deadline.tzinfo:
+                    deadline = deadline.replace(tzinfo=None)
+                days_until = (deadline - datetime.utcnow()).days
+            except (ValueError, TypeError):
+                pass
+
+        items.append(TenderSummary(
+            tender_id=tender_id,
+            external_id=t.get("external_id") or "",
+            title=t.get("title"),
+            procedure_type=t.get("procedure_type"),
+            published_at=t.get("published_at"),
+            deadline_at=t.get("deadline_at"),
+            status=t.get("status") or "published",
+            location_city=t.get("location_city"),
+            location_region=t.get("location_region"),
+            buyer_name=t.get("buyer_name"),
+            cpv_codes=t.get("cpv_codes") or [],
+            days_until_deadline=days_until,
+            project_id=project_id,
+            project_name=project_name,
+        ))
+
+    return PaginatedTendersResponse(
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+@router.get("/tenders/{tender_id}", response_model=TenderDetail)
+async def get_tender_detail(
+    tender_id: str,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """Get detailed tender information."""
+    db = get_supabase()
+
+    # Validate UUID
+    try:
+        UUID(tender_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid tender_id format")
+
+    # Load tender
+    result = db.table("shark_public_tenders").select("*").eq(
+        "id", tender_id
+    ).eq("tenant_id", str(tenant_id)).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    t = result.data[0]
+
+    # Get linked projects
+    project_links = db.table("shark_project_tenders").select(
+        "project_id, role, metadata"
+    ).eq("tender_id", tender_id).execute()
+
+    linked_projects = []
+    if project_links.data:
+        for link in project_links.data:
+            project = db.table("shark_projects").select(
+                "id, name, phase, shark_score"
+            ).eq("id", link["project_id"]).execute()
+
+            if project.data:
+                p = project.data[0]
+                linked_projects.append({
+                    "project_id": p["id"],
+                    "name": p["name"],
+                    "phase": p.get("phase"),
+                    "score": p.get("shark_score"),
+                    "role": link.get("role"),
+                })
+
+    return TenderDetail(
+        tender_id=t["id"],
+        external_id=t.get("external_id") or "",
+        reference=t.get("reference"),
+        title=t.get("title"),
+        description=t.get("description"),
+        procedure_type=t.get("procedure_type"),
+        published_at=t.get("published_at"),
+        deadline_at=t.get("deadline_at"),
+        status=t.get("status") or "published",
+        location_city=t.get("location_city"),
+        location_region=t.get("location_region"),
+        location_department=t.get("location_department"),
+        buyer_name=t.get("buyer_name"),
+        buyer_siret=t.get("buyer_siret"),
+        cpv_codes=t.get("cpv_codes") or [],
+        awarded_at=t.get("awarded_at"),
+        awarded_amount=t.get("awarded_amount"),
+        linked_projects=linked_projects,
+    )
+
+
+@router.post("/tenders/ingest", response_model=ManualTenderIngestionResponse)
+async def manual_ingest_tender(
+    request: ManualTenderIngestionRequest,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """
+    Manually ingest a tender (admin/debug endpoint).
+
+    This endpoint allows manual creation of tenders for testing
+    or when automatic BOAMP ingestion misses a tender.
+    """
+    try:
+        from services.shark_boamp_service import (
+            BoampTender,
+            ingest_tender_as_project,
+        )
+
+        db = get_supabase()
+
+        # Parse dates
+        published_at = None
+        if request.published_at:
+            try:
+                published_at = datetime.fromisoformat(
+                    request.published_at.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        deadline_at = None
+        if request.deadline_at:
+            try:
+                deadline_at = datetime.fromisoformat(
+                    request.deadline_at.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        # Build tender
+        tender = BoampTender(
+            external_id=request.external_id,
+            title=request.title,
+            description=request.description,
+            procedure_type=request.procedure_type,
+            published_at=published_at,
+            deadline_at=deadline_at,
+            cpv_codes=request.cpv_codes,
+            status="published",
+            location_city=request.location_city,
+            location_region=request.location_region,
+            buyer_name=request.buyer_name,
+            buyer_siret=request.buyer_siret,
+            raw_data={"source": "manual_ingestion"},
+        )
+
+        # Ingest
+        result = await ingest_tender_as_project(tender, tenant_id, db)
+
+        return ManualTenderIngestionResponse(
+            tender_id=str(result.tender_id),
+            project_id=str(result.project_id) if result.project_id else None,
+            created_project=result.created_project,
+            reused_project=result.reused_project,
+            created_tender=result.created_tender,
+            message=result.message or "tender_ingested",
+        )
+
+    except Exception as e:
+        logger.error(f"[API] Manual tender ingestion failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Tender ingestion failed: {str(e)}"
+        )
+
+
+@router.get("/projects/{project_id}/tenders", response_model=List[TenderSummary])
+async def get_project_tenders(
+    project_id: str,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """Get all tenders linked to a project."""
+    db = get_supabase()
+
+    # Verify project exists and belongs to tenant
+    project = db.table("shark_projects").select("id").eq(
+        "id", project_id
+    ).eq("tenant_id", str(tenant_id)).execute()
+
+    if not project.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get tender links
+    links = db.table("shark_project_tenders").select(
+        "tender_id, role"
+    ).eq("project_id", project_id).execute()
+
+    if not links.data:
+        return []
+
+    tenders = []
+    for link in links.data:
+        tender_id = link["tender_id"]
+
+        # Get tender details
+        tender = db.table("shark_public_tenders").select(
+            "id, external_id, title, procedure_type, published_at, deadline_at, "
+            "status, location_city, location_region, buyer_name, cpv_codes"
+        ).eq("id", tender_id).execute()
+
+        if tender.data:
+            t = tender.data[0]
+
+            # Calculate days until deadline
+            days_until = None
+            if t.get("deadline_at"):
+                try:
+                    deadline = datetime.fromisoformat(t["deadline_at"].replace("Z", "+00:00"))
+                    if deadline.tzinfo:
+                        deadline = deadline.replace(tzinfo=None)
+                    days_until = (deadline - datetime.utcnow()).days
+                except (ValueError, TypeError):
+                    pass
+
+            tenders.append(TenderSummary(
+                tender_id=t["id"],
+                external_id=t.get("external_id") or "",
+                title=t.get("title"),
+                procedure_type=t.get("procedure_type"),
+                published_at=t.get("published_at"),
+                deadline_at=t.get("deadline_at"),
+                status=t.get("status") or "published",
+                location_city=t.get("location_city"),
+                location_region=t.get("location_region"),
+                buyer_name=t.get("buyer_name"),
+                cpv_codes=t.get("cpv_codes") or [],
+                days_until_deadline=days_until,
+                project_id=project_id,
+                project_name=None,  # Already known from context
+            ))
+
+    return tenders
+
+
+# ============================================================
+# BUILDING PERMITS ENDPOINTS
+# ============================================================
+
+class PermitSummary(BaseModel):
+    """Summary of a building permit."""
+    permit_id: str
+    external_id: str
+    reference: Optional[str] = None
+    permit_type: Optional[str] = None
+    status: str = "filed"
+    applicant_name: Optional[str] = None
+    city: Optional[str] = None
+    postcode: Optional[str] = None
+    region: Optional[str] = None
+    description: Optional[str] = None
+    estimated_surface: Optional[float] = None
+    estimated_units: Optional[int] = None
+    submission_date: Optional[str] = None
+    decision_date: Optional[str] = None
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+
+
+class PaginatedPermitsResponse(BaseModel):
+    """Paginated response for permit list."""
+    items: List[PermitSummary]
+    page: int
+    page_size: int
+    total: int
+
+
+class PermitDetail(BaseModel):
+    """Full permit detail."""
+    permit_id: str
+    external_id: str
+    reference: Optional[str] = None
+    permit_type: Optional[str] = None
+    status: str = "filed"
+    applicant_name: Optional[str] = None
+    project_address: Optional[str] = None
+    city: Optional[str] = None
+    postcode: Optional[str] = None
+    region: Optional[str] = None
+    country: str = "FR"
+    description: Optional[str] = None
+    estimated_surface: Optional[float] = None
+    estimated_units: Optional[int] = None
+    submission_date: Optional[str] = None
+    decision_date: Optional[str] = None
+    linked_projects: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ManualPermitIngestionRequest(BaseModel):
+    """Request for manual permit ingestion."""
+    external_id: str
+    reference: Optional[str] = None
+    permit_type: Optional[str] = None
+    status: str = "filed"
+    applicant_name: Optional[str] = None
+    project_address: Optional[str] = None
+    city: Optional[str] = None
+    postcode: Optional[str] = None
+    region: Optional[str] = None
+    description: Optional[str] = None
+    estimated_surface: Optional[float] = None
+    estimated_units: Optional[int] = None
+    submission_date: Optional[str] = None
+    decision_date: Optional[str] = None
+
+
+class ManualPermitIngestionResponse(BaseModel):
+    """Response for manual permit ingestion."""
+    permit_id: str
+    project_id: Optional[str] = None
+    created_project: bool = False
+    reused_project: bool = False
+    created_permit: bool = False
+    created_organization: bool = False
+    message: str
+
+
+@router.get("/permits/recent", response_model=PaginatedPermitsResponse)
+async def get_recent_permits(
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    days: int = Query(default=60, ge=1, le=180),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status: Optional[str] = Query(default=None, regex="^(filed|accepted|refused|cancelled|unknown)$"),
+    city: Optional[str] = Query(default=None),
+):
+    """
+    Get recent building permits for the tenant.
+
+    Query params:
+    - days: How many days back to search (default: 60, max: 180)
+    - page: Page number (default: 1)
+    - page_size: Items per page (default: 20, max: 100)
+    - status: Filter by permit status (filed|accepted|refused|cancelled|unknown)
+    - city: Filter by city name (partial match)
+    """
+    db = get_supabase()
+
+    # Calculate date cutoff
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+    # Build query
+    query = db.table("shark_building_permits").select(
+        "id, external_id, reference, permit_type, status, applicant_name, "
+        "city, postcode, region, description, estimated_surface, estimated_units, "
+        "submission_date, decision_date",
+        count="exact"
+    ).eq("tenant_id", str(tenant_id))
+
+    # Apply date filter (on submission or decision)
+    # For simplicity, filter on created_at as permits may not have submission_date
+    query = query.gte("created_at", cutoff)
+
+    if status:
+        query = query.eq("status", status)
+
+    if city:
+        query = query.ilike("city", f"%{city}%")
+
+    # Order by submission date descending (most recent first)
+    query = query.order("submission_date", desc=True, nullsfirst=False)
+
+    # Execute count
+    count_result = query.execute()
+    total = count_result.count if count_result.count else 0
+
+    # Apply pagination
+    offset = (page - 1) * page_size
+    query = query.range(offset, offset + page_size - 1)
+
+    result = query.execute()
+    permits = result.data or []
+
+    # Enrich with project links
+    items = []
+    for p in permits:
+        permit_id = p["id"]
+
+        # Get linked project
+        project_link = db.table("shark_project_permits").select(
+            "project_id"
+        ).eq("permit_id", permit_id).limit(1).execute()
+
+        project_id = None
+        project_name = None
+        if project_link.data:
+            project_id = project_link.data[0]["project_id"]
+            project = db.table("shark_projects").select("name").eq(
+                "id", project_id
+            ).execute()
+            if project.data:
+                project_name = project.data[0]["name"]
+
+        items.append(PermitSummary(
+            permit_id=permit_id,
+            external_id=p.get("external_id") or "",
+            reference=p.get("reference"),
+            permit_type=p.get("permit_type"),
+            status=p.get("status") or "filed",
+            applicant_name=p.get("applicant_name"),
+            city=p.get("city"),
+            postcode=p.get("postcode"),
+            region=p.get("region"),
+            description=p.get("description"),
+            estimated_surface=p.get("estimated_surface"),
+            estimated_units=p.get("estimated_units"),
+            submission_date=p.get("submission_date"),
+            decision_date=p.get("decision_date"),
+            project_id=project_id,
+            project_name=project_name,
+        ))
+
+    return PaginatedPermitsResponse(
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+@router.get("/permits/{permit_id}", response_model=PermitDetail)
+async def get_permit_detail(
+    permit_id: str,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """Get detailed permit information."""
+    db = get_supabase()
+
+    # Validate UUID
+    try:
+        UUID(permit_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid permit_id format")
+
+    # Load permit
+    result = db.table("shark_building_permits").select("*").eq(
+        "id", permit_id
+    ).eq("tenant_id", str(tenant_id)).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Permit not found")
+
+    p = result.data[0]
+
+    # Get linked projects
+    project_links = db.table("shark_project_permits").select(
+        "project_id, role, metadata"
+    ).eq("permit_id", permit_id).execute()
+
+    linked_projects = []
+    if project_links.data:
+        for link in project_links.data:
+            project = db.table("shark_projects").select(
+                "id, name, phase, shark_score"
+            ).eq("id", link["project_id"]).execute()
+
+            if project.data:
+                proj = project.data[0]
+                linked_projects.append({
+                    "project_id": proj["id"],
+                    "name": proj["name"],
+                    "phase": proj.get("phase"),
+                    "score": proj.get("shark_score"),
+                    "role": link.get("role"),
+                })
+
+    return PermitDetail(
+        permit_id=p["id"],
+        external_id=p.get("external_id") or "",
+        reference=p.get("reference"),
+        permit_type=p.get("permit_type"),
+        status=p.get("status") or "filed",
+        applicant_name=p.get("applicant_name"),
+        project_address=p.get("project_address"),
+        city=p.get("city"),
+        postcode=p.get("postcode"),
+        region=p.get("region"),
+        country=p.get("country") or "FR",
+        description=p.get("description"),
+        estimated_surface=p.get("estimated_surface"),
+        estimated_units=p.get("estimated_units"),
+        submission_date=p.get("submission_date"),
+        decision_date=p.get("decision_date"),
+        linked_projects=linked_projects,
+    )
+
+
+@router.post("/permits/ingest", response_model=ManualPermitIngestionResponse)
+async def manual_ingest_permit(
+    request: ManualPermitIngestionRequest,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """
+    Manually ingest a building permit (admin/debug endpoint).
+
+    This endpoint allows manual creation of permits for testing
+    or when automatic ingestion misses a permit.
+    """
+    try:
+        from services.shark_permits_service import (
+            PermitPayload,
+            ingest_permit_as_project,
+        )
+        from decimal import Decimal
+
+        db = get_supabase()
+
+        # Parse dates
+        submission_date = None
+        if request.submission_date:
+            try:
+                submission_date = datetime.fromisoformat(
+                    request.submission_date.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        decision_date = None
+        if request.decision_date:
+            try:
+                decision_date = datetime.fromisoformat(
+                    request.decision_date.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        # Build permit payload
+        permit = PermitPayload(
+            external_id=request.external_id,
+            reference=request.reference,
+            permit_type=request.permit_type,
+            status=request.status,
+            applicant_name=request.applicant_name,
+            project_address=request.project_address,
+            city=request.city,
+            postcode=request.postcode,
+            region=request.region,
+            country="FR",
+            description=request.description,
+            estimated_surface=Decimal(str(request.estimated_surface)) if request.estimated_surface else None,
+            estimated_units=request.estimated_units,
+            submission_date=submission_date,
+            decision_date=decision_date,
+            raw_data={"source": "manual_ingestion"},
+        )
+
+        # Ingest
+        result = await ingest_permit_as_project(permit, tenant_id, db)
+
+        return ManualPermitIngestionResponse(
+            permit_id=str(result.permit_id),
+            project_id=str(result.project_id) if result.project_id else None,
+            created_project=result.created_project,
+            reused_project=result.reused_project,
+            created_permit=result.created_permit,
+            created_organization=result.created_organization,
+            message=result.message or "permit_ingested",
+        )
+
+    except Exception as e:
+        logger.error(f"[API] Manual permit ingestion failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Permit ingestion failed: {str(e)}"
+        )
+
+
+@router.get("/projects/{project_id}/permits", response_model=List[PermitSummary])
+async def get_project_permits(
+    project_id: str,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    """Get all building permits linked to a project."""
+    db = get_supabase()
+
+    # Verify project exists and belongs to tenant
+    project = db.table("shark_projects").select("id").eq(
+        "id", project_id
+    ).eq("tenant_id", str(tenant_id)).execute()
+
+    if not project.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get permit links
+    links = db.table("shark_project_permits").select(
+        "permit_id, role"
+    ).eq("project_id", project_id).execute()
+
+    if not links.data:
+        return []
+
+    permits = []
+    for link in links.data:
+        permit_id = link["permit_id"]
+
+        # Get permit details
+        permit = db.table("shark_building_permits").select(
+            "id, external_id, reference, permit_type, status, applicant_name, "
+            "city, postcode, region, description, estimated_surface, estimated_units, "
+            "submission_date, decision_date"
+        ).eq("id", permit_id).execute()
+
+        if permit.data:
+            p = permit.data[0]
+
+            permits.append(PermitSummary(
+                permit_id=p["id"],
+                external_id=p.get("external_id") or "",
+                reference=p.get("reference"),
+                permit_type=p.get("permit_type"),
+                status=p.get("status") or "filed",
+                applicant_name=p.get("applicant_name"),
+                city=p.get("city"),
+                postcode=p.get("postcode"),
+                region=p.get("region"),
+                description=p.get("description"),
+                estimated_surface=p.get("estimated_surface"),
+                estimated_units=p.get("estimated_units"),
+                submission_date=p.get("submission_date"),
+                decision_date=p.get("decision_date"),
+                project_id=project_id,
+                project_name=None,  # Already known from context
+            ))
+
+    return permits
+
+
 @router.get("/admin/tenant-settings", response_model=TenantZoneSettingsResponse)
 async def get_tenant_settings(
     tenant_id: UUID = Depends(get_current_tenant_id),

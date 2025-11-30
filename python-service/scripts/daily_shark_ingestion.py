@@ -57,6 +57,20 @@ from services.shark_ingestion_service import (
     IngestionResult,
     SharkIngestionError,
 )
+from services.shark_boamp_service import (
+    fetch_recent_tenders_for_region,
+    fetch_tenders_by_keywords,
+    ingest_tenders_bulk,
+    BoampTender,
+    TenderIngestionSummary,
+)
+from services.shark_permits_service import (
+    fetch_recent_permits_for_region,
+    fetch_permits_by_city,
+    ingest_permits_bulk,
+    PermitPayload,
+    PermitIngestionSummary,
+)
 
 
 # ============================================================
@@ -176,6 +190,18 @@ class TenantStats:
         self.projects_created = 0
         self.projects_reused = 0
         self.no_btp_project = 0
+        # BOAMP statistics
+        self.tenders_fetched = 0
+        self.tenders_ingested = 0
+        self.tenders_new_projects = 0
+        self.tenders_reused_projects = 0
+        self.tenders_failed = 0
+        # Building permits statistics
+        self.permits_fetched = 0
+        self.permits_ingested = 0
+        self.permits_new_projects = 0
+        self.permits_reused_projects = 0
+        self.permits_failed = 0
         self.errors: List[Dict[str, str]] = []
 
 
@@ -195,6 +221,18 @@ class DailyStats:
         self.total_projects_created = 0
         self.total_projects_reused = 0
         self.total_no_btp_project = 0
+        # BOAMP aggregated statistics
+        self.total_tenders_fetched = 0
+        self.total_tenders_ingested = 0
+        self.total_tenders_new_projects = 0
+        self.total_tenders_reused_projects = 0
+        self.total_tenders_failed = 0
+        # Building permits aggregated statistics
+        self.total_permits_fetched = 0
+        self.total_permits_ingested = 0
+        self.total_permits_new_projects = 0
+        self.total_permits_reused_projects = 0
+        self.total_permits_failed = 0
         self.tenant_stats: Dict[str, TenantStats] = {}
         self.errors: List[Dict[str, str]] = []
 
@@ -216,6 +254,18 @@ class DailyStats:
         self.total_projects_created += ts.projects_created
         self.total_projects_reused += ts.projects_reused
         self.total_no_btp_project += ts.no_btp_project
+        # BOAMP stats
+        self.total_tenders_fetched += ts.tenders_fetched
+        self.total_tenders_ingested += ts.tenders_ingested
+        self.total_tenders_new_projects += ts.tenders_new_projects
+        self.total_tenders_reused_projects += ts.tenders_reused_projects
+        self.total_tenders_failed += ts.tenders_failed
+        # Permits stats
+        self.total_permits_fetched += ts.permits_fetched
+        self.total_permits_ingested += ts.permits_ingested
+        self.total_permits_new_projects += ts.permits_new_projects
+        self.total_permits_reused_projects += ts.permits_reused_projects
+        self.total_permits_failed += ts.permits_failed
         self.errors.extend(ts.errors)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -233,6 +283,18 @@ class DailyStats:
             "total_projects_created": self.total_projects_created,
             "total_projects_reused": self.total_projects_reused,
             "total_no_btp_project": self.total_no_btp_project,
+            # BOAMP stats
+            "total_tenders_fetched": self.total_tenders_fetched,
+            "total_tenders_ingested": self.total_tenders_ingested,
+            "total_tenders_new_projects": self.total_tenders_new_projects,
+            "total_tenders_reused_projects": self.total_tenders_reused_projects,
+            "total_tenders_failed": self.total_tenders_failed,
+            # Permits stats
+            "total_permits_fetched": self.total_permits_fetched,
+            "total_permits_ingested": self.total_permits_ingested,
+            "total_permits_new_projects": self.total_permits_new_projects,
+            "total_permits_reused_projects": self.total_permits_reused_projects,
+            "total_permits_failed": self.total_permits_failed,
             "errors_count": len(self.errors),
         }
 
@@ -247,32 +309,71 @@ class DailyStats:
         logger.info(f"Tenants processed:  {self.tenants_processed}")
         logger.info(f"Tenants skipped:    {self.tenants_skipped}")
         logger.info("-" * 40)
-        logger.info(f"Sources discovered: {self.total_sources_discovered}")
-        logger.info(f"Scraped success:    {self.total_scraped_success}")
-        logger.info(f"Scraped failed:     {self.total_scraped_failed}")
-        logger.info(f"Ingested success:   {self.total_ingested_success}")
-        logger.info(f"Ingested failed:    {self.total_ingested_failed}")
-        logger.info(f"No BTP project:     {self.total_no_btp_project}")
+        logger.info("ARTICLE INGESTION:")
+        logger.info(f"  Sources discovered: {self.total_sources_discovered}")
+        logger.info(f"  Scraped success:    {self.total_scraped_success}")
+        logger.info(f"  Scraped failed:     {self.total_scraped_failed}")
+        logger.info(f"  Ingested success:   {self.total_ingested_success}")
+        logger.info(f"  Ingested failed:    {self.total_ingested_failed}")
+        logger.info(f"  No BTP project:     {self.total_no_btp_project}")
         logger.info("-" * 40)
-        logger.info(f"Projects created:   {self.total_projects_created}")
-        logger.info(f"Projects reused:    {self.total_projects_reused}")
+        logger.info("BOAMP TENDERS:")
+        logger.info(f"  Tenders fetched:    {self.total_tenders_fetched}")
+        logger.info(f"  Tenders ingested:   {self.total_tenders_ingested}")
+        logger.info(f"  Tender new proj:    {self.total_tenders_new_projects}")
+        logger.info(f"  Tender reused proj: {self.total_tenders_reused_projects}")
+        logger.info(f"  Tenders failed:     {self.total_tenders_failed}")
+        logger.info("-" * 40)
+        logger.info("BUILDING PERMITS:")
+        logger.info(f"  Permits fetched:    {self.total_permits_fetched}")
+        logger.info(f"  Permits ingested:   {self.total_permits_ingested}")
+        logger.info(f"  Permit new proj:    {self.total_permits_new_projects}")
+        logger.info(f"  Permit reused proj: {self.total_permits_reused_projects}")
+        logger.info(f"  Permits failed:     {self.total_permits_failed}")
+        logger.info("-" * 40)
+        total_created = (
+            self.total_projects_created +
+            self.total_tenders_new_projects +
+            self.total_permits_new_projects
+        )
+        total_reused = (
+            self.total_projects_reused +
+            self.total_tenders_reused_projects +
+            self.total_permits_reused_projects
+        )
+        logger.info(f"TOTAL Projects created: {total_created}")
+        logger.info(f"TOTAL Projects reused:  {total_reused}")
         logger.info("=" * 60)
 
         # Per-tenant summary
         for tenant_id, ts in self.tenant_stats.items():
+            tenant_created = (
+                ts.projects_created +
+                ts.tenders_new_projects +
+                ts.permits_new_projects
+            )
+            tenant_reused = (
+                ts.projects_reused +
+                ts.tenders_reused_projects +
+                ts.permits_reused_projects
+            )
             logger.info(
                 f"[Tenant {tenant_id[:8]}...] "
                 f"Sources: {ts.sources_discovered}, "
-                f"Created: {ts.projects_created}, "
-                f"Reused: {ts.projects_reused}"
+                f"Tenders: {ts.tenders_fetched}, "
+                f"Permits: {ts.permits_fetched}, "
+                f"Created: {tenant_created}, "
+                f"Reused: {tenant_reused}"
             )
 
         # Final one-liner for Railway logs
         logger.info(
             f"[Daily] Tenants: {self.tenants_processed}, "
             f"Sources: {self.total_sources_discovered}, "
-            f"Created: {self.total_projects_created}, "
-            f"Reused: {self.total_projects_reused}"
+            f"Tenders: {self.total_tenders_fetched}, "
+            f"Permits: {self.total_permits_fetched}, "
+            f"Created: {total_created}, "
+            f"Reused: {total_reused}"
         )
 
 
@@ -358,6 +459,156 @@ async def process_source(
 
 
 # ============================================================
+# PROCESS BOAMP TENDERS FOR TENANT
+# ============================================================
+
+async def process_boamp_tenders(
+    tenant_config: TenantZoneConfig,
+    stats: TenantStats,
+    lookback_days: int = 7,
+) -> None:
+    """
+    Fetch and ingest BOAMP tenders for a tenant.
+
+    Args:
+        tenant_config: Tenant zone configuration
+        stats: TenantStats to update
+        lookback_days: How many days back to search
+    """
+    from supabase import create_client
+    import os
+
+    tenant_id = tenant_config.tenant_id
+
+    # Skip if no region configured
+    if not tenant_config.region:
+        logger.debug(f"[{str(tenant_id)[:8]}] No region for BOAMP, skipping")
+        return
+
+    logger.info(f"[{str(tenant_id)[:8]}] Fetching BOAMP tenders for {tenant_config.region}...")
+
+    try:
+        # 1. Fetch tenders
+        tenders, fetch_summary = await fetch_recent_tenders_for_region(
+            region=tenant_config.region,
+            lookback_days=lookback_days,
+        )
+
+        stats.tenders_fetched = len(tenders)
+
+        if not tenders:
+            logger.info(f"[{str(tenant_id)[:8]}] No BOAMP tenders found")
+            return
+
+        logger.info(f"[{str(tenant_id)[:8]}] Found {len(tenders)} BOAMP tenders")
+
+        # 2. Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+        if not supabase_url or not supabase_key:
+            logger.error(f"[{str(tenant_id)[:8]}] Supabase not configured for BOAMP")
+            return
+
+        db = create_client(supabase_url, supabase_key)
+
+        # 3. Ingest tenders
+        summary = await ingest_tenders_bulk(tenders, tenant_id, db)
+
+        # 4. Update stats
+        stats.tenders_ingested = summary.new_tenders
+        stats.tenders_new_projects = summary.new_projects
+        stats.tenders_reused_projects = summary.reused_projects
+        stats.tenders_failed = summary.failed
+
+        logger.info(
+            f"[{str(tenant_id)[:8]}] BOAMP complete: "
+            f"ingested={summary.new_tenders}, "
+            f"new_projects={summary.new_projects}, "
+            f"reused={summary.reused_projects}"
+        )
+
+    except Exception as e:
+        logger.error(f"[{str(tenant_id)[:8]}] BOAMP processing error: {e}")
+        stats.errors.append({"url": "boamp", "error": str(e)})
+
+
+# ============================================================
+# PROCESS BUILDING PERMITS FOR TENANT
+# ============================================================
+
+async def process_building_permits(
+    tenant_config: TenantZoneConfig,
+    stats: TenantStats,
+    lookback_days: int = 30,
+) -> None:
+    """
+    Fetch and ingest building permits for a tenant.
+
+    Args:
+        tenant_config: Tenant zone configuration
+        stats: TenantStats to update
+        lookback_days: How many days back to search (permits are less frequent, use 30 days)
+    """
+    from supabase import create_client
+    import os
+
+    tenant_id = tenant_config.tenant_id
+
+    # Skip if no region configured
+    if not tenant_config.region:
+        logger.debug(f"[{str(tenant_id)[:8]}] No region for permits, skipping")
+        return
+
+    logger.info(f"[{str(tenant_id)[:8]}] Fetching building permits for {tenant_config.region}...")
+
+    try:
+        # 1. Fetch permits
+        permits, fetch_summary = await fetch_recent_permits_for_region(
+            region=tenant_config.region,
+            lookback_days=lookback_days,
+        )
+
+        stats.permits_fetched = len(permits)
+
+        if not permits:
+            logger.info(f"[{str(tenant_id)[:8]}] No building permits found")
+            return
+
+        logger.info(f"[{str(tenant_id)[:8]}] Found {len(permits)} building permits")
+
+        # 2. Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+        if not supabase_url or not supabase_key:
+            logger.error(f"[{str(tenant_id)[:8]}] Supabase not configured for permits")
+            return
+
+        db = create_client(supabase_url, supabase_key)
+
+        # 3. Ingest permits
+        summary = await ingest_permits_bulk(permits, tenant_id, db)
+
+        # 4. Update stats
+        stats.permits_ingested = summary.new_permits
+        stats.permits_new_projects = summary.new_projects
+        stats.permits_reused_projects = summary.reused_projects
+        stats.permits_failed = summary.failed
+
+        logger.info(
+            f"[{str(tenant_id)[:8]}] Permits complete: "
+            f"ingested={summary.new_permits}, "
+            f"new_projects={summary.new_projects}, "
+            f"reused={summary.reused_projects}"
+        )
+
+    except Exception as e:
+        logger.error(f"[{str(tenant_id)[:8]}] Permits processing error: {e}")
+        stats.errors.append({"url": "permits", "error": str(e)})
+
+
+# ============================================================
 # PROCESS SINGLE TENANT
 # ============================================================
 
@@ -415,8 +666,31 @@ async def process_tenant(
     await asyncio.gather(*tasks, return_exceptions=True)
 
     logger.info(
-        f"[{str(tenant_id)[:8]}] Completed: "
+        f"[{str(tenant_id)[:8]}] Article ingestion: "
         f"created={stats.projects_created}, reused={stats.projects_reused}"
+    )
+
+    # 3. Process BOAMP tenders (independent from article ingestion)
+    await process_boamp_tenders(
+        tenant_config=tenant_config,
+        stats=stats,
+        lookback_days=config.lookback_days,
+    )
+
+    # 4. Process building permits (look back 30 days for permits)
+    await process_building_permits(
+        tenant_config=tenant_config,
+        stats=stats,
+        lookback_days=30,  # Permits are less frequent, use 30 days
+    )
+
+    total_new = stats.projects_created + stats.tenders_new_projects + stats.permits_new_projects
+    logger.info(
+        f"[{str(tenant_id)[:8]}] Completed: "
+        f"articles_created={stats.projects_created}, "
+        f"tenders_projects={stats.tenders_new_projects}, "
+        f"permits_projects={stats.permits_new_projects}, "
+        f"total_new={total_new}"
     )
 
     return stats

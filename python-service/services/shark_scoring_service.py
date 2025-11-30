@@ -123,6 +123,24 @@ LOW_AI_CONFIDENCE_THRESHOLD = 0.50
 TIME_DECAY_120_DAYS = -30
 TIME_DECAY_60_DAYS = -10
 
+# ============================================================
+# APPELS D'OFFRES (PUBLIC TENDERS) SCORING
+# ============================================================
+
+# Bonus for projects with linked public tenders
+BONUS_APPEL_OFFRES = 30
+
+# Deadline urgency bonuses
+BONUS_DEADLINE_15_DAYS = 40    # Very urgent: <= 15 days
+BONUS_DEADLINE_30_DAYS = 20    # Urgent: <= 30 days
+BONUS_DEADLINE_60_DAYS = 10    # Soon: <= 60 days
+
+# Phase multiplier for appel_offres phase
+PHASE_APPEL_OFFRES_MULTIPLIER = 1.15
+
+# Penalty when deadline has passed
+PENALTY_DEADLINE_PASSED = -70
+
 # Priority thresholds
 PRIORITY_CRITICAL = 90
 PRIORITY_HIGH = 70
@@ -383,6 +401,130 @@ def calculate_bonus_malus(
     return bonus, malus, details
 
 
+def score_public_tenders(
+    tenders: List[Dict[str, Any]],
+    project_phase: Optional[str]
+) -> Tuple[int, Dict[str, Any]]:
+    """
+    Calculate bonus points from linked public tenders (appels d'offres).
+
+    Bonuses:
+    - BONUS_APPEL_OFFRES: Base bonus for having any linked tender
+    - Deadline urgency:
+        - <= 15 days: +40
+        - <= 30 days: +20
+        - <= 60 days: +10
+    - Deadline passed: -70 penalty
+
+    Returns:
+        Tuple of (total_points, details)
+    """
+    if not tenders:
+        return 0, {"has_tender": False}
+
+    total = BONUS_APPEL_OFFRES
+    details = {
+        "has_tender": True,
+        "tender_count": len(tenders),
+        "base_bonus": BONUS_APPEL_OFFRES,
+    }
+
+    # Find the most urgent deadline among all tenders
+    min_days_until_deadline = None
+    closest_deadline = None
+
+    for tender in tenders:
+        deadline_str = tender.get("deadline_at")
+        if not deadline_str:
+            continue
+
+        try:
+            if isinstance(deadline_str, str):
+                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            elif isinstance(deadline_str, datetime):
+                deadline = deadline_str
+            else:
+                continue
+
+            # Make timezone-naive for comparison
+            if deadline.tzinfo is not None:
+                deadline = deadline.replace(tzinfo=None)
+
+            days_until = (deadline - datetime.utcnow()).days
+
+            if min_days_until_deadline is None or days_until < min_days_until_deadline:
+                min_days_until_deadline = days_until
+                closest_deadline = deadline.isoformat()
+
+        except (ValueError, TypeError):
+            continue
+
+    # Apply deadline-based bonus/malus
+    if min_days_until_deadline is not None:
+        details["closest_deadline"] = closest_deadline
+        details["days_until_deadline"] = min_days_until_deadline
+
+        if min_days_until_deadline < 0:
+            # Deadline passed - heavy penalty
+            total += PENALTY_DEADLINE_PASSED
+            details["deadline_penalty"] = PENALTY_DEADLINE_PASSED
+            details["deadline_status"] = "passed"
+        elif min_days_until_deadline <= 15:
+            total += BONUS_DEADLINE_15_DAYS
+            details["urgency_bonus"] = BONUS_DEADLINE_15_DAYS
+            details["deadline_status"] = "very_urgent"
+        elif min_days_until_deadline <= 30:
+            total += BONUS_DEADLINE_30_DAYS
+            details["urgency_bonus"] = BONUS_DEADLINE_30_DAYS
+            details["deadline_status"] = "urgent"
+        elif min_days_until_deadline <= 60:
+            total += BONUS_DEADLINE_60_DAYS
+            details["urgency_bonus"] = BONUS_DEADLINE_60_DAYS
+            details["deadline_status"] = "soon"
+        else:
+            details["deadline_status"] = "distant"
+
+    return total, details
+
+
+async def load_project_tenders(
+    project_id: UUID,
+    db: Client
+) -> List[Dict[str, Any]]:
+    """
+    Load public tenders linked to a project.
+
+    Returns:
+        List of tender records with deadline info
+    """
+    try:
+        # Get tender links
+        links = db.table("shark_project_tenders").select(
+            "tender_id"
+        ).eq("project_id", str(project_id)).execute()
+
+        if not links.data:
+            return []
+
+        tenders = []
+        for link in links.data:
+            tender_id = link["tender_id"]
+
+            # Get tender details
+            tender = db.table("shark_public_tenders").select(
+                "id, external_id, title, deadline_at, status, cpv_codes"
+            ).eq("id", tender_id).execute()
+
+            if tender.data:
+                tenders.append(tender.data[0])
+
+        return tenders
+
+    except Exception as e:
+        logger.warning(f"Failed to load tenders for project {project_id}: {e}")
+        return []
+
+
 # ============================================================
 # DATA LOADING FUNCTIONS
 # ============================================================
@@ -584,14 +726,19 @@ async def compute_shark_score(
     orgs = await load_project_organizations(project_id, db)
     news_count, latest_news_date = await load_recent_news(project_id, db)
     people, latest_person_date = await load_project_people(project_id, db)
+    tenders = await load_project_tenders(project_id, db)
 
     # Calculate score components
-    phase_points = score_phase(project.get("phase"))
+    project_phase = project.get("phase")
+    phase_points = score_phase(project_phase)
     scale_points = score_scale(project.get("estimated_scale"))
     date_points, days_until_start = score_date_urgency(project.get("start_date_est"))
     news_points = score_news(news_count)
     org_points, org_breakdown = score_organizations(orgs)
     people_points, people_details = score_people(people)
+
+    # Calculate public tenders score (appels d'offres)
+    tender_points, tender_details = score_public_tenders(tenders, project_phase)
 
     # Calculate average AI confidence from orgs
     ai_confidences = [o.get("ai_confidence") or 0 for o in orgs if o.get("ai_confidence")]
@@ -614,10 +761,15 @@ async def compute_shark_score(
         news_points +
         org_points +
         people_points +
+        tender_points +  # Include tender bonus
         bonus_points +
         malus_points +
         time_decay_penalty
     )
+
+    # Apply phase multiplier for appel_offres phase
+    if project_phase and project_phase.lower() == "appel_offres" and tender_details.get("has_tender"):
+        raw_total = int(raw_total * PHASE_APPEL_OFFRES_MULTIPLIER)
 
     # Clamp to 0-100
     final_score = max(0, min(100, raw_total))
@@ -628,18 +780,20 @@ async def compute_shark_score(
     # Build details
     details = {
         "breakdown": {
-            "phase": {"points": phase_points, "value": project.get("phase")},
+            "phase": {"points": phase_points, "value": project_phase},
             "scale": {"points": scale_points, "value": project.get("estimated_scale")},
             "date_urgency": {"points": date_points, "days_until_start": days_until_start},
             "news": {"points": news_points, "count": news_count, "lookback_days": NEWS_LOOKBACK_DAYS},
             "organizations": {"points": org_points, "count": len(orgs), "breakdown": org_breakdown},
             "people": {"points": people_points, **people_details},
+            "tenders": {"points": tender_points, **tender_details},
             "bonus": {"points": bonus_points},
             "malus": {"points": malus_points, **bonus_malus_details},
         },
         "time_decay": time_decay_details,
         "raw_total": raw_total,
         "final_score": final_score,
+        "phase_multiplier_applied": project_phase and project_phase.lower() == "appel_offres" and tender_details.get("has_tender"),
     }
 
     # Update database

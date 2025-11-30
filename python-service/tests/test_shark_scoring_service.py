@@ -692,6 +692,165 @@ class TestFullScoring:
 
 
 # ============================================================
+# TEST: PUBLIC TENDERS SCORING
+# ============================================================
+
+class TestTenderScoring:
+    """Tests for public tenders (appels d'offres) scoring."""
+
+    def test_score_public_tenders_no_tenders(self):
+        """Test scoring with no tenders."""
+        from services.shark_scoring_service import score_public_tenders
+
+        points, details = score_public_tenders([], "travaux")
+
+        assert points == 0
+        assert details["has_tender"] is False
+        print("\n OK - score_public_tenders (no tenders)")
+
+    def test_score_public_tenders_base_bonus(self):
+        """Test base bonus for having a tender."""
+        from services.shark_scoring_service import score_public_tenders
+
+        tenders = [{"id": "1", "external_id": "AO-2024-001"}]
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        assert points == 30  # BONUS_APPEL_OFFRES
+        assert details["has_tender"] is True
+        assert details["tender_count"] == 1
+        assert details["base_bonus"] == 30
+        print("\n OK - score_public_tenders (base bonus)")
+
+    def test_score_public_tenders_deadline_15_days(self):
+        """Test urgent deadline bonus (<= 15 days)."""
+        from services.shark_scoring_service import score_public_tenders
+
+        deadline = (datetime.utcnow() + timedelta(days=10)).isoformat()
+        tenders = [{"id": "1", "external_id": "AO-2024-001", "deadline_at": deadline}]
+
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        # 30 (base) + 40 (urgency) = 70
+        assert points == 70
+        assert details["urgency_bonus"] == 40
+        assert details["deadline_status"] == "very_urgent"
+        print("\n OK - score_public_tenders (deadline <= 15 days)")
+
+    def test_score_public_tenders_deadline_30_days(self):
+        """Test deadline bonus (<= 30 days)."""
+        from services.shark_scoring_service import score_public_tenders
+
+        deadline = (datetime.utcnow() + timedelta(days=25)).isoformat()
+        tenders = [{"id": "1", "external_id": "AO-2024-001", "deadline_at": deadline}]
+
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        # 30 (base) + 20 (urgency) = 50
+        assert points == 50
+        assert details["urgency_bonus"] == 20
+        assert details["deadline_status"] == "urgent"
+        print("\n OK - score_public_tenders (deadline <= 30 days)")
+
+    def test_score_public_tenders_deadline_60_days(self):
+        """Test deadline bonus (<= 60 days)."""
+        from services.shark_scoring_service import score_public_tenders
+
+        deadline = (datetime.utcnow() + timedelta(days=45)).isoformat()
+        tenders = [{"id": "1", "external_id": "AO-2024-001", "deadline_at": deadline}]
+
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        # 30 (base) + 10 (urgency) = 40
+        assert points == 40
+        assert details["urgency_bonus"] == 10
+        assert details["deadline_status"] == "soon"
+        print("\n OK - score_public_tenders (deadline <= 60 days)")
+
+    def test_score_public_tenders_deadline_passed(self):
+        """Test penalty when deadline has passed."""
+        from services.shark_scoring_service import score_public_tenders
+
+        deadline = (datetime.utcnow() - timedelta(days=5)).isoformat()
+        tenders = [{"id": "1", "external_id": "AO-2024-001", "deadline_at": deadline}]
+
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        # 30 (base) - 70 (penalty) = -40
+        assert points == -40
+        assert details["deadline_penalty"] == -70
+        assert details["deadline_status"] == "passed"
+        print("\n OK - score_public_tenders (deadline passed)")
+
+    def test_score_public_tenders_multiple_tenders(self):
+        """Test scoring uses the most urgent deadline."""
+        from services.shark_scoring_service import score_public_tenders
+
+        # Multiple tenders with different deadlines
+        tenders = [
+            {"id": "1", "external_id": "AO-1", "deadline_at": (datetime.utcnow() + timedelta(days=50)).isoformat()},
+            {"id": "2", "external_id": "AO-2", "deadline_at": (datetime.utcnow() + timedelta(days=10)).isoformat()},  # Most urgent
+            {"id": "3", "external_id": "AO-3", "deadline_at": (datetime.utcnow() + timedelta(days=30)).isoformat()},
+        ]
+
+        points, details = score_public_tenders(tenders, "appel_offres")
+
+        # Should use the 10-day deadline (most urgent)
+        assert details["days_until_deadline"] <= 11  # Allow for rounding
+        assert details["deadline_status"] == "very_urgent"
+        assert details["tender_count"] == 3
+        print("\n OK - score_public_tenders (multiple tenders, uses most urgent)")
+
+    @pytest.mark.asyncio
+    async def test_tender_integration_scoring(self):
+        """Test tender scoring integration with compute_shark_score."""
+        from services.shark_scoring_service import compute_shark_score
+
+        project_id = uuid4()
+        tenant_id = uuid4()
+
+        mock_db = MagicMock()
+
+        # Project in appel_offres phase
+        project = make_project(phase="appel_offres", scale="Large")
+        project["id"] = str(project_id)
+        project["tenant_id"] = str(tenant_id)
+
+        tender_id = str(uuid4())
+        deadline = (datetime.utcnow() + timedelta(days=12)).isoformat()
+
+        def mock_table(table_name):
+            mock = MagicMock()
+            if table_name == "shark_projects":
+                mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[project])
+                mock.update.return_value.eq.return_value.execute.return_value = MagicMock()
+            elif table_name == "shark_project_tenders":
+                mock.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[
+                    {"tender_id": tender_id}
+                ])
+            elif table_name == "shark_public_tenders":
+                mock.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[
+                    {"id": tender_id, "external_id": "AO-2024-001", "title": "Test AO", "deadline_at": deadline, "status": "published", "cpv_codes": ["45000000"]}
+                ])
+            else:
+                mock.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+            return mock
+
+        mock_db.table = mock_table
+
+        result = await compute_shark_score(project_id, tenant_id, mock_db)
+
+        # Should have tender bonus in breakdown
+        assert "tenders" in result.details["breakdown"]
+        assert result.details["breakdown"]["tenders"]["has_tender"] is True
+        assert result.details["breakdown"]["tenders"]["points"] >= 30  # Base + urgency
+
+        # Phase multiplier should be applied (appel_offres with tender)
+        assert result.details.get("phase_multiplier_applied") is True
+
+        print(f"\n OK - tender_integration_scoring: score={result.score}, tender_points={result.details['breakdown']['tenders']['points']}")
+
+
+# ============================================================
 # MAIN TEST RUNNER
 # ============================================================
 
@@ -735,6 +894,16 @@ if __name__ == "__main__":
     malus_tests.test_malus_low_confidence()
     malus_tests.test_no_malus_good_data()
 
+    print("\n--- Public Tenders Scoring Tests ---")
+    tender_tests = TestTenderScoring()
+    tender_tests.test_score_public_tenders_no_tenders()
+    tender_tests.test_score_public_tenders_base_bonus()
+    tender_tests.test_score_public_tenders_deadline_15_days()
+    tender_tests.test_score_public_tenders_deadline_30_days()
+    tender_tests.test_score_public_tenders_deadline_60_days()
+    tender_tests.test_score_public_tenders_deadline_passed()
+    tender_tests.test_score_public_tenders_multiple_tenders()
+
     # Run async tests
     print("\n--- Integration Tests (Mocked) ---")
 
@@ -747,6 +916,10 @@ if __name__ == "__main__":
         await full_tests.test_bonus_sherlock_integration()
         await full_tests.test_time_decay_integration()
         await full_tests.test_score_clamping()
+
+        # Tender integration test
+        tender_tests = TestTenderScoring()
+        await tender_tests.test_tender_integration_scoring()
 
     asyncio.run(run_async_tests())
 

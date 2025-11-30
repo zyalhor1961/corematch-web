@@ -7,7 +7,7 @@ import {
   Search, Clock, Building2, Globe, ExternalLink, Sparkles,
   CheckCircle2, Loader2, ArrowRight, FolderSearch, Users,
   MapPin, Crosshair, Coins, Zap, Plus, AlertCircle, ChevronDown,
-  UserSearch, Package, Handshake, Filter
+  UserSearch, Package, Handshake, Filter, Radar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -105,6 +105,11 @@ export default function SourcingPage() {
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Radar addition state
+  const [addingToRadarId, setAddingToRadarId] = useState<string | null>(null);
+  const [addedToRadarIds, setAddedToRadarIds] = useState<Set<string>>(new Set());
+  const [radarSuccess, setRadarSuccess] = useState<string | null>(null);
 
   // Fetch credits on mount
   useEffect(() => {
@@ -300,6 +305,63 @@ export default function SourcingPage() {
       alert('Erreur lors de l\'enrichissement');
     } finally {
       setEnrichingLeadId(null);
+    }
+  };
+
+  // ============================================================
+  // ADD TO RADAR LOGIC
+  // ============================================================
+
+  const handleAddToRadar = async (lead: SourcedLead) => {
+    if (!lead.url) {
+      setError('Ce lead n\'a pas d\'URL valide');
+      return;
+    }
+
+    setAddingToRadarId(lead.id);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/shark/from-sourcing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Org-Id': orgId,
+        },
+        body: JSON.stringify({
+          sourceUrl: lead.url,
+          sourceName: extractDomain(lead.url) || 'Sourcing',
+          title: lead.company_name,
+          snippet: lead.exa_summary || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de l\'ajout au radar');
+      }
+
+      // Success - mark as added
+      setAddedToRadarIds(prev => new Set([...prev, lead.id]));
+
+      // Show success message
+      if (data.created_project) {
+        setRadarSuccess('Nouveau projet detecte et ajoute a votre radar Shark Hunter');
+      } else if (data.reused_existing_project) {
+        setRadarSuccess('Article lie a un projet existant dans votre radar');
+      } else {
+        setRadarSuccess('Article analyse - pas de projet BTP detecte');
+      }
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setRadarSuccess(null), 5000);
+
+    } catch (err) {
+      console.error('Add to radar error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'ajout au radar');
+    } finally {
+      setAddingToRadarId(null);
     }
   };
 
@@ -736,38 +798,76 @@ export default function SourcingPage() {
                               </div>
                             )}
 
-                            {lead.is_converted_to_lead ? (
-                              <a
-                                href={`/org/${orgId}/crm/leads`}
-                                className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-400 text-xs hover:bg-white/10 transition-colors flex items-center gap-1"
-                              >
-                                Voir CRM
-                                <ArrowRight size={12} />
-                              </a>
-                            ) : (
-                              <button
-                                onClick={() => handleEnrichAndConvert(lead.id)}
-                                disabled={enrichingLeadId === lead.id}
-                                className={cn(
-                                  "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all",
-                                  enrichingLeadId === lead.id
-                                    ? "bg-purple-500/30 text-purple-300 cursor-wait"
-                                    : "bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:from-purple-600 hover:to-cyan-600 shadow-lg shadow-purple-500/20"
-                                )}
-                              >
-                                {enrichingLeadId === lead.id ? (
-                                  <>
-                                    <Loader2 size={12} className="animate-spin" />
-                                    Enrichissement...
-                                  </>
+                            {/* Action Buttons */}
+                            <div className="flex flex-col gap-2">
+                              {/* Add to Radar Button */}
+                              {lead.url && (
+                                addedToRadarIds.has(lead.id) ? (
+                                  <span className="px-3 py-1.5 rounded-lg bg-teal-500/20 text-teal-400 text-xs font-medium flex items-center gap-1.5">
+                                    <Radar size={12} />
+                                    Ajoute au radar
+                                  </span>
                                 ) : (
-                                  <>
-                                    <Sparkles size={12} />
-                                    Enrichir & Ajouter
-                                  </>
-                                )}
-                              </button>
-                            )}
+                                  <button
+                                    onClick={() => handleAddToRadar(lead)}
+                                    disabled={addingToRadarId === lead.id}
+                                    aria-label={`Ajouter ${lead.company_name} au radar Shark Hunter`}
+                                    className={cn(
+                                      "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all",
+                                      addingToRadarId === lead.id
+                                        ? "bg-teal-500/30 text-teal-300 cursor-wait"
+                                        : "bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-600 hover:to-cyan-600 shadow-lg shadow-teal-500/20"
+                                    )}
+                                  >
+                                    {addingToRadarId === lead.id ? (
+                                      <>
+                                        <Loader2 size={12} className="animate-spin" />
+                                        Analyse en cours...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Radar size={12} />
+                                        Ajouter au radar
+                                      </>
+                                    )}
+                                  </button>
+                                )
+                              )}
+
+                              {/* Enrichir & Ajouter / Voir CRM */}
+                              {lead.is_converted_to_lead ? (
+                                <a
+                                  href={`/org/${orgId}/crm/leads`}
+                                  className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-400 text-xs hover:bg-white/10 transition-colors flex items-center gap-1"
+                                >
+                                  Voir CRM
+                                  <ArrowRight size={12} />
+                                </a>
+                              ) : (
+                                <button
+                                  onClick={() => handleEnrichAndConvert(lead.id)}
+                                  disabled={enrichingLeadId === lead.id}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all",
+                                    enrichingLeadId === lead.id
+                                      ? "bg-purple-500/30 text-purple-300 cursor-wait"
+                                      : "bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:from-purple-600 hover:to-cyan-600 shadow-lg shadow-purple-500/20"
+                                  )}
+                                >
+                                  {enrichingLeadId === lead.id ? (
+                                    <>
+                                      <Loader2 size={12} className="animate-spin" />
+                                      Enrichissement...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles size={12} />
+                                      Enrichir & Ajouter
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </motion.div>
@@ -793,20 +893,44 @@ export default function SourcingPage() {
         orgBusinessContext={orgBusinessContext || undefined}
       />
 
+      {/* Success Toast for Radar */}
+      <AnimatePresence>
+        {radarSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 right-4 bg-teal-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
+          >
+            <Radar size={16} />
+            <div>
+              <p className="font-medium">Analyse lancee</p>
+              <p className="text-sm text-teal-100">{radarSuccess}</p>
+            </div>
+            <button onClick={() => setRadarSuccess(null)} className="ml-2 hover:text-white/80">
+              &times;
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Error Toast */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-4 right-4 bg-rose-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2"
-        >
-          <AlertCircle size={16} />
-          {error}
-          <button onClick={() => setError(null)} className="ml-2 hover:text-white/80">
-            &times;
-          </button>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-20 right-4 bg-rose-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
+          >
+            <AlertCircle size={16} />
+            {error}
+            <button onClick={() => setError(null)} className="ml-2 hover:text-white/80">
+              &times;
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1345,6 +1345,115 @@ async def upsert_tenant_settings(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================
+# SOURCING INGESTION
+# ============================================================
+
+class SourcingIngestionRequest(BaseModel):
+    """Request body for sourcing ingestion."""
+    tenant_id: UUID
+    source_url: str
+    source_name: Optional[str] = None
+    title_hint: Optional[str] = None
+    snippet_hint: Optional[str] = None
+
+
+class SourcingIngestionResponse(BaseModel):
+    """Response from sourcing ingestion."""
+    tenant_id: str
+    project_id: Optional[str] = None
+    news_id: Optional[str] = None
+    created_project: bool = False
+    reused_existing_project: bool = False
+    created_organizations_count: int = 0
+    reused_organizations_count: int = 0
+    message: str
+
+
+@router.post("/ingest-from-sourcing", response_model=SourcingIngestionResponse)
+async def ingest_from_sourcing(
+    request: SourcingIngestionRequest,
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """
+    Ingest an article from the Sourcing page into Shark Hunter.
+
+    This endpoint is called by the Next.js API /api/shark/from-sourcing
+    when a user clicks "Ajouter au radar" in the Sourcing page.
+
+    The ingestion process:
+    1. Scrapes the URL via Firecrawl
+    2. Extracts project information via AI
+    3. Creates/updates project in shark_projects
+    4. Creates news item linked to project
+    5. Marks origin as 'user_sourcing'
+
+    Request body:
+    - tenant_id: UUID of the tenant (verified against header)
+    - source_url: URL to scrape and ingest
+    - source_name: Optional source name (e.g., "Le Moniteur")
+    - title_hint: Optional title from search results
+    - snippet_hint: Optional snippet from search results
+    """
+    # Verify tenant_id matches header
+    if request.tenant_id != tenant_id:
+        logger.warning(
+            f"[SourcingIngestion] Tenant ID mismatch: body={request.tenant_id}, header={tenant_id}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant ID in body does not match authenticated tenant"
+        )
+
+    logger.info(
+        f"[SourcingIngestion] Ingest request: tenant={tenant_id}, url={request.source_url}"
+    )
+
+    try:
+        from services.shark_sourcing_ingestion_service import (
+            ingest_article_from_sourcing,
+            SourcingIngestionInput,
+            SourcingIngestionError,
+        )
+
+        input_data = SourcingIngestionInput(
+            tenant_id=request.tenant_id,
+            source_url=request.source_url,
+            source_name=request.source_name,
+            title_hint=request.title_hint,
+            snippet_hint=request.snippet_hint,
+        )
+
+        result = await ingest_article_from_sourcing(input_data)
+
+        return SourcingIngestionResponse(
+            tenant_id=str(result.tenant_id),
+            project_id=str(result.project_id) if result.project_id else None,
+            news_id=str(result.news_id) if result.news_id else None,
+            created_project=result.created_project,
+            reused_existing_project=result.reused_existing_project,
+            created_organizations_count=result.created_organizations_count,
+            reused_organizations_count=result.reused_organizations_count,
+            message=result.message or "ingestion_completed",
+        )
+
+    except Exception as e:
+        # Check if it's a SourcingIngestionError
+        error_message = str(e)
+        if "SourcingIngestionError" in type(e).__name__ or "Failed to scrape" in error_message:
+            logger.error(f"[SourcingIngestion] Scraping/Ingestion error: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Ingestion failed: {error_message}"
+            )
+
+        logger.exception(f"[SourcingIngestion] Unexpected error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error during ingestion: {error_message}"
+        )
+
+
 @router.get("/admin/tenant-settings", response_model=TenantZoneSettingsResponse)
 async def get_tenant_settings(
     tenant_id: UUID = Depends(get_current_tenant_id),

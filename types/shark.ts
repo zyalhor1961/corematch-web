@@ -313,3 +313,30 @@ export const ACTIVITY_TYPE_LABELS: Record<SharkActivityType, string> = {
     osint_enrichment: 'Recherche Web',
     ingestion: 'Analyse IA',
 };
+
+// =============================================================================
+// Sourcing → Shark Ingestion Types
+// =============================================================================
+
+/**
+ * Request body for /api/shark/from-sourcing
+ * Sent from the Sourcing page when user clicks "Ajouter au radar"
+ */
+export interface SharkFromSourcingRequest {
+    sourceUrl: string;
+    sourceName?: string;
+    title?: string;
+    snippet?: string;
+}
+
+/**
+ * Response from /api/shark/from-sourcing
+ */
+export interface SharkFromSourcingResponse {
+    status: 'ok' | 'error';
+    project_id: string | null;
+    news_id: string | null;
+    created_project: boolean;
+    reused_existing_project: boolean;
+    message: string;
+}

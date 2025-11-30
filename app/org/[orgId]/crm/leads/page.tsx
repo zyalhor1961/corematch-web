@@ -454,6 +454,7 @@ export default function LeadsPage() {
         onSave={handleSaveLead}
         onDelete={handleDeleteLead}
         onAddActivity={handleAddActivity}
+        onStatusChange={handleLeadMove}
       />
 
       {/* Add Lead Modal */}

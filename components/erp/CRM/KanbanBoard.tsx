@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Plus, Sparkles, Target, FileText, Handshake, Trophy, XCircle,
-  MoreHorizontal
+  MoreHorizontal, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LeadCard, type Lead } from './LeadCard';
@@ -68,6 +68,14 @@ const columns: KanbanColumn[] = [
     bgColor: 'bg-emerald-500/10',
     borderColor: 'border-emerald-500/30',
   },
+  {
+    id: 'lost',
+    label: 'PERDU',
+    icon: XCircle,
+    color: 'text-rose-400',
+    bgColor: 'bg-rose-500/10',
+    borderColor: 'border-rose-500/30',
+  },
 ];
 
 export function KanbanBoard({
@@ -80,6 +88,33 @@ export function KanbanBoard({
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<LeadStatus | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  // Handle scroll state for arrow visibility
+  const updateScrollState = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      setCanScrollLeft(container.scrollLeft > 10);
+      setCanScrollRight(container.scrollLeft < container.scrollWidth - container.clientWidth - 10);
+    }
+  }, []);
+
+  // Scroll left/right handlers
+  const scrollLeft = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  }, []);
+
+  const scrollRight = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  }, []);
 
   // Group leads by status
   const leadsByStatus = columns.reduce((acc, col) => {
@@ -179,7 +214,36 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-200px)]">
+    <div className="relative">
+      {/* Left Arrow */}
+      {canScrollLeft && (
+        <button
+          onClick={scrollLeft}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-3 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full shadow-xl hover:bg-slate-800 transition-all group"
+          aria-label="Défiler vers la gauche"
+        >
+          <ChevronLeft size={24} className="text-white group-hover:text-cyan-400 transition-colors" />
+        </button>
+      )}
+
+      {/* Right Arrow */}
+      {canScrollRight && (
+        <button
+          onClick={scrollRight}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-3 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full shadow-xl hover:bg-slate-800 transition-all group"
+          aria-label="Défiler vers la droite"
+        >
+          <ChevronRight size={24} className="text-white group-hover:text-cyan-400 transition-colors" />
+        </button>
+      )}
+
+      {/* Columns Container */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={updateScrollState}
+        className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-200px)] px-10 scroll-smooth"
+        style={{ scrollbarWidth: 'thin' }}
+      >
       {columns.map((column) => {
         const columnLeads = leadsByStatus[column.id];
         const columnTotal = totalsByStatus[column.id];
@@ -194,7 +258,8 @@ export function KanbanBoard({
               isDragOver
                 ? `bg-white/10 ${column.borderColor} border-2 scale-[1.02]`
                 : "bg-white/5 border-white/10",
-              column.id === 'won' && "ring-1 ring-emerald-500/20"
+              column.id === 'won' && "ring-1 ring-emerald-500/20",
+              column.id === 'lost' && "ring-1 ring-rose-500/20"
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
@@ -203,7 +268,8 @@ export function KanbanBoard({
             {/* Column Header */}
             <div className={cn(
               "p-4 border-b border-white/10 rounded-t-2xl",
-              column.id === 'won' && "bg-emerald-500/5"
+              column.id === 'won' && "bg-emerald-500/5",
+              column.id === 'lost' && "bg-rose-500/5"
             )}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -217,7 +283,7 @@ export function KanbanBoard({
                     {columnLeads.length}
                   </span>
                 </div>
-                {onAddLead && column.id !== 'won' && (
+                {onAddLead && column.id !== 'won' && column.id !== 'lost' && (
                   <button
                     onClick={() => onAddLead(column.id)}
                     className="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
@@ -267,17 +333,6 @@ export function KanbanBoard({
           </div>
         );
       })}
-
-      {/* Lost column (collapsed by default) */}
-      <div className="flex-shrink-0 w-20 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-2">
-        <div className="flex flex-col items-center gap-2 py-4">
-          <div className="p-2 rounded-lg bg-rose-500/10">
-            <XCircle size={16} className="text-rose-400" />
-          </div>
-          <span className="text-xs text-rose-400 font-medium writing-mode-vertical rotate-180" style={{ writingMode: 'vertical-rl' }}>
-            Perdu ({leads.filter(l => l.status === 'lost').length})
-          </span>
-        </div>
       </div>
     </div>
   );

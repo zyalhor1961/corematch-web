@@ -27,6 +27,7 @@ interface LeadDrawerProps {
   onSave?: (lead: Partial<Lead>) => Promise<void>;
   onDelete?: (leadId: string) => Promise<void>;
   onAddActivity?: (leadId: string, activity: Omit<LeadActivity, 'id' | 'lead_id' | 'created_at'>) => Promise<void>;
+  onStatusChange?: (leadId: string, newStatus: Lead['status']) => Promise<void>;
 }
 
 const statusConfig = {
@@ -54,12 +55,14 @@ export function LeadDrawer({
   onSave,
   onDelete,
   onAddActivity,
+  onStatusChange,
 }: LeadDrawerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
   const [newNote, setNewNote] = useState('');
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
 
   useEffect(() => {
     if (lead) {
@@ -100,6 +103,35 @@ export function LeadDrawer({
       onClose();
     } catch (error) {
       console.error('Failed to delete lead:', error);
+    }
+  };
+
+  const handleQuickStatusChange = async (newStatus: Lead['status']) => {
+    if (!lead) return;
+
+    // If we have onStatusChange, use it (preferred for optimistic updates)
+    if (onStatusChange) {
+      setIsChangingStatus(true);
+      try {
+        await onStatusChange(lead.id, newStatus);
+        onClose();
+      } catch (error) {
+        console.error('Failed to change status:', error);
+      } finally {
+        setIsChangingStatus(false);
+      }
+    }
+    // Fallback to onSave if available
+    else if (onSave) {
+      setIsChangingStatus(true);
+      try {
+        await onSave({ status: newStatus });
+        onClose();
+      } catch (error) {
+        console.error('Failed to change status:', error);
+      } finally {
+        setIsChangingStatus(false);
+      }
     }
   };
 
@@ -258,6 +290,48 @@ export function LeadDrawer({
 
         {/* Content */}
         <div className="overflow-y-auto h-[calc(100%-80px)] p-4 space-y-6">
+          {/* Quick Actions Bar */}
+          {!isEditing && lead.status !== 'won' && lead.status !== 'lost' && (
+            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-4">
+              <h3 className="text-sm font-medium text-slate-300 mb-3">Actions rapides</h3>
+              <div className="flex flex-wrap gap-2">
+                {/* Mark as Won */}
+                <button
+                  onClick={() => handleQuickStatusChange('won')}
+                  disabled={isChangingStatus}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <Trophy size={14} />
+                  Marquer Gagné
+                </button>
+                {/* Mark as Lost */}
+                <button
+                  onClick={() => {
+                    if (confirm('Voulez-vous marquer ce lead comme perdu ?')) {
+                      handleQuickStatusChange('lost');
+                    }
+                  }}
+                  disabled={isChangingStatus}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <XCircle size={14} />
+                  Marquer Perdu
+                </button>
+                {/* Delete */}
+                {onDelete && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={isChangingStatus}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Value & Probability */}
           <div className="grid grid-cols-2 gap-4">
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-4">
